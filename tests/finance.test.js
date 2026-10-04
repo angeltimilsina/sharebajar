@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {convert,portfolioMetrics} from '../static/finance.js';
+test('FX rates quoted per base unit convert in the right direction',()=>{assert.equal(convert(90,'EUR',{rates:{EUR:.9}},'USD'),100);assert.equal(convert(90,'USD',{},'USD'),90);assert.equal(convert(90,'NPR',{},'USD'),null)});
+test('unavailable quotes do not silently become zero valuations',()=>{const holdings=[{asset:{id:'A',currency:'USD',type:'Stocks'},quantity:2,price:80,currency:'USD'},{asset:{id:'B',currency:'USD',type:'Stocks'},quantity:1,price:10,currency:'USD'}];const m=portfolioMetrics(holdings,{A:{price:100,currency:'USD',change:3},B:{error:'unavailable'}},{},'USD');assert.equal(m.value,200);assert.equal(m.cost,160);assert.equal(m.gain,40);assert.equal(m.daily,6);assert.equal(m.missing,1);assert.equal(m.rows[1].value,null)});
+test('cash and foreign holdings share a base currency',()=>{const m=portfolioMetrics([{asset:{type:'Cash',currency:'EUR'},quantity:90,price:1,currency:'EUR'}],{},{rates:{EUR:.9}},'USD');assert.equal(m.value,100);assert.equal(m.gain,0)});
+test('an unknown daily movement is not presented as zero',()=>{const m=portfolioMetrics([{asset:{id:'A',currency:'USD',type:'Stocks'},quantity:1,price:80,currency:'USD'}],{A:{price:100,currency:'USD'}},{},'USD');assert.equal(m.value,100);assert.equal(m.daily,null);assert.equal(m.dailyMissing,1)});
