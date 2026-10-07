@@ -4,7 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from urllib.parse import urlencode, quote
+from urllib.parse import urlsplit
 from typing import Protocol
+from market_db import cache_get,cache_put,provider_failure
 class DataUnavailable(Exception): pass
 class CryptoDataProvider(Protocol):
     def get_assets(self, page: int = 1): ...
@@ -13,21 +15,33 @@ class CryptoDataProvider(Protocol):
     def get_exchanges(self, page: int = 1): ...
     def get_exchange(self, exchange: str): ...
     def get_ohlc(self, asset: str, days: int): ...
-_cache = {}
-_lock = threading.Lock()
+_request_locks=[threading.Lock() for _ in range(64)]
 def request_json(url, ttl=120):
-    with _lock:
-        item = _cache.get(url)
-        if item and time.monotonic()-item[0] < ttl: return item[1]
+    import hashlib
+    lock=_request_locks[hashlib.sha256(url.encode()).digest()[0]%len(_request_locks)]
+    with lock:return fetch_json(url,ttl)
+
+def fetch_json(url,ttl):
+    host=urlsplit(url).hostname
+    provider={'query1.finance.yahoo.com':'yahoo','api.coingecko.com':'coingecko','www.alphavantage.co':'alphavantage','api.frankfurter.dev':'frankfurter'}.get(host)
+    if not provider:raise DataUnavailable('The requested market-data provider is not configured.')
+    cached=cache_get(url,ttl)
+    if cached is not None:return cached
     try:
         req = Request(url, headers={'User-Agent':'ShareBajar/0.1 (market research)', 'Accept':'application/json'})
-        with urlopen(req, timeout=12) as response: data = json.load(response)
+        with urlopen(req, timeout=12) as response: raw=response.read(8_000_001)
+        if len(raw)>8_000_000:raise ValueError('Provider response too large')
+        def reject_constant(value):raise ValueError('Non-finite provider value')
+        data=json.loads(raw,parse_constant=reject_constant)
+        if isinstance(data,dict) and (data.get('error') or data.get('Error Message') or data.get('Note') or data.get('Information') or data.get('chart',{}).get('error')):raise ValueError('Provider data unavailable')
     except HTTPError as exc:
         messages={403:'The provider or network policy denied market-data access.',429:'The market-data provider rate limit was reached. Retry later.',401:'This provider requires authorized API access.'}
-        raise DataUnavailable(messages.get(exc.code,'The market-data provider returned an error.')) from exc
+        message=messages.get(exc.code,'The market-data provider returned an error.');provider_failure(provider,message)
+        raise DataUnavailable(message) from exc
     except Exception as exc:
-        raise DataUnavailable('Market data is unavailable from this provider. Retry later.') from exc
-    with _lock: _cache[url] = (time.monotonic(), data)
+        message='Market data is unavailable from this provider. Retry later.';provider_failure(provider,message)
+        raise DataUnavailable(message) from exc
+    cache_put(url,provider,data,ttl)
     return data
 
 def normalize_chart(data, symbol):

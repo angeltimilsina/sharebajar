@@ -4,7 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "charts:vendor": "node scripts/vendor-charts.mjs",
+    "test:charts": "playwright test tests/charts.spec.js",
+    "test:overview": "playwright test tests/overview.spec.js",
+    "test:ui": "playwright test",
+    "mobile:build": "node scripts/build-mobile.mjs",
+    "mobile:sync": "npm run mobile:build && cap sync",
+    "mobile:android": "cap open android",
+    "mobile:ios": "cap open ios",
     "start": "python server.py --host 0.0.0.0 --port 3000",
-    "test": "node tests/finance.test.js && python -m unittest discover -s tests -p \"test_*.py\""
+    "test": "node --test tests/finance.test.js tests/stock-markets.test.js tests/chart-data.test.js tests/dashboard.test.js && python -m unittest discover -s tests -p \"test_*.py\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/ios": "^7.6.9",
+    "@capacitor/share": "^7.0.4",
+    "lightweight-charts": "^5.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2"
   }
 }

@@ -1,0 +1,7 @@
+{
+  "appId": "com.sharebajar.app",
+  "appName": "ShareBajar",
+  "webDir": "dist",
+  "backgroundColor": "#101419",
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}

@@ -1,0 +1,28 @@
+.membership-auth-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);gap:28px;max-width:1000px;margin:0 auto 32px}
+.auth-card,.auth-benefits{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:30px}
+.auth-card h1,.auth-benefits h2{margin:8px 0 12px}
+.auth-card form{max-width:none;margin-top:22px}
+.auth-card label,.admin-search label{display:grid;gap:8px;margin:14px 0}
+.auth-card input,.admin-search input,.admin-actions input{width:100%;min-height:44px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text)}
+.auth-submit,.google-signin{width:100%;min-height:46px}
+.google-signin{background:#fff;color:#202124;border:1px solid #dadce0;font-weight:600;display:flex;align-items:center;justify-content:center;gap:12px}
+.google-signin span{font-size:19px;font-weight:700;color:#4285f4}
+.google-signin:disabled{opacity:.65;cursor:not-allowed}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-size:12px}
+.auth-divider:before,.auth-divider:after{content:"";height:1px;background:var(--border);flex:1}
+.auth-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:18px;font-size:13px}
+.auth-links button,.text-button{border:0;background:none;color:var(--green);padding:4px}
+.auth-benefits{background:linear-gradient(145deg,#1d292a,var(--panel) 68%);display:flex;flex-direction:column;justify-content:center}
+.auth-benefits ul{padding-left:20px;color:var(--muted);line-height:2}
+.auth-card-narrow{max-width:540px;margin:24px auto}
+.auth-card-narrow .text-button{margin:0 0 22px}
+#membership-status{max-width:1000px;margin:16px auto;color:var(--green)}
+.admin-search{display:flex;align-items:end;gap:12px;margin:18px 0}
+.admin-search label{flex:1}
+.admin-search button{margin-bottom:14px}
+.admin-actions{display:grid;grid-template-columns:80px auto auto;gap:6px;min-width:250px}
+.admin-actions input{min-height:34px;padding:6px}
+.admin-actions button{font-size:11px;padding:7px}
+#admin-users td{vertical-align:top}
+#admin-users td small{display:block;color:var(--muted);margin-top:5px}
+@media(max-width:760px){.membership-auth-layout{grid-template-columns:1fr;gap:14px}.auth-card,.auth-benefits{padding:22px}.auth-benefits{order:2}.admin-search{align-items:stretch;flex-direction:column;gap:0}.admin-search button{margin:0 0 14px}.admin-actions{grid-template-columns:1fr 1fr;min-width:190px}.admin-actions input{grid-column:1/-1}}
