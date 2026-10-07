@@ -1,0 +1,347 @@
+[
+  {
+    "marketCode": "us",
+    "countryName": "United States",
+    "currency": "USD",
+    "currencySymbol": "$",
+    "exchangeNames": [
+      "NYSE",
+      "NASDAQ"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "S&P 500",
+    "locale": "en-US",
+    "timezone": "America/New_York",
+    "isoCountry": "US",
+    "flag": "🇺🇸"
+  },
+  {
+    "marketCode": "nepal",
+    "countryName": "Nepal",
+    "currency": "NPR",
+    "currencySymbol": "रु",
+    "exchangeNames": [
+      "NEPSE"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "NEPSE Index",
+    "locale": "ne-NP",
+    "timezone": "Asia/Kathmandu",
+    "isoCountry": "NP",
+    "flag": "🇳🇵"
+  },
+  {
+    "marketCode": "india",
+    "countryName": "India",
+    "currency": "INR",
+    "currencySymbol": "₹",
+    "exchangeNames": [
+      "NSE",
+      "BSE"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "NIFTY 50",
+    "locale": "en-IN",
+    "timezone": "Asia/Kolkata",
+    "isoCountry": "IN",
+    "flag": "🇮🇳"
+  },
+  {
+    "marketCode": "uk",
+    "countryName": "United Kingdom",
+    "currency": "GBP",
+    "currencySymbol": "£",
+    "exchangeNames": [
+      "LSE"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "FTSE 100",
+    "locale": "en-GB",
+    "timezone": "Europe/London",
+    "isoCountry": "GB",
+    "flag": "🇬🇧"
+  },
+  {
+    "marketCode": "canada",
+    "countryName": "Canada",
+    "currency": "CAD",
+    "currencySymbol": "C$",
+    "exchangeNames": [
+      "TSX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "S&P/TSX Composite",
+    "locale": "en-CA",
+    "timezone": "America/Toronto",
+    "isoCountry": "CA",
+    "flag": "🇨🇦"
+  },
+  {
+    "marketCode": "australia",
+    "countryName": "Australia",
+    "currency": "AUD",
+    "currencySymbol": "A$",
+    "exchangeNames": [
+      "ASX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "S&P/ASX 200",
+    "locale": "en-AU",
+    "timezone": "Australia/Sydney",
+    "isoCountry": "AU",
+    "flag": "🇦🇺"
+  },
+  {
+    "marketCode": "japan",
+    "countryName": "Japan",
+    "currency": "JPY",
+    "currencySymbol": "¥",
+    "exchangeNames": [
+      "TSE"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "Nikkei 225",
+    "locale": "ja-JP",
+    "timezone": "Asia/Tokyo",
+    "isoCountry": "JP",
+    "flag": "🇯🇵"
+  },
+  {
+    "marketCode": "south-korea",
+    "countryName": "South Korea",
+    "currency": "KRW",
+    "currencySymbol": "₩",
+    "exchangeNames": [
+      "KRX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "KOSPI",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "isoCountry": "KR",
+    "flag": "🇰🇷"
+  },
+  {
+    "marketCode": "singapore",
+    "countryName": "Singapore",
+    "currency": "SGD",
+    "currencySymbol": "S$",
+    "exchangeNames": [
+      "SGX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "Straits Times Index",
+    "locale": "en-SG",
+    "timezone": "Asia/Singapore",
+    "isoCountry": "SG",
+    "flag": "🇸🇬"
+  },
+  {
+    "marketCode": "uae",
+    "countryName": "UAE",
+    "currency": "AED",
+    "currencySymbol": "د.إ",
+    "exchangeNames": [
+      "DFM",
+      "ADX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "DFM General Index",
+    "locale": "en-AE",
+    "timezone": "Asia/Dubai",
+    "isoCountry": "AE",
+    "flag": "🇦🇪"
+  },
+  {
+    "marketCode": "saudi-arabia",
+    "countryName": "Saudi Arabia",
+    "currency": "SAR",
+    "currencySymbol": "﷼",
+    "exchangeNames": [
+      "Tadawul"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "TASI",
+    "locale": "ar-SA",
+    "timezone": "Asia/Riyadh",
+    "isoCountry": "SA",
+    "flag": "🇸🇦"
+  },
+  {
+    "marketCode": "germany",
+    "countryName": "Germany",
+    "currency": "EUR",
+    "currencySymbol": "€",
+    "exchangeNames": [
+      "XETRA",
+      "Frankfurt"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "DAX",
+    "locale": "de-DE",
+    "timezone": "Europe/Berlin",
+    "isoCountry": "DE",
+    "flag": "🇩🇪"
+  },
+  {
+    "marketCode": "france",
+    "countryName": "France",
+    "currency": "EUR",
+    "currencySymbol": "€",
+    "exchangeNames": [
+      "Euronext Paris"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "CAC 40",
+    "locale": "fr-FR",
+    "timezone": "Europe/Paris",
+    "isoCountry": "FR",
+    "flag": "🇫🇷"
+  },
+  {
+    "marketCode": "netherlands",
+    "countryName": "Netherlands",
+    "currency": "EUR",
+    "currencySymbol": "€",
+    "exchangeNames": [
+      "Euronext Amsterdam"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "AEX",
+    "locale": "nl-NL",
+    "timezone": "Europe/Amsterdam",
+    "isoCountry": "NL",
+    "flag": "🇳🇱"
+  },
+  {
+    "marketCode": "switzerland",
+    "countryName": "Switzerland",
+    "currency": "CHF",
+    "currencySymbol": "CHF",
+    "exchangeNames": [
+      "SIX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "Swiss Market Index",
+    "locale": "de-CH",
+    "timezone": "Europe/Zurich",
+    "isoCountry": "CH",
+    "flag": "🇨🇭"
+  },
+  {
+    "marketCode": "hong-kong",
+    "countryName": "Hong Kong",
+    "currency": "HKD",
+    "currencySymbol": "HK$",
+    "exchangeNames": [
+      "HKEX"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "Hang Seng Index",
+    "locale": "en-HK",
+    "timezone": "Asia/Hong_Kong",
+    "isoCountry": "HK",
+    "flag": "🇭🇰"
+  },
+  {
+    "marketCode": "china",
+    "countryName": "China",
+    "currency": "CNY",
+    "currencySymbol": "¥",
+    "exchangeNames": [
+      "SSE",
+      "SZSE"
+    ],
+    "defaultAssetTypes": [
+      "stocks",
+      "etfs",
+      "indexes"
+    ],
+    "topIndexName": "Shanghai Composite",
+    "locale": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "isoCountry": "CN",
+    "flag": "🇨🇳"
+  },
+  {
+    "marketCode": "crypto",
+    "countryName": "Global Crypto Market",
+    "currency": "USD",
+    "currencySymbol": "$",
+    "exchangeNames": [
+      "Global Crypto Market"
+    ],
+    "defaultAssetTypes": [
+      "crypto"
+    ],
+    "topIndexName": "Total Crypto Market Cap",
+    "locale": "en-US",
+    "timezone": "UTC",
+    "isoCountry": null,
+    "flag": "🌐"
+  }
+]

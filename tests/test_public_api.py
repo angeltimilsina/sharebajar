@@ -54,3 +54,8 @@ class PublicAIHTTP(PublicAPI):
             request=Request(self.base+'ai/public/asset',data=json.dumps({'id':'AAPL'}).encode(),headers={'Content-Type':'application/json'})
             with urlopen(request) as response:data=json.load(response);self.assertEqual(response.status,200)
         self.assertEqual(data['usage']['remaining'],2);self.assertEqual(analyze.call_args.args[0],{'id':'AAPL'})
+    def test_public_market_config_and_filters(self):
+        status,data=self.get('markets/config');self.assertEqual(status,200);self.assertEqual(len(data),18)
+        status,data=self.get('markets/rankings?market=nepal&view=stocks');self.assertEqual(status,200);self.assertTrue(data['isMock'])
+        self.assertTrue(all(a['marketCode']=='nepal' and a['assetType']=='stocks' for a in data['assets']))
+        self.assertEqual(self.get('markets/rankings?market=invalid')[0],400)

@@ -1,3 +1,5 @@
+from market_pages import render as render_market_page, sitemap as market_sitemap
+from market_catalog import MARKETS as PUBLIC_MARKETS, BY_CODE as PUBLIC_MARKET_CODES, TYPES as PUBLIC_MARKET_TYPES, SECTORS as PUBLIC_MARKET_SECTORS, ranked_assets as public_ranked_assets
 from public_ai import analyze as public_asset_analysis, usage as public_ai_usage
 import argparse, html, json, os, secrets, time
 from concurrent.futures import ThreadPoolExecutor
@@ -54,8 +56,20 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
         self.send_header('Set-Cookie','sharebajar-oauth-state=; HttpOnly; SameSite=Lax; Path=/api/auth/google; Max-Age=0'+('; Secure' if os.environ.get('SHAREBAJAR_PUBLIC_URL','').startswith('https://') else ''))
         self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
+    def send_public_page(self,body,content_type='text/html; charset=utf-8',status=200):
+        raw=body.encode('utf-8');self.send_response(status)
+        self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-cache')
+        self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
     def do_GET(self):
         parsed=urlsplit(self.path)
+        if parsed.path=='/sitemap.xml':return self.send_public_page(market_sitemap(),'application/xml; charset=utf-8')
+        if parsed.path=='/robots.txt':
+            base=os.environ.get('SHAREBAJAR_PUBLIC_URL','http://localhost:3000').rstrip('/')
+            return self.send_public_page('User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: '+base+'/sitemap.xml\n','text/plain; charset=utf-8')
+        if parsed.path=='/markets' or parsed.path.startswith('/markets/') or parsed.path.startswith('/asset/'):
+            page=render_market_page(parsed.path,parsed.query)
+            if page is None:return self.send_public_page('<!doctype html><title>Market page not found</title><h1>Market page not found</h1><a href="/markets">Explore supported markets</a>',status=404)
+            return self.send_public_page(page)
         if not parsed.path.startswith('/api/'): return super().do_GET()
         p=parse_qs(parsed.query); get=lambda k,default='':p.get(k,[default])[0]
         try:
@@ -76,6 +90,11 @@ class Handler(SimpleHTTPRequestHandler):
                 if get('error'):raise AppError('Google sign-in was cancelled. Please try again.',400,'google_cancelled')
                 result=google_login(get('code'),get('state'),state_cookie.value if state_cookie else '')
                 return self.send_google_completion(result['token'])
+            if route=='markets/config':return self.send_json(PUBLIC_MARKETS)
+            if route=='markets/rankings':
+                code=get('market');view=get('view');sector=get('sector');kind=get('type');period=get('range','1d')
+                if code not in ['',*PUBLIC_MARKET_CODES] or view not in ['',*PUBLIC_MARKET_TYPES] or sector not in ['',*PUBLIC_MARKET_SECTORS,'digital-assets','diversified'] or kind not in ['','stocks','crypto','etfs','indexes'] or period not in ['1d','7d','1mo','1y']:raise AppError('Choose valid market filters.')
+                return self.send_json({'source':'mock','isMock':True,'market':code or 'global','range':period,'assets':public_ranked_assets(code or None,view,sector,kind,period)})
             if route=='ai/public/usage': return self.send_json(public_ai_usage(self.client_address[0]))
             if route=='health': return self.send_json({'status':'ok'})
             if route=='account':
