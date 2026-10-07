@@ -1,4 +1,4 @@
-import { mkdir, copyFile, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, copyFile, readFile, writeFile, readdir } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 const endpoint = process.env.SHAREBAJAR_API_URL;
@@ -8,7 +8,7 @@ if (url.protocol !== 'https:' || url.username || url.password || url.pathname !=
   throw new Error('SHAREBAJAR_API_URL must be an HTTPS origin, e.g. https://api.example.com');
 }
 await mkdir('dist', { recursive: true });
-for (const name of ['style.css', 'auth.css', 'favicon.svg']) await copyFile(`static/${name}`, `dist/${name}`);
+for (const name of (await readdir('static')).filter(name=>/\.(css|svg)$/.test(name))) await copyFile(`static/${name}`, `dist/${name}`);
 await mkdir('dist/vendor', {recursive:true});
 for (const name of ['lightweight-charts.LICENSE', 'lightweight-charts.NOTICE']) await copyFile(`static/vendor/${name}`, `dist/vendor/${name}`);
 const html = await readFile('static/index.html', 'utf8');

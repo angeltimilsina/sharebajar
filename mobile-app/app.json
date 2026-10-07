@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Sharebajar",
+    "slug": "sharebajar",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "sharebajar",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sharebajar.research"
+    },
+    "android": {
+      "package": "com.sharebajar.research"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

@@ -122,7 +122,7 @@ def account_details(user):
     smtp_username=os.environ.get('SHAREBAJAR_SMTP_USERNAME')
     smtp_password=os.environ.get('SHAREBAJAR_SMTP_PASSWORD')
     return dict(signedIn=bool(user),email=user['email'] if user else None,plan=plan,
-                features={'portfolioAI':plan in ('plus','pro'),'assetAI':plan=='pro'},
+                features={'portfolioAI':plan in ('plus','pro'),'assetAI':plan in ('plus','pro')},
                 isAdmin=bool(user and user.get('role')=='admin'),
                 aiConfigured=bool(os.environ.get('OPENAI_API_KEY')),fundamentalsConfigured=bool(os.environ.get('ALPHAVANTAGE_API_KEY')),
                 googleConfigured=bool(os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET')),

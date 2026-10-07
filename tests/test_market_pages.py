@@ -33,7 +33,9 @@ class MarketPages(unittest.TestCase):
         for loc in doc.findall('s:url/s:loc',ns):
             from urllib.parse import urlsplit
             path=urlsplit(loc.text).path
-            if path!='/':self.assertIsNotNone(pages.parse_route(path),path)
+            if path!='/':
+                from financial_pages import render as render_financial
+                self.assertTrue(pages.parse_route(path) is not None or render_financial(path) is not None,path)
     def test_invalid_routes(self):
         for path in ['/markets/unknown','/markets/us/anything','/asset/us/UNKNOWN','/markets/us/sectors/invalid']:
             self.assertIsNone(pages.render(path))

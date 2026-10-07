@@ -6,7 +6,7 @@ BY_CODE={m['marketCode']:m for m in MARKETS}
 TYPES=['stocks','crypto','etfs','indexes','gainers','losers','trending','most-watched']
 SECTORS=['technology','financials','energy','consumer','healthcare']
 STOCKS={
-'us':[('AAPL','Apple','technology'),('MSFT','Microsoft','technology'),('JPM','JPMorgan Chase','financials'),('XOM','Exxon Mobil','energy')],
+'us':[('AAPL','Apple','technology'),('MSFT','Microsoft','technology'),('JPM','JPMorgan Chase','financials'),('XOM','Exxon Mobil','energy'),('NVDA','NVIDIA','technology'),('JNJ','Johnson & Johnson','healthcare'),('KO','Coca-Cola','consumer')],
 'nepal':[('NABIL','Nabil Bank','financials'),('NICA','NIC Asia Bank','financials'),('HDL','Himalayan Distillery','consumer'),('NTC','Nepal Telecom','technology')],
 'india':[('RELIANCE','Reliance Industries','energy'),('TCS','Tata Consultancy Services','technology'),('HDFCBANK','HDFC Bank','financials'),('INFY','Infosys','technology')],
 'uk':[('SHEL','Shell','energy'),('HSBA','HSBC','financials'),('AZN','AstraZeneca','healthcare'),('ULVR','Unilever','consumer')],

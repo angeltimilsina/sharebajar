@@ -18,3 +18,9 @@ ios/App/App/public/
 ios/App/build/
 *.keystore
 *.jks
+
+mobile-app/.expo/
+mobile-app/web-build/
+mobile-app/.env
+mobile-app/.runtime/
+mobile-app/dist-*/

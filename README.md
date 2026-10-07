@@ -71,3 +71,8 @@ Analysis combines an account-synced Pro asset research chat, provider-sourced da
 ## Landing page
 
 The signed-out root route opens the Sharebajar terminal dashboard (`/#home`): 22 financial news categories, regional Google News RSS feeds for the last 24 hours, a provider-backed market monitor and ticker, asset search, and an interactive price chart. News and quotes refresh every 60 seconds while the screen is visible; provider timestamps and unavailable-data states remain explicit. Mobile uses horizontally scrollable categories and stacked panels. Account and research actions use the existing membership flows; the expanded AI workspace is available at `/#charts`.
+
+
+## Financial growth platform
+
+Public valuation rankings, structured financial research pages, account portfolios/reports and Expo mobile screens are now available. See [financial platform architecture](docs/financial-platform.md) and [Expo mobile setup](mobile-app/README.md).

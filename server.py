@@ -1,3 +1,8 @@
+from financial_pages import render as render_financial_page
+from financial_engine import generate_page,generated_page_paths,list_templates,valuation_assets,market_valuation,MOBILE_SCREENS,PRICING
+from financial_content import admin as content_admin,create_draft,list_drafts,publish as publish_draft
+from growth_workspace import get_state as growth_state,mutate as growth_mutate,export_report as growth_export,render_workspace,VIEWS as GROWTH_VIEWS
+from product_shell import render_shell,base_url
 from market_pages import render as render_market_page, sitemap as market_sitemap
 from market_catalog import MARKETS as PUBLIC_MARKETS, BY_CODE as PUBLIC_MARKET_CODES, TYPES as PUBLIC_MARKET_TYPES, SECTORS as PUBLIC_MARKET_SECTORS, ranked_assets as public_ranked_assets
 from public_ai import analyze as public_asset_analysis, usage as public_ai_usage
@@ -65,12 +70,28 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path=='/sitemap.xml':return self.send_public_page(market_sitemap(),'application/xml; charset=utf-8')
         if parsed.path=='/robots.txt':
             base=os.environ.get('SHAREBAJAR_PUBLIC_URL','http://localhost:3000').rstrip('/')
-            return self.send_public_page('User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: '+base+'/sitemap.xml\n','text/plain; charset=utf-8')
+            return self.send_public_page('User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /workspace\nDisallow: /internal/\nSitemap: '+base+'/sitemap.xml\n','text/plain; charset=utf-8')
         if parsed.path=='/markets' or parsed.path.startswith('/markets/') or parsed.path.startswith('/asset/'):
             page=render_market_page(parsed.path,parsed.query)
             if page is None:return self.send_public_page('<!doctype html><title>Market page not found</title><h1>Market page not found</h1><a href="/markets">Explore supported markets</a>',status=404)
             return self.send_public_page(page)
-        if not parsed.path.startswith('/api/'): return super().do_GET()
+        if parsed.path=='/workspace' or parsed.path.startswith('/workspace/'):
+            view=parsed.path.rsplit('/',1)[-1] if parsed.path!='/workspace' else 'overview'
+            if view=='risk':view='portfolio'
+            if view not in GROWTH_VIEWS:return self.send_public_page('<h1>Workspace page not found</h1>',status=404)
+            return self.send_public_page(render_shell(render_workspace(view=view),'Your Research Workspace | Sharebajar','Private portfolio, watchlist and financial research workspace.',parsed.path,private=True))
+        if not parsed.path.startswith('/api/'):
+            query=parsed.query
+            if parsed.path in ('/','/index.html') and 'market' not in parse_qs(query):
+                cookie=SimpleCookie()
+                try:cookie.load(self.headers.get('Cookie',''))
+                except Exception:pass
+                selected=cookie.get('sharebajar-market')
+                if selected and selected.value in PUBLIC_MARKET_CODES:query=('market='+selected.value)+('&'+query if query else '')
+            page=render_financial_page(parsed.path,query)
+            if page is not None:return self.send_public_page(page)
+            if parsed.path.startswith(('/research/','/trends/','/compare/','/learn/','/campaigns/','/internal/','/app/')):return self.send_public_page('<h1>Research page not found</h1><a href="/research">Explore research</a>',status=404)
+            return super().do_GET()
         p=parse_qs(parsed.query); get=lambda k,default='':p.get(k,[default])[0]
         try:
             route=parsed.path[5:]
@@ -90,6 +111,23 @@ class Handler(SimpleHTTPRequestHandler):
                 if get('error'):raise AppError('Google sign-in was cancelled. Please try again.',400,'google_cancelled')
                 result=google_login(get('code'),get('state'),state_cookie.value if state_cookie else '')
                 return self.send_google_completion(result['token'])
+            if route=='financial/templates':return self.send_json({'templates':list_templates(),'pricing':PRICING,'dataMode':'mock'})
+            if route=='financial/valuation':
+                code=get('market','us')
+                rows=valuation_assets(code,view=get('view'),asset_type=get('type'),sector=get('sector'),period=get('range','1d'),valuation=get('valuation','all'),sort=get('sort','valuation'))
+                return self.send_json({'market':PUBLIC_MARKET_CODES[code],'overview':market_valuation(code),'assets':rows,'isMock':True})
+            if route=='financial/page':
+                payload=generated_page_paths().get(get('path'))
+                if payload is None:raise AppError('Research page not found.',404,'not_found')
+                page=generate_page(payload,base_url())
+                if page['visibility']!='public':raise AppError('Private research is available in your workspace.',403,'private_page')
+                return self.send_json(page)
+            if route=='financial/screens':
+                code=get('market','us')
+                return self.send_json({'screens':[dict(generate_page({'template':'app-screen','marketCode':code,'screen':s['id']},base_url())['appScreen'],name=s['name']) for s in MOBILE_SCREENS],'dataMode':'mock','previewOnly':True})
+            if route=='financial/drafts':return self.send_json({'drafts':list_drafts(authenticated_user(self.headers.get('Authorization')))})
+            if route=='growth/state':return self.send_json(growth_state(authenticated_user(self.headers.get('Authorization'))))
+            if route=='growth/export':return self.send_json(growth_export(authenticated_user(self.headers.get('Authorization')),get('id')))
             if route=='markets/config':return self.send_json(PUBLIC_MARKETS)
             if route=='markets/rankings':
                 code=get('market');view=get('view');sector=get('sector');kind=get('type');period=get('range','1d')
@@ -179,7 +217,7 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception: self.send_json({'error':'Provider response could not be processed'},502)
     def do_POST(self):
         route=urlsplit(self.path).path
-        allowed={'/api/ai/public/asset','/api/auth/signup','/api/auth/login','/api/auth/logout','/api/auth/password-reset-request','/api/auth/password-reset','/api/admin/users/manage','/api/ai/portfolio','/api/ai/plan','/api/ai/asset','/api/research','/api/research/chat'}
+        allowed={'/api/financial/generate','/api/financial/publish','/api/growth/action','/api/ai/public/asset','/api/auth/signup','/api/auth/login','/api/auth/logout','/api/auth/password-reset-request','/api/auth/password-reset','/api/admin/users/manage','/api/ai/portfolio','/api/ai/plan','/api/ai/asset','/api/research','/api/research/chat'}
         if route not in allowed:return self.send_json({'error':'Not found'},404)
         try:
             if self.headers.get('Content-Type','').split(';')[0].strip()!='application/json':raise AppError('Send a JSON request.',415)
@@ -213,6 +251,13 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(manage_user(authenticated_user(authorization),body))
             user=authenticated_user(authorization)
             if not user:raise AppError('Sign in to access research.',401,'unauthorized')
+            if route=='/api/growth/action':
+                reserve_usage('growth:'+user['id'],120,3600)
+                return self.send_json(growth_mutate(user,body))
+            if route=='/api/financial/generate':
+                content_admin(user);reserve_usage('financial-generation:'+user['id'],60,3600)
+                return self.send_json(create_draft(user,generate_page(body,base_url())))
+            if route=='/api/financial/publish':return self.send_json(publish_draft(user,body.get('id')))
             if route=='/api/research':
                 # Verify advanced access before touching providers or the model.
                 free=authorize_research(body,user,self.client_address[0])
@@ -242,13 +287,13 @@ class Handler(SimpleHTTPRequestHandler):
                     saved=save_exchange(user['id'],conversation_id,prompt,result,{'assetId':asset_id,'chartRange':chart_range,'horizon':horizon})
                     return self.send_json(dict(**saved,result=result,technical=technical))
                 finally:AI_WORKERS.release()
-            required='pro' if route.endswith('asset') else 'plus'
+            required='plus'
             require_plan(user,required)
             if not os.environ.get('OPENAI_API_KEY'):raise AppError('AI analysis is not configured on this server yet.',503,'ai_not_configured')
             if not AI_WORKERS.acquire(blocking=False):raise AppError('AI analysis is busy. Retry shortly.',429,'busy')
             try:
                 reserve_usage('ai:'+user['id'],40 if effective_plan(user)=='pro' else 10)
-                context=asset_context(body) if required=='pro' else planning_context(body) if route=='/api/ai/plan' else portfolio_context(body)
+                context=asset_context(body) if route=='/api/ai/asset' else planning_context(body) if route=='/api/ai/plan' else portfolio_context(body)
                 return self.send_json(generate_report(context))
             finally:AI_WORKERS.release()
         except AppError as e:self.send_json({'error':str(e),'code':e.code,'requiredPlan':e.required_plan},e.status)
