@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "goal": "Production-grade, noncustodial multi-network token launchpad and decentralized exchange with Tiger Wallet",
+  "policy": {
+    "completion": "Only mark verified after automated tests and independent production checks; contracts require external audits",
+    "networks": [
+      "Solana",
+      "BNB Chain",
+      "Ethereum",
+      "Base",
+      "Avalanche C-Chain",
+      "Polygon",
+      "XRP Ledger"
+    ],
+    "retries": "Bounded retries; no autonomous real-money deployment"
+  },
+  "milestones": [
+    {
+      "id": "wallet",
+      "name": "Tiger Wallet connect and read balances",
+      "status": "implemented_unverified",
+      "evidence": [
+        "static/tiger-wallet.js",
+        "static/tiger-wallet.html"
+      ],
+      "tests": [
+        "browser wallet connection with user approval",
+        "RPC integration",
+        "account change/error handling"
+      ]
+    },
+    {
+      "id": "auth",
+      "name": "User authentication and wallet sign-in",
+      "status": "incomplete",
+      "tests": [
+        "challenge nonce",
+        "signed message verification",
+        "replay prevention"
+      ]
+    },
+    {
+      "id": "launch",
+      "name": "Token launch across supported chains",
+      "status": "incomplete",
+      "tests": [
+        "testnet deployment per chain",
+        "permission configuration",
+        "contract verification"
+      ]
+    },
+    {
+      "id": "liquidity",
+      "name": "Create and manage liquidity pools",
+      "status": "incomplete",
+      "tests": [
+        "AMM math",
+        "pool creation",
+        "withdrawal rules",
+        "liquidity lock claims verified"
+      ]
+    },
+    {
+      "id": "trade",
+      "name": "Buy/sell/swap with on-chain settlement",
+      "status": "incomplete",
+      "tests": [
+        "testnet swap",
+        "slippage protection",
+        "failure rollback",
+        "price impact"
+      ]
+    },
+    {
+      "id": "security",
+      "name": "Smart-contract security and anti-rug protections",
+      "status": "incomplete",
+      "tests": [
+        "invariants",
+        "authorization",
+        "independent audit"
+      ]
+    },
+    {
+      "id": "multichain",
+      "name": "Solana, BNB, Avalanche, XRP, Base, Ethereum and Polygon",
+      "status": "incomplete",
+      "tests": [
+        "individual chain adapters",
+        "network detection",
+        "chain-specific asset semantics"
+      ]
+    },
+    {
+      "id": "ux",
+      "name": "External end-user browser test",
+      "status": "incomplete",
+      "tests": [
+        "desktop",
+        "mobile",
+        "screen reader",
+        "wallet approve/reject flow"
+      ]
+    },
+    {
+      "id": "release",
+      "name": "Production hosted and verified",
+      "status": "incomplete",
+      "tests": [
+        "deployment smoke checks",
+        "domain TLS",
+        "monitoring",
+        "incident response"
+      ]
+    }
+  ]
+}
