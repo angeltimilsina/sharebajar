@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tiger Wallet | Sharebajar</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#10151b;color:#f1f5f9}
+*{box-sizing:border-box}body{margin:0;padding:24px}main{max-width:760px;margin:42px auto}
+a{color:#f3bd64}h1{font-size:2.5rem;margin-bottom:8px}p{line-height:1.6;color:#afbac8}
+.card{background:#1b2430;border:1px solid #344254;border-radius:16px;padding:24px;margin:16px 0}
+button{background:#ecb85b;color:#111820;border:0;border-radius:10px;font-weight:700;padding:14px 18px;cursor:pointer;margin:8px 8px 8px 0}
+button:focus-visible{outline:3px solid white}output{display:block;overflow-wrap:anywhere;line-height:1.6}
+small{color:#a9b7c8}code{overflow-wrap:anywhere}#message{min-height:30px}
+</style></head>
+<body><main><a href="/">← Sharebajar</a><h1>Tiger Wallet</h1>
+<p>Connect an existing self-custodial wallet to view real on-chain balances. Your private keys stay in your wallet extension.</p>
+<section class="card" aria-labelledby="evm-title"><h2 id="evm-title">Ethereum / EVM</h2>
+<button id="evm-connect">Connect EVM wallet</button><button id="evm-refresh" hidden>Refresh balance</button>
+<output id="evm-result" aria-live="polite">Not connected.</output></section>
+<section class="card" aria-labelledby="sol-title"><h2 id="sol-title">Solana</h2>
+<button id="sol-connect">Connect Solana wallet</button><button id="sol-refresh" hidden>Refresh balance</button>
+<output id="sol-result" aria-live="polite">Not connected.</output></section>
+<p id="message" role="status" aria-live="polite"></p>
+<small>This is a wallet-connection interface, not an audited wallet or live trading exchange. No swap or transfer is automatically submitted.</small></main>
+<script type="module">
+import {connectEvmWallet,getEvmNativeBalance,connectSolanaWallet,getSolBalance} from './tiger-wallet.js';
+const $ = id => document.getElementById(id);
+let evm = null, sol = null;
+const failure = err => { $('message').textContent = err?.message || String(err); };
+async function refreshEvm(){
+ if(!evm)return;
+ const result = await getEvmNativeBalance(evm.address, evm.provider);
+ $('evm-result').textContent = `Address: ${evm.address}\nChain ID: ${evm.chainId}\nNative balance: ${result.nativeUnits}`;
+}
+async function refreshSol(){
+ if(!sol)return;
+ const result=await getSolBalance(sol.address);
+ $('sol-result').textContent = `Address: ${sol.address}\nSOL: ${result.sol}`;
+}
+$('evm-connect').addEventListener('click',async()=>{
+ $('message').textContent='';
+ try { evm=await connectEvmWallet(); await refreshEvm(); $('evm-refresh').hidden=false; }catch(e){failure(e);}
+});
+$('evm-refresh').addEventListener('click',()=>refreshEvm().catch(failure));
+$('sol-connect').addEventListener('click',async()=>{
+ $('message').textContent='';
+ try {sol=await connectSolanaWallet();await refreshSol();$('sol-refresh').hidden=false;}catch(e){failure(e);}
+});
+$('sol-refresh').addEventListener('click',()=>refreshSol().catch(failure));
+globalThis.ethereum?.on?.('accountsChanged',()=>{evm=null;$('evm-result').textContent='Account changed. Reconnect to refresh.';$('evm-refresh').hidden=true;});
+globalThis.ethereum?.on?.('chainChanged',()=>{evm=null;$('evm-result').textContent='Network changed. Reconnect to refresh.';$('evm-refresh').hidden=true;});
+</script></body></html>
