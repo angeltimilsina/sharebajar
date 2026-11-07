@@ -98,6 +98,10 @@ npm run build && npm start
 
 > Behind an HTTP proxy, Node's built-in `fetch` ignores `HTTPS_PROXY` unless you run with `NODE_USE_ENV_PROXY=1` (Node ≥ 22.21).
 
+### Deploying
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for Vercel deployment and connecting a custom domain.
+
 ### Environment variables
 
 See [`.env.example`](.env.example). Highlights:

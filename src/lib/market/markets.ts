@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { cached } from "../server/cache";
 import { fetchUpstream } from "../server/http";
 import { log } from "../server/log";
@@ -34,7 +35,7 @@ function refreshSparklines(pairs: string[]) {
   const stale = pairs.filter((p) => !sparks.has(p) || Date.now() - sparks.get(p)!.at > 30 * 60_000);
   if (!stale.length) return;
   g.__sbSparkBusy = true;
-  (async () => {
+  const job = () => (async () => {
     for (let i = 0; i < stale.length; i += 8) {
       await Promise.all(stale.slice(i, i + 8).map(async (p) => {
         try {
@@ -44,6 +45,9 @@ function refreshSparklines(pairs: string[]) {
       }));
     }
   })().catch((e) => log("warn", "sparkline refresh failed", { error: String(e) })).finally(() => { g.__sbSparkBusy = false; });
+  // On serverless hosts (Vercel) work must be registered with after() or it is
+  // frozen once the response is sent. Outside a request scope, just run it.
+  try { after(job); } catch { void job(); }
 }
 
 function merge(c: LoreCoin, pair: string | undefined, t: BnTicker | undefined): CoinMarket {
