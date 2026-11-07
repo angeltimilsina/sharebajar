@@ -11,7 +11,8 @@ export async function GET() {
       uptimeSec: Math.round(process.uptime()),
       integrations: {
         ai: { configured: aiConfigured(), provider: "Anthropic" },
-        coingeckoKey: Boolean(process.env.COINGECKO_API_KEY),
+        marketData: "CoinLore + Binance (keyless)",
+        networks: "mempool.space + public JSON-RPC",
         solanaRpc: process.env.NEXT_PUBLIC_SOLANA_RPC_URL ? "custom" : "public (rate-limited)",
         evmSwaps: { configured: false, note: "EVM swap routing not yet integrated" },
         limitOrders: { configured: false, note: "Limit orders not yet integrated" },

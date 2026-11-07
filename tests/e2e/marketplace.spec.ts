@@ -18,6 +18,15 @@ test.describe("public marketplace", () => {
     await expect(page.getByRole("tab", { name: "New Tokens" })).toHaveAttribute("aria-selected", "true");
   });
 
+  test("network pulse shows live chain data for Bitcoin, Ethereum and Solana", async ({ page }) => {
+    await page.goto("/");
+    const pulse = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "Network Pulse" }) }).first();
+    for (const name of ["Bitcoin", "Ethereum", "Solana"]) await expect(pulse.getByText(name, { exact: true }).first()).toBeVisible();
+    await expect(pulse.getByText(/sat\/vB/)).toBeVisible();
+    await expect(pulse.getByText(/gwei/).first()).toBeVisible();
+    await expect(pulse.getByText(/TPS/).first()).toBeVisible();
+  });
+
   test("live ticker connects to the price stream", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByText("Live", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
@@ -25,8 +34,12 @@ test.describe("public marketplace", () => {
 
   test("global search finds tokens", async ({ page }) => {
     await page.goto("/");
-    await page.keyboard.press("Control+k");
-    await page.getByRole("textbox", { name: "Search" }).fill("bonk");
+    const box = page.getByRole("textbox", { name: "Search" });
+    await expect(async () => {
+      await page.getByRole("button", { name: "Search tokens" }).first().click();
+      await expect(box).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 30_000 });
+    await box.fill("bonk");
     await expect(page.getByText("On-chain tokens")).toBeVisible({ timeout: 20_000 });
   });
 
@@ -39,9 +52,13 @@ test.describe("public marketplace", () => {
   });
 
   test("shows an honest error instead of stale prices when market data fails", async ({ page }) => {
-    await page.route("**/api/market/coins**", (r) => r.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "api.coingecko.com unavailable (503)" }) }));
+    await page.addInitScript(() => localStorage.setItem("sb.watchlist.v1", JSON.stringify([{ kind: "coin", id: "bitcoin", label: "BTC", addedAt: 1 }])));
+    await page.route("**/api/market/coins?ids=**", (r) => r.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "api.coinlore.net unavailable (503)" }) }));
     await page.goto("/");
-    await page.getByRole("radio", { name: /Ethereum/ }).click();
+    await expect(async () => {
+      await page.getByRole("tab", { name: "Watchlist" }).click();
+      await expect(page.getByRole("tab", { name: "Watchlist" })).toHaveAttribute("aria-selected", "true", { timeout: 2000 });
+    }).toPass({ timeout: 30_000 });
     await expect(page.getByText("Market data unavailable")).toBeVisible();
   });
 });
@@ -105,6 +122,12 @@ test.describe("trading", () => {
     await expect(page.getByText("Minimum received", { exact: false })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Route/)).toBeVisible();
   });
+});
+
+test("homepage has no horizontal overflow on desktop", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /Open Crypto Marketplace/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 test.describe("mobile @mobile", () => {

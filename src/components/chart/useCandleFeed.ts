@@ -6,13 +6,11 @@ import type { Candle, Trade } from "@/lib/types";
 
 export type Feed =
   | { kind: "binance"; symbol: string }
-  | { kind: "dex"; chain: string; pool: string }
-  | { kind: "coingecko"; id: string };
+  | { kind: "dex"; chain: string; pool: string };
 
 export const RESOLUTIONS: Record<Feed["kind"], string[]> = {
   binance: ["1s", "5s", "15s", "1m", "5m", "15m", "1h", "4h", "1d", "1w"],
   dex: ["1s", "5s", "15s", "1m", "5m", "15m", "1h", "4h", "1d"],
-  coingecko: ["1D", "7D", "30D", "1Y"],
 };
 
 export interface FeedState {
@@ -25,14 +23,13 @@ export interface FeedState {
   lastUpdate: number | null;
   /** Expected cadence of updates (ms) for freshness evaluation. */
   expectedMs: number;
-  mode: "stream" | "poll" | "snapshot";
+  mode: "stream" | "poll";
   source: string;
   /** For DEX sub-minute candles: oldest trade we have. */
   coverageFrom: number | null;
 }
 
 const DEX_POLL_MS = 4000;
-const CG_DAYS: Record<string, string> = { "1D": "1", "7D": "7", "30D": "30", "1Y": "365" };
 
 async function getJson<T>(url: string): Promise<{ data: T; fetchedAt: number; stale: boolean }> {
   const r = await fetch(url);
@@ -44,7 +41,7 @@ async function getJson<T>(url: string): Promise<{ data: T; fetchedAt: number; st
 export function useCandleFeed(feed: Feed, res: string, opts: { trades?: boolean } = {}): FeedState {
   const wantTrades = opts.trades ?? true;
   const [state, setState] = useState<FeedState>({ candles: [], trades: [], loading: true, error: null, lastUpdate: null, expectedMs: 2000, mode: "stream", source: "", coverageFrom: null });
-  const feedKey = feed.kind === "binance" ? `b:${feed.symbol}` : feed.kind === "dex" ? `d:${feed.chain}:${feed.pool}` : `c:${feed.id}`;
+  const feedKey = feed.kind === "binance" ? `b:${feed.symbol}` : `d:${feed.chain}:${feed.pool}`;
   const gen = useRef(0);
 
   useEffect(() => {
@@ -142,23 +139,6 @@ export function useCandleFeed(feed: Feed, res: string, opts: { trades?: boolean 
       }
       poll();
       const t = setInterval(() => { if (document.visibilityState === "visible") poll(); }, DEX_POLL_MS);
-      cleanups.push(() => clearInterval(t));
-    }
-
-    if (feed.kind === "coingecko") {
-      setState((s) => ({ ...s, mode: "snapshot", source: "CoinGecko", expectedMs: 300_000 }));
-      const load = () =>
-        getJson<{ time: number; value: number; volume: number }[]>(`/api/market/coin-chart?id=${feed.id}&days=${CG_DAYS[res] ?? "1"}`)
-          .then((env) => {
-            if (!alive()) return;
-            const candles = env.data.map((p, i, arr) => ({ time: p.time, open: arr[i - 1]?.value ?? p.value, high: p.value, low: p.value, close: p.value, volume: 0 }));
-            // dedupe times (CoinGecko occasionally repeats)
-            const uniq = candles.filter((c, i) => i === 0 || c.time > candles[i - 1].time);
-            setState((s) => ({ ...s, candles: uniq, loading: false, lastUpdate: env.fetchedAt, error: env.stale ? "Showing cached data" : null }));
-          })
-          .catch((e) => alive() && setState((s) => ({ ...s, loading: false, error: String(e.message ?? e) })));
-      load();
-      const t = setInterval(load, 120_000);
       cleanups.push(() => clearInterval(t));
     }
 

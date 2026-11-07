@@ -6,7 +6,7 @@ import { timeAgo } from "@/lib/format";
 
 interface Health {
   status: string; time: number; uptimeSec: number;
-  integrations: { ai: { configured: boolean }; coingeckoKey: boolean; solanaRpc: string; evmSwaps: { configured: boolean; note: string }; limitOrders: { configured: boolean; note: string } };
+  integrations: { ai: { configured: boolean }; marketData: string; networks: string; solanaRpc: string; evmSwaps: { configured: boolean; note: string }; limitOrders: { configured: boolean; note: string } };
   upstreams: { host: string; ok: number; failed: number; lastStatus: number | null; lastLatencyMs: number | null; lastError: string | null; lastAt: number | null }[];
 }
 
@@ -32,7 +32,8 @@ export function StatusView() {
       <Card>
         <CardHeader title="Integrations" />
         <ul className="px-4 pb-3">
-          {row("Market data (CoinGecko)", true, h?.integrations.coingeckoKey ? "API key configured" : "Public tier (rate-limited)")}
+          {row("Market data (CoinLore + Binance)", true, "Keyless")}
+          {row("Chain data (Bitcoin, EVM & Solana RPC)", true, h?.integrations.networks ?? "…")}
           {row("Live price stream (Binance WebSocket)", ws === "open", ws)}
           {row("ShareBajar Intelligence (AI)", h ? h.integrations.ai.configured : null, h?.integrations.ai.configured ? "Configured" : "Not configured")}
           {row("Solana swaps (Jupiter)", true, "Enabled")}

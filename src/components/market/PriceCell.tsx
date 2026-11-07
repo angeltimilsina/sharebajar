@@ -16,7 +16,7 @@ export function PriceCell({ value, live, className }: { value: number | null | u
     prev.current = value;
   }, [value]);
   return (
-    <span key={n} className={clsx("num rounded px-1 -mx-1", flash, className)} title={live ? "Live price (Binance stream)" : "CoinGecko price (updates every minute)"}>
+    <span key={n} className={clsx("num rounded px-1 -mx-1", flash, className)} title={live ? "Live price (Binance stream)" : "Aggregated price (CoinLore, updates every minute)"}>
       {formatPrice(value)}
     </span>
   );

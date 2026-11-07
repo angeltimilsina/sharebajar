@@ -1,4 +1,4 @@
-import { getGlobal } from "@/lib/market/coingecko";
+import { getGlobal } from "@/lib/market/markets";
 import { getDefiTvl } from "@/lib/market/defillama";
 import { errorMessage } from "@/lib/server/cache";
 import { NextResponse } from "next/server";

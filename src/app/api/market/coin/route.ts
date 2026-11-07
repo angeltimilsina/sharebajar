@@ -1,11 +1,13 @@
-import { getCoin } from "@/lib/market/coingecko";
-import { fail, ok, param } from "@/lib/server/respond";
+import { getCoinDetail } from "@/lib/market/markets";
+import { fail, param } from "@/lib/server/respond";
+import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
   try {
-    const id = param(new URL(req.url), "id");
-    return ok(await getCoin(id), 30);
+    const r = await getCoinDetail(param(new URL(req.url), "id"));
+    if (!r) return NextResponse.json({ error: "Coin not found" }, { status: 404 });
+    return NextResponse.json({ ...r, source: "CoinLore + Binance" });
   } catch (e) {
-    return fail(e, "CoinGecko");
+    return fail(e, "CoinLore");
   }
 }

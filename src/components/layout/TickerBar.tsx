@@ -6,20 +6,12 @@ import { binanceStream } from "@/lib/stream/binance-ws";
 import { formatPrice, formatPct, pctClass } from "@/lib/format";
 import { TokenIcon } from "../ui/TokenIcon";
 
-const IMG = "https://coin-images.coingecko.com/coins/images";
+const icon = (s: string) => `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${s.toLowerCase()}.png`;
+const T = (s: string, id: string) => ({ s, id, img: icon(s) });
+/** Majors streamed live from Binance; ids are ShareBajar coin slugs (/coin/[id]). */
 export const TICKER = [
-  { s: "BTC", id: "bitcoin", img: `${IMG}/1/small/bitcoin.png` },
-  { s: "ETH", id: "ethereum", img: `${IMG}/279/small/ethereum.png` },
-  { s: "SOL", id: "solana", img: `${IMG}/4128/small/solana.png` },
-  { s: "BNB", id: "binancecoin", img: `${IMG}/825/small/bnb-icon2_2x.png` },
-  { s: "XRP", id: "ripple", img: `${IMG}/44/small/xrp-symbol-white-128.png` },
-  { s: "DOGE", id: "dogecoin", img: `${IMG}/5/small/dogecoin.png` },
-  { s: "ADA", id: "cardano", img: `${IMG}/975/small/cardano.png` },
-  { s: "AVAX", id: "avalanche-2", img: `${IMG}/12559/small/Avalanche_Circle_RedWhite_Trans.png` },
-  { s: "LINK", id: "chainlink", img: `${IMG}/877/small/chainlink-new-logo.png` },
-  { s: "TRX", id: "tron", img: `${IMG}/1094/small/tron-logo.png` },
-  { s: "SUI", id: "sui", img: null },
-  { s: "PEPE", id: "pepe", img: null },
+  T("BTC", "bitcoin"), T("ETH", "ethereum"), T("SOL", "solana"), T("BNB", "binance-coin"), T("XRP", "ripple"), T("DOGE", "dogecoin"),
+  T("ADA", "cardano"), T("AVAX", "avalanche"), T("LINK", "chainlink"), T("TRX", "tron"), T("SUI", "sui"), T("TON", "toncoin"),
 ];
 
 export function TickerBar() {

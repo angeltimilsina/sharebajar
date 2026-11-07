@@ -30,7 +30,7 @@ export function CoinTable({ coins, loading, limit = 50, emptyText, error }: { co
   const live = useLiveTickers(streamSyms);
 
   const head = (key: SortKey, label: string, cls = "text-right") => (
-    <th className={`px-3 py-2.5 font-medium ${cls}`}>
+    <th className={`px-2.5 py-2.5 font-medium whitespace-nowrap ${cls}`}>
       <button className="inline-flex items-center gap-0.5 hover:text-fg" onClick={() => setSort((s) => (s?.key === key ? (s.dir === -1 ? { key, dir: 1 } : null) : { key, dir: -1 }))}>
         {label}{sort?.key === key ? (sort.dir === -1 ? <ChevronDown size={12} /> : <ChevronUp size={12} />) : <ChevronDown size={12} className="opacity-30" />}
       </button>
@@ -50,14 +50,14 @@ export function CoinTable({ coins, loading, limit = 50, emptyText, error }: { co
             <th className="px-3 py-2.5 font-medium text-left">Token</th>
             {head("price", "Price")}{head("change1h", "1h %")}{head("change24h", "24h %")}{head("change7d", "7d %")}
             {head("marketCap", "Market Cap")}{head("volume24h", "24h Volume")}
-            <th className="px-3 py-2.5 font-medium text-right">Last 7 Days</th>
+            <th className="px-3 py-2.5 font-medium text-right whitespace-nowrap">Last 7 Days</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((c) => {
             const sym = symbols[c.symbol];
             const l = sym ? live[sym] : undefined;
-            // Only trust the live overlay if it agrees with CoinGecko within 3% (guards symbol collisions).
+            // Only trust the live overlay if it agrees with the aggregate price within 3% (guards symbol collisions).
             const useLive = l && c.price && Math.abs(l.price - c.price) / c.price < 0.03;
             const price = useLive ? l!.price : c.price;
             const ch24 = useLive ? l!.change24h : c.change24h;
@@ -68,17 +68,17 @@ export function CoinTable({ coins, loading, limit = 50, emptyText, error }: { co
                 <td className="px-3 py-3">
                   <Link href={`/coin/${c.id}`} className="flex items-center gap-2.5 min-w-0" onClick={(e) => e.stopPropagation()}>
                     <TokenIcon src={c.image} symbol={c.symbol} size={28} />
-                    <span className="font-semibold truncate max-w-[160px]">{c.name}</span>
+                    <span className="font-semibold truncate max-w-[130px]">{c.name}</span>
                     <span className="text-muted text-xs">{c.symbol}</span>
                   </Link>
                 </td>
-                <td className="px-3 py-3 text-right"><PriceCell value={price} live={!!useLive} /></td>
-                <td className="px-3 py-3 text-right"><Pct v={c.change1h} /></td>
-                <td className="px-3 py-3 text-right"><Pct v={ch24} /></td>
-                <td className="px-3 py-3 text-right"><Pct v={c.change7d} /></td>
-                <td className="px-3 py-3 text-right num">{formatUsd(c.marketCap)}</td>
-                <td className="px-3 py-3 text-right num">{formatUsd(c.volume24h)}</td>
-                <td className="px-3 py-2 text-right"><Sparkline data={c.sparkline} width={110} height={34} className="ml-auto" /></td>
+                <td className="px-2.5 py-3 text-right"><PriceCell value={price} live={!!useLive} /></td>
+                <td className="px-2.5 py-3 text-right"><Pct v={c.change1h} /></td>
+                <td className="px-2.5 py-3 text-right"><Pct v={ch24} /></td>
+                <td className="px-2.5 py-3 text-right"><Pct v={c.change7d} /></td>
+                <td className="px-2.5 py-3 text-right num">{formatUsd(c.marketCap)}</td>
+                <td className="px-2.5 py-3 text-right num">{formatUsd(c.volume24h)}</td>
+                <td className="px-3 py-2 text-right"><Sparkline data={c.sparkline} width={96} height={32} className="ml-auto" /></td>
               </tr>
             );
           })}

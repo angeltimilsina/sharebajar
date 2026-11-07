@@ -1,7 +1,8 @@
 import "server-only";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { getCoin, getGlobal, getMarkets } from "../market/coingecko";
+import { getCoinDetail, getGlobal, getMarkets } from "../market/markets";
+import { getNetworkStats } from "../market/networks";
 import { getDefiTvl } from "../market/defillama";
 import { getKlines, binanceSymbolFor, type BinanceInterval } from "../market/binance";
 import { getTokenPairs, searchPairs } from "../market/dexscreener";
@@ -25,7 +26,7 @@ export function buildTools(emit: { action: (a: AiAction) => void }) {
   return [
     betaZodTool({
       name: "get_market_overview",
-      description: "Global crypto market snapshot: total market cap, 24h volume, BTC/ETH dominance, DeFi TVL and the top 15 coins by market cap with 1h/24h/7d changes.",
+      description: "Global crypto market snapshot: total market cap, 24h volume, BTC/ETH dominance, DeFi TVL and the top 15 coins by market cap with 1h/24h/7d changes and their slugs.",
       inputSchema: z.object({}),
       eager_input_streaming: true,
       run: () => safe(async () => {
@@ -39,15 +40,25 @@ export function buildTools(emit: { action: (a: AiAction) => void }) {
     }),
     betaZodTool({
       name: "get_coin",
-      description: "Detailed market data for a listed coin by CoinGecko id (e.g. 'bitcoin', 'solana'): price, changes, market cap, FDV, supply, ATH, categories, contract addresses.",
+      description: "Market data for a listed coin by ShareBajar slug (e.g. 'bitcoin', 'ethereum', 'solana', 'binance-coin'): live price, 1h/24h/7d change, market cap, FDV, supply, 24h range, high/low since Binance listing and top exchange markets.",
       inputSchema: z.object({ id: z.string().min(1).max(80) }),
       eager_input_streaming: true,
       run: ({ id }) => safe(async () => {
-        const env = await getCoin(id);
-        const c = env.data;
-        const { sparkline: _s, ...market } = c.market;
+        const r = await getCoinDetail(id.toLowerCase());
+        if (!r) return json({ error: `Unknown coin slug "${id}". Use search_tokens or get_market_overview to find the slug.` });
+        const { sparkline: _s, ...market } = r.data.market;
         void _s;
-        return json({ ...meta(env), id: c.id, name: c.name, symbol: c.symbol, categories: c.categories, platforms: c.platforms, market, ath: c.ath, athDate: c.athDate, description: c.description.slice(0, 500) });
+        return json({ source: "CoinLore + Binance", fetchedAt: new Date(r.fetchedAt).toISOString(), stale: r.stale, market, binancePair: r.data.binancePair, highSinceListing: r.data.ath, lowSinceListing: r.data.atl, topMarkets: r.data.exchanges.slice(0, 6) });
+      }),
+    }),
+    betaZodTool({
+      name: "get_network_status",
+      description: "Live on-chain conditions read directly from each blockchain: Bitcoin (block height, next-block fee in sat/vB, mempool size), Ethereum, Base, BNB Chain, Polygon, Arbitrum, Avalanche, Optimism (block, gas price in gwei, txs per block) and Solana (slot, TPS, priority fees).",
+      inputSchema: z.object({}),
+      eager_input_streaming: true,
+      run: () => safe(async () => {
+        const env = await getNetworkStats();
+        return json({ ...meta(env), networks: env.data });
       }),
     }),
     betaZodTool({
@@ -167,6 +178,7 @@ export function buildTools(emit: { action: (a: AiAction) => void }) {
 export const TOOL_LABELS: Record<string, string> = {
   get_market_overview: "Reading global market data",
   get_coin: "Fetching coin data",
+  get_network_status: "Reading live blockchain conditions",
   get_technical_analysis: "Computing indicators from live candles",
   search_tokens: "Searching DEX markets",
   get_dex_token: "Analyzing on-chain token data",

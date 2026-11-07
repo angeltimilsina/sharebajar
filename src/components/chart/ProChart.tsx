@@ -53,9 +53,9 @@ interface Props {
 
 export function ProChart({ feed, label, defaultRes, height = 520, className, compact }: Props) {
   const resList = RESOLUTIONS[feed.kind];
-  const [res, setRes] = useState(defaultRes && resList.includes(defaultRes) ? defaultRes : feed.kind === "coingecko" ? "1D" : feed.kind === "dex" ? "1m" : "1m");
+  const [res, setRes] = useState(defaultRes && resList.includes(defaultRes) ? defaultRes : "1m");
   const [prefs, setPrefs] = useLocalStore<{ type: ChartType; ind: IndicatorId[] }>("sb.chart.prefs.v1", { type: "candles", ind: ["vol", "ma20", "markers"] });
-  const type: ChartType = feed.kind === "coingecko" && prefs.type === "candles" ? "area" : prefs.type;
+  const type: ChartType = prefs.type;
   const ind = useMemo(() => new Set(prefs.ind), [prefs.ind]);
   const [tool, setTool] = useState<"none" | "hline" | "trend">("none");
   const [hlines, setHlines] = useState<number[]>([]);
@@ -129,7 +129,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     else main = chart.addSeries(AreaSeries, { lineColor: brand, topColor: `${brand}55`, bottomColor: `${brand}00`, lineWidth: 2, priceFormat });
     mainRef.current = main;
     const s: Record<string, ISeriesApi<SeriesType>> = {};
-    if (ind.has("vol") && feed.kind !== "coingecko") {
+    if (ind.has("vol")) {
       s.vol = chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
       chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     }
@@ -139,7 +139,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     if (ind.has("ma50")) overlay("ma50", COLORS.ma50);
     if (ind.has("ema21")) overlay("ema21", COLORS.ema21);
     if (ind.has("bb")) { overlay("bbU", COLORS.bb, 1, LineStyle.Dashed); overlay("bbM", COLORS.bb, 1, LineStyle.Dotted); overlay("bbL", COLORS.bb, 1, LineStyle.Dashed); }
-    if (ind.has("vwap") && feed.kind !== "coingecko") overlay("vwap", COLORS.vwap, 2);
+    if (ind.has("vwap")) overlay("vwap", COLORS.vwap, 2);
 
     let pane = 1;
     const paneSeries = (id: string, color: string, p: number) =>
@@ -156,7 +156,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
       paneSeries("macdS", COLORS.signal, pane);
       pane++;
     }
-    if (ind.has("bsr") && feed.kind !== "coingecko") {
+    if (ind.has("bsr")) {
       paneSeries("bsr", COLORS.bsr, pane);
       s.bsr.createPriceLine({ price: 0.5, color: text, lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
       pane++;
@@ -344,7 +344,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
         </div>
         <span className="w-px h-5 bg-line mx-1 shrink-0" />
         <div className="flex items-center gap-0.5" role="group" aria-label="Chart type">
-          {(feed.kind === "coingecko" ? (["line", "area"] as ChartType[]) : (["candles", "line", "area"] as ChartType[])).map((t) => {
+          {(["candles", "line", "area"] as ChartType[]).map((t) => {
             const Icon = t === "candles" ? CandlestickChart : t === "line" ? LineChart : AreaChart;
             return <button key={t} title={t} aria-label={`${t} chart`} aria-pressed={type === t} onClick={() => setPrefs((p) => ({ ...p, type: t }))} className={clsx("h-7 w-7 grid place-items-center rounded-md", type === t ? "bg-surface-3 text-fg" : "text-muted hover:text-fg")}><Icon size={15} /></button>;
           })}
@@ -369,10 +369,9 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
           {["Overlays", "Oscillators", "ShareBajar"].map((g) => (
             <div key={g} className="contents">
               {INDICATORS.filter((i) => i.group === g).map((i) => {
-                const unavailable = feed.kind === "coingecko" && ["vol", "vwap", "bsr", "vp", "markers"].includes(i.id);
                 return (
-                  <label key={i.id} title={i.hint} className={clsx("flex items-center gap-2 cursor-pointer py-0.5", unavailable && "opacity-40 cursor-not-allowed")}>
-                    <input type="checkbox" className="accent-[var(--brand)]" checked={ind.has(i.id)} disabled={unavailable} onChange={() => toggleInd(i.id)} />
+                  <label key={i.id} title={i.hint} className="flex items-center gap-2 cursor-pointer py-0.5">
+                    <input type="checkbox" className="accent-[var(--brand)]" checked={ind.has(i.id)} onChange={() => toggleInd(i.id)} />
                     <span>{i.label}</span>{g === "ShareBajar" && <span className="text-[9px] text-brand font-bold">SB</span>}
                   </label>
                 );
@@ -424,11 +423,10 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
           expectedMs={feedState.expectedMs}
           error={feedState.error}
           source={feedState.source}
-          liveLabel={feedState.mode === "stream" ? "Live stream" : feedState.mode === "poll" ? "Live (polled 4s)" : "Live"}
+          liveLabel={feedState.mode === "stream" ? "Live stream" : "Live (polled 4s)"}
         />
         {feedState.lastUpdate && <span className="num whitespace-nowrap">Updated {formatTime(feedState.lastUpdate)}</span>}
         {feed.kind === "dex" && subSecond && feedState.coverageFrom && <span className="whitespace-nowrap">Candles built from swaps since {formatTime(feedState.coverageFrom)}</span>}
-        {feed.kind === "coingecko" && <span className="whitespace-nowrap">No exchange OHLC feed for this asset — showing CoinGecko price history.</span>}
         {feedState.error && candles.length > 0 && <span className="text-warn whitespace-nowrap">{feedState.error}</span>}
       </div>
     </div>

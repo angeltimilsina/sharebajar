@@ -1,7 +1,8 @@
 import { Hero } from "@/components/market/Hero";
 import { StatCards, type Overview } from "@/components/market/StatCards";
 import { HomeMarkets } from "@/components/market/HomeMarkets";
-import { getGlobal, getMarkets } from "@/lib/market/coingecko";
+import { NetworkPulse } from "@/components/market/NetworkPulse";
+import { getGlobal, getMarkets } from "@/lib/market/markets";
 import { getDefiTvl } from "@/lib/market/defillama";
 import { errorMessage } from "@/lib/server/cache";
 
@@ -22,6 +23,7 @@ export default async function HomePage() {
     <div className="space-y-4">
       <Hero />
       <StatCards initial={overview} />
+      <NetworkPulse />
       <HomeMarkets initialCoins={coins} />
     </div>
   );

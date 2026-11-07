@@ -8,7 +8,7 @@ export function Footer() {
         <div>
           <div className="flex items-center gap-2 font-bold"><LogoMark size={24} /> ShareBajar</div>
           <p className="text-xs text-muted mt-2 max-w-sm leading-relaxed">
-            Open, multi-chain crypto marketplace. Market data from CoinGecko, Binance, DexScreener, GeckoTerminal and DefiLlama; contract checks by GoPlus; Solana routing by Jupiter.
+            Open, multi-chain crypto marketplace. Market data from CoinLore, Binance, DexScreener, GeckoTerminal and DefiLlama; chain data straight from Bitcoin, Ethereum, Solana and EVM RPC nodes; contract checks by GoPlus; Solana routing by Jupiter.
             Nothing on ShareBajar is financial advice. Crypto assets are volatile and you can lose your entire investment.
           </p>
         </div>

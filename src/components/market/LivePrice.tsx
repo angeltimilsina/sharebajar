@@ -13,7 +13,7 @@ export function LivePrice({ symbol, fallback, fallbackChange, fetchedAt }: { sym
         <PriceCell value={t?.price ?? fallback} live={!!t} className="text-3xl font-bold tracking-tight" />
         <Pct v={t?.change24h ?? fallbackChange} className="text-sm font-semibold" />
       </div>
-      <DataStatus fetchedAt={t?.updatedAt ?? fetchedAt} expectedMs={t ? 3000 : 90_000} source={t ? "Binance stream" : "CoinGecko"} />
+      <DataStatus fetchedAt={t?.updatedAt ?? fetchedAt} expectedMs={t ? 3000 : 90_000} source={t ? "Binance stream" : "CoinLore"} />
     </div>
   );
 }

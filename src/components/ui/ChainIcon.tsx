@@ -8,6 +8,9 @@ export function ChainIcon({ chain, size = 16, className }: { chain: string; size
   const s = size;
   let shape: React.ReactNode;
   switch (chain) {
+    case "bitcoin":
+      shape = <g><circle cx="9" cy="9" r="7.5" fill="#F7931A" /><text x="9" y="12.6" textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff">₿</text></g>;
+      break;
     case "solana":
       shape = (
         <g fill={color}>
@@ -40,7 +43,7 @@ export function ChainIcon({ chain, size = 16, className }: { chain: string; size
       shape = <circle cx="9" cy="9" r="6" fill={color} />;
   }
   return (
-    <svg width={s} height={s} viewBox="0 0 18 18" className={clsx("shrink-0", className)} aria-label={c?.name ?? chain} role="img">
+    <svg width={s} height={s} viewBox="0 0 18 18" className={clsx("shrink-0", className)} aria-label={c?.name ?? (chain === "bitcoin" ? "Bitcoin" : chain)} role="img">
       {shape}
     </svg>
   );

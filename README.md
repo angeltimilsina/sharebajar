@@ -2,16 +2,18 @@
 
 ShareBajar is a real-time, multi-chain crypto marketplace: token discovery, market intelligence, pro charts, non-custodial trading and wallet portfolios in one interface. Everything public works **without an account**.
 
+> **No API keys required for market data.** Prices, market caps and charts come from CoinLore and Binance public data; network conditions are read directly from the blockchains.
+>
 > **Data honesty policy.** ShareBajar only shows real market data. Every live widget carries a freshness badge (`Live`, `Delayed`, `Stale`, `Unavailable`) with its source and timestamp. When an upstream fails we show the last good value marked *stale* or an explicit error — never simulated prices. Features that aren't integrated yet are labelled as such in the UI.
 
 ## Features
 
 | Area | What's included |
 | --- | --- |
-| **Marketplace** (`/`) | Live ticker (Binance WebSocket), total market cap / volume / DeFi TVL / BTC & ETH dominance, network filters (Solana, Ethereum, Base, BNB Chain, Polygon, Arbitrum, Avalanche, Optimism), market table with live price overlay, trending / gainers / losers / new tokens / high volume / watchlist tabs, trending & newly launched pools, news, launchpad. |
+| **Marketplace** (`/`) | Live ticker (Binance WebSocket), total market cap / volume / DeFi TVL / BTC & ETH dominance, **Network Pulse** (live block height, fees/gas and throughput read directly from Bitcoin, Ethereum, Solana, Base, BNB Chain, Polygon, Arbitrum, Avalanche, Optimism), network filters (a chain shows its real on-chain pools), market table with live price overlay, trending / gainers / losers / new tokens / high volume / watchlist tabs, trending & newly launched pools, news, launchpad. |
 | **Discovery** (`/discover`) | Trending (5m/1h/6h/24h), new pools, top volume, latest token profiles, boosted tokens. Filters for liquidity, volume, FDV, age and 24h change. Contract-address lookup. Rule-based activity signals (volume/liquidity spikes, buy/sell pressure, thin liquidity, fresh pools). Solana is the default network. |
 | **Charts** (`/charts`, token pages) | TradingView *lightweight-charts* v5. Candles / line / area; **1s, 5s, 15s**, 1m … 1w. Real-time candle formation, zoom/pan/pinch, crosshair legend, fullscreen. MA20/50, EMA21, Bollinger, VWAP, RSI, MACD, volume, **volume profile**, live **large-trade markers**, ShareBajar **Buyer/Seller Ratio** and **Momentum**. Drawing tools (horizontal & trend lines). |
-| **Token pages** | `/coin/[id]` for listed coins (CoinGecko + Binance order book & trades) and `/token/[chain]/[address]` for any DEX token (DexScreener + GeckoTerminal + GoPlus): price, MC/FDV/supply/liquidity/volume, live swaps feed with large-trade detection, buy/sell activity, pools table, holder concentration, contract risk analysis, related news, AI summary, buy/sell/swap/watch/share. SEO metadata + JSON-LD. |
+| **Token pages** | `/coin/[id]` for listed coins (CoinLore + Binance price, order book & trades, top exchange markets) and `/token/[chain]/[address]` for any DEX token (DexScreener + GeckoTerminal + GoPlus): price, MC/FDV/supply/liquidity/volume, live swaps feed with large-trade detection, buy/sell activity, pools table, holder concentration, contract risk analysis, related news, AI summary, buy/sell/swap/watch/share. SEO metadata + JSON-LD. |
 | **Wallets & trading** (`/trade`, `/portfolio`) | Wallet picker: **BAJAR Wallet (upcoming)**, Phantom, Solflare, Backpack, MetaMask and any EIP-6963 wallet. Wallet sign-in (signed message, server-verified, httpOnly session). Solana swaps via Jupiter: live quotes, slippage settings, price impact, minimum received, route, fee estimate, **transaction simulation**, explicit wallet approval, on-chain status tracking. Portfolio balances, holdings value, recent transactions, watchlist & price alerts. |
 | **Intelligence** (`/intelligence`) | Streaming AI assistant (Claude) with tools for market overview, coin data, technical indicators computed from real candles, DEX token analysis (liquidity, holders, security), trending pools with anomaly signals and news. Proposes watchlists/alerts the user confirms. Always-on rule-based unusual-activity feed. |
 | **Ops** | `/status` and `/api/health` (integration + upstream health), structured JSON logs, per-IP rate limits, security headers. |
@@ -30,7 +32,8 @@ ShareBajar is a real-time, multi-chain crypto marketplace: token discovery, mark
 ```
 src/
   app/                    Next.js App Router pages + API route handlers
-    api/market/*          CoinGecko + DefiLlama (overview, coins, trending, coin, chart)
+    api/market/*          CoinLore + Binance + DefiLlama (overview, coins, coin detail)
+    api/networks          live chain stats: mempool.space (BTC) + JSON-RPC (EVM, Solana)
     api/candles           Binance OHLCV (1s pages, 5s/15s aggregation)
     api/binance/*         tickers, depth, USDT symbol map
     api/dex/*             GeckoTerminal pools/OHLCV/trades/info + DexScreener pairs/profiles
@@ -66,7 +69,9 @@ Each domain (market data, analytics, wallet connectivity, trading execution, AI)
 
 | Provider | Used for | Key needed |
 | --- | --- | --- |
-| CoinGecko | coin markets, global stats, trending, coin details | optional (`COINGECKO_API_KEY`, strongly recommended in production) |
+| CoinLore | coin rankings, market cap, supply, 1h/7d change, global stats, exchange markets | no |
+| mempool.space | Bitcoin block height, fees, mempool | no |
+| Public JSON-RPC nodes (publicnode.com, overridable) | Ethereum, Base, BNB Chain, Polygon, Arbitrum, Avalanche, Optimism (block, gas, txs) and Solana (slot, TPS, priority fees) | no |
 | Binance public market data (`data-api.binance.vision`, `data-stream.binance.vision`) | live tickers, 1s klines, order books, trades | no |
 | DexScreener | DEX pairs, search, token profiles/boosts | no |
 | GeckoTerminal | trending/new pools, pool OHLCV, swaps, holder distribution | no |
@@ -98,7 +103,7 @@ npm run build && npm start
 See [`.env.example`](.env.example). Highlights:
 
 - `ANTHROPIC_API_KEY` — enables ShareBajar Intelligence (server-side only).
-- `COINGECKO_API_KEY`, `COINGECKO_PLAN` — higher CoinGecko limits.
+- `RPC_URL_<CHAIN>` — use your own RPC nodes for network stats (optional).
 - `NEXT_PUBLIC_SOLANA_RPC_URL` — dedicated Solana RPC for balances, simulation and status (the public endpoint is rate-limited and often blocks browsers).
 - `SESSION_SECRET` — HMAC secret for wallet sessions (required in production).
 - `NEXT_PUBLIC_SITE_URL` — canonical URL for metadata and sitemap.

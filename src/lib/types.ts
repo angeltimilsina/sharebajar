@@ -4,7 +4,7 @@
  */
 export interface Envelope<T> {
   data: T;
-  /** Upstream provider, e.g. "CoinGecko". */
+  /** Upstream provider, e.g. "CoinLore + Binance". */
   source: string;
   /** Unix ms when the upstream data was fetched. */
   fetchedAt: number;

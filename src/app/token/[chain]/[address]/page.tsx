@@ -70,7 +70,7 @@ export default async function TokenPage({ params }: Params) {
   if (info?.verified) verified.push({ label: "GT Verified", tone: "up" });
   if (security?.trusted) verified.push({ label: "Trusted", tone: "up" });
   if (security?.openSource) verified.push({ label: "Source verified", tone: "info" });
-  if (info?.coingeckoId) verified.push({ label: "CoinGecko listed", tone: "brand" });
+  if (info?.coingeckoId) verified.push({ label: "Listed", tone: "brand" });
 
   const socials = [
     ...top.websites.map((w) => ({ label: w.label || "Website", url: w.url })),
