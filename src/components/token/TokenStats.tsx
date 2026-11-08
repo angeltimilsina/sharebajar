@@ -1,5 +1,6 @@
 "use client";
 import { formatNumber, formatUsd, age } from "@/lib/format";
+import { InstitutionLogo } from "../ui/InstitutionLogo";
 import { useNow } from "@/hooks/useNow";
 import type { DexPair, Envelope } from "@/lib/types";
 import { Card, CardHeader, Stat } from "../ui/primitives";
@@ -27,7 +28,7 @@ export function TokenStats({ chain, address, initial }: { chain: string; address
       <Stat label="Txns 24h" value={<><span className="text-up">{p.txns.h24.buys.toLocaleString()}</span> <span className="text-faint">/</span> <span className="text-down">{p.txns.h24.sells.toLocaleString()}</span></>} />
       <Stat label="Total Supply (≈ FDV ÷ price)" value={formatNumber(supply)} />
       <Stat label="Pair Age" value={now ? age(p.createdAt, now) : "—"} />
-      <Stat label="Top DEX" value={<span className="capitalize">{p.dex}</span>} />
+      <Stat label="Top DEX" value={<span className="capitalize inline-flex items-center gap-1.5"><InstitutionLogo name={p.dex} />{p.dex}</span>} />
     </Card>
   );
 }
@@ -79,7 +80,7 @@ export function PairsTable({ chain, address, initial }: { chain: string; address
             {pairs.slice(0, 15).map((x) => (
               <tr key={x.pairAddress} className="border-b border-line/60 last:border-0">
                 <td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5"><ChainIcon chain={x.chain} size={13} /><span className="font-medium">{x.base.symbol}/{x.quote.symbol}</span></span></td>
-                <td className="px-3 capitalize text-muted">{x.dex}{x.labels[0] ? <span className="text-faint"> · {x.labels[0]}</span> : null}</td>
+                <td className="px-3 capitalize text-muted"><span className="inline-flex items-center gap-1.5"><InstitutionLogo name={x.dex} size={14} />{x.dex}</span>{x.labels[0] ? <span className="text-faint"> · {x.labels[0]}</span> : null}</td>
                 <td className="px-3 text-right"><PriceCell value={x.priceUsd} /></td>
                 <td className="px-3 text-right"><Pct v={x.change.h24} /></td>
                 <td className="px-3 text-right num">{formatUsd(x.liquidityUsd)}</td>

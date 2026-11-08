@@ -1,4 +1,5 @@
 "use client";
+import { tokenLogo } from "@/lib/logos";
 import Link from "next/link";
 import { useLiveTickers, useStreamStatus } from "@/hooks/useBinance";
 import { useNow } from "@/hooks/useNow";
@@ -6,7 +7,7 @@ import { binanceStream } from "@/lib/stream/binance-ws";
 import { formatPrice, formatPct, pctClass } from "@/lib/format";
 import { TokenIcon } from "../ui/TokenIcon";
 
-const icon = (s: string) => `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${s.toLowerCase()}.png`;
+const icon = (s: string) => tokenLogo(s) ?? `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${s.toLowerCase()}.png`;
 const T = (s: string, id: string) => ({ s, id, img: icon(s) });
 /** Majors streamed live from Binance; ids are Bajar coin slugs (/coin/[id]). */
 export const TICKER = [

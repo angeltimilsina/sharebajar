@@ -1,15 +1,11 @@
 import type { MetadataRoute } from "next";
-import { getMarkets } from "@/lib/market/markets";
+import { seoPlan } from "@/lib/seo/agent";
+import { absolute } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
+/** Built from the SEO agent's live plan: core pages, market lists, coins, comparisons, trending tokens. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const pages = ["", "/discover", "/trade", "/charts", "/launchpad", "/intelligence"].map((p) => ({ url: `${site}${p}`, changeFrequency: "hourly" as const, priority: p ? 0.8 : 1 }));
-  try {
-    const { data } = await getMarkets({ perPage: 200 });
-    return [...pages, ...data.map((c) => ({ url: `${site}/coin/${c.id}`, changeFrequency: "hourly" as const, priority: 0.6 }))];
-  } catch {
-    return pages;
-  }
+  const plan = await seoPlan();
+  return plan.map((p) => ({ url: absolute(p.path), lastModified: p.lastModified, changeFrequency: p.changeFrequency, priority: p.priority }));
 }

@@ -6,7 +6,7 @@ test.describe("public marketplace", () => {
     await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
     await expect(page.getByText("Total Market Cap")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Market Overview" })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByText("Trending Tokens")).toBeVisible();
+    await expect(page.getByText("Trending Tokens", { exact: true })).toBeVisible();
   });
 
   test("network filter switches market feeds", async ({ page }) => {

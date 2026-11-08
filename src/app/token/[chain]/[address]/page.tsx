@@ -19,6 +19,13 @@ import { HolderPanel, RiskPanel } from "@/components/token/RiskPanel";
 import { AssetWorkspace } from "@/components/asset/AssetWorkspace";
 import type { ExecAsset } from "@/components/asset/AssetExecution";
 import { ZEROX_CHAINS } from "@/lib/treasury/tokens";
+import { absolute } from "@/lib/site";
+import { formatPct } from "@/lib/format";
+import { Breadcrumbs, DataSummary, JsonLd, RelatedLinks } from "@/components/seo/SeoBlocks";
+import { trendingSearches } from "@/lib/seo/agent";
+
+/** Pools thinner than this aren't worth indexing (mostly spam / rugs). */
+const INDEX_MIN_LIQUIDITY = 10_000;
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +44,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     const p = r?.env.data[0];
     if (!p) return { title: "Token not found" };
     return {
-      title: `${p.base.symbol} (${p.base.name}) on ${r!.chain.name} — price & chart`,
-      description: `${p.base.name} price ${formatPrice(p.priceUsd)}, liquidity ${formatUsd(p.liquidityUsd)}, 24h volume ${formatUsd(p.volume.h24)}. Live chart, trades, holders and contract risk analysis on Bajar.`,
+      title: `${p.base.name} (${p.base.symbol}) price today on ${r!.chain.name} — live chart`,
+      description: `${p.base.name} (${p.base.symbol}) price ${formatPrice(p.priceUsd)}, liquidity ${formatUsd(p.liquidityUsd)}, 24h volume ${formatUsd(p.volume.h24)}. Live chart, trades, holders and contract risk checks on Bajar.`,
+      keywords: [`${p.base.symbol} price`, `${p.base.name} price`, `${p.base.symbol} ${r!.chain.name}`, `${p.base.symbol} chart`],
       alternates: { canonical: `/token/${chain}/${address}` },
+      robots: { index: (p.liquidityUsd ?? 0) >= INDEX_MIN_LIQUIDITY, follow: true },
+      openGraph: { title: `${p.base.name} (${p.base.symbol}) on ${r!.chain.name}`, url: `/token/${chain}/${address}`, type: "website" },
     };
   } catch {
     return { title: "Token" };
@@ -99,7 +109,20 @@ export default async function TokenPage({ params, searchParams }: Params) {
     </Card>
   );
 
+  const trending = await trendingSearches();
+  const at = Date.now();
+  const summary = [
+    `${top.base.name} (${top.base.symbol}) trades at ${formatPrice(top.priceUsd)} on ${chain.name}${top.change.h24 !== null ? `, ${formatPct(top.change.h24)} over 24 hours` : ""}. Its deepest pool, ${top.base.symbol}/${top.quote.symbol} on ${top.dex}, holds ${formatUsd(top.liquidityUsd)} of liquidity with ${formatUsd(top.volume.h24)} traded in 24 hours.`,
+    `${top.txns.h24.buys.toLocaleString("en-US")} buys and ${top.txns.h24.sells.toLocaleString("en-US")} sells in the last 24 hours across ${env.data.length} pool${env.data.length === 1 ? "" : "s"}.${security?.level ? ` Contract risk check: ${security.level}.` : ""}`,
+  ];
   return (
+    <>
+    <JsonLd data={{
+      "@context": "https://schema.org", "@type": "WebPage", name: `${top.base.name} (${top.base.symbol}) price on ${chain.name}`,
+      url: absolute(`/token/${chain.id}/${address}`), dateModified: new Date(at).toISOString(),
+      mainEntity: { "@type": "ExchangeRateSpecification", currency: top.base.symbol, currentExchangeRate: top.priceUsd !== null ? { "@type": "UnitPriceSpecification", price: top.priceUsd, priceCurrency: "USD" } : undefined },
+    }} />
+    <Breadcrumbs items={[{ label: "Bajar", href: "/" }, { label: "Discover", href: "/discover" }, { label: chain.name, href: `/markets/${({ solana: "solana-tokens", ethereum: "ethereum-tokens", base: "base-tokens", bsc: "bnb-chain-tokens" } as Record<string, string>)[chain.id] ?? "trending-tokens"}` }, { label: top.base.symbol, href: `/token/${chain.id}/${address}` }]} />
     <AssetWorkspace
       asset={execAsset}
       header={<TokenHeader chain={chain.id} address={address} initial={env} image={info?.image ?? null} verified={verified} socials={socials} />}
@@ -131,5 +154,11 @@ export default async function TokenPage({ params, searchParams }: Params) {
         </>
       }
     />
+    <section className="mt-8 space-y-6" aria-label={`About the ${top.base.name} price`}>
+      <h2 className="text-xl">{top.base.name} price today</h2>
+      <DataSummary summary={summary} updated={at} />
+      <RelatedLinks title="Trending searches" links={trending} testid="trending-searches" />
+    </section>
+    </>
   );
 }

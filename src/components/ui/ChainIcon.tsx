@@ -1,9 +1,15 @@
 import { getChain } from "@/lib/chains";
+import { chainLogo } from "@/lib/logos";
 import clsx from "clsx";
 
-/** Simple, original geometric marks per chain (colour-coded). */
+/** Official network logo (self-hosted); geometric fallback for anything unknown. */
 export function ChainIcon({ chain, size = 16, className }: { chain: string; size?: number; className?: string }) {
   const c = getChain(chain);
+  const logo = chainLogo(chain);
+  if (logo) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={logo} width={size} height={size} alt={c?.name ?? (chain === "bitcoin" ? "Bitcoin" : chain)} className={clsx("shrink-0 rounded-full", className)} style={{ width: size, height: size }} loading="lazy" decoding="async" />;
+  }
   const color = c?.color ?? "#777";
   const s = size;
   let shape: React.ReactNode;

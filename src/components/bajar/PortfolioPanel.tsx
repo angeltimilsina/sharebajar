@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button, Card, CardHeader, Notice, Badge, Skeleton } from "../ui/primitives";
 import { DataStatus } from "../ui/DataStatus";
+import { TokenIcon } from "../ui/TokenIcon";
+import { ChainIcon } from "../ui/ChainIcon";
 import { usePoll } from "@/hooks/usePoll";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { bajar } from "@/lib/bajar/session";
@@ -44,6 +46,10 @@ export function PortfolioPanel({ onAction }: { onAction: (t: "send" | "receive" 
           {p.data && !nonZero.length && <li className="p-4 text-sm text-muted">No balances yet. Use Receive to fund this wallet.</li>}
           {nonZero.map((h) => (
             <li key={h.network + h.token} className="flex items-center gap-3 px-4 py-3">
+              <span className="relative shrink-0">
+                <TokenIcon symbol={h.symbol} size={32} canonical={!h.custom} />
+                {h.network !== "bitcoin" && <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1px]"><ChainIcon chain={h.network} size={13} /></span>}
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold flex items-center gap-1.5">{h.symbol}
                   <span className="text-[11px] text-muted font-normal">{h.networkName}</span>

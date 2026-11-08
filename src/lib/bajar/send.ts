@@ -5,6 +5,7 @@ import { requestApproval, UserRejected } from "./approvals";
 import { walletRpc } from "./rpc";
 import { planSend, signSend, isBtcAddress, signPsbt, describePsbt, type Utxo } from "./btc";
 import { evmSendTransaction } from "./providers";
+import { Buffer } from "buffer"; // explicit: browsers have no global Buffer
 import { getChain } from "../chains";
 import { activities, addActivity } from "../activity";
 

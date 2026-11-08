@@ -1,3 +1,4 @@
+import { siteUrl } from "@/lib/site";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
@@ -11,7 +12,7 @@ import { AlertWatcher } from "@/components/layout/AlertWatcher";
 import { Toaster } from "@/components/layout/Toaster";
 import { MobileNav } from "@/components/layout/MobileNav";
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const SITE = siteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
@@ -38,6 +39,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Applies the saved theme before first paint (no flash). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([
+          { "@context": "https://schema.org", "@type": "WebSite", name: "Bajar", url: SITE },
+          { "@context": "https://schema.org", "@type": "Organization", name: "Bajar", url: SITE, logo: `${SITE}/icon.svg` },
+        ]) }} />
       </head>
       <body className="min-h-screen flex flex-col">
         <WalletProvider>

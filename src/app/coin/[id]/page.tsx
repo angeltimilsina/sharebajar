@@ -7,6 +7,7 @@ import { errorMessage } from "@/lib/server/cache";
 import { formatNumber, formatPrice, formatUsd } from "@/lib/format";
 import { Badge, Card, CardHeader, Notice, Pct, Stat } from "@/components/ui/primitives";
 import { TokenIcon } from "@/components/ui/TokenIcon";
+import { InstitutionLogo } from "@/components/ui/InstitutionLogo";
 import { ProChart } from "@/components/chart/ProChart";
 import { OrderBook } from "@/components/trade/OrderBook";
 import { TradeFeed } from "@/components/trade/TradeFeed";
@@ -17,6 +18,10 @@ import { TokenActions } from "@/components/market/TokenActions";
 import { AssetWorkspace } from "@/components/asset/AssetWorkspace";
 import type { ExecAsset } from "@/components/asset/AssetExecution";
 import { KNOWN_TOKENS, NATIVE_EVM } from "@/lib/treasury/tokens";
+import { coinPageCopy, comparisonsFor, trendingSearches, universe } from "@/lib/seo/agent";
+import { categoriesOf } from "@/lib/seo/topics";
+import { absolute } from "@/lib/site";
+import { Breadcrumbs, DataSummary, FaqSection, JsonLd, RelatedLinks } from "@/components/seo/SeoBlocks";
 
 export const dynamic = "force-dynamic";
 const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -28,9 +33,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     if (!r) return { title: "Coin not found" };
     const m = r.data.market;
     return {
-      title: `${m.name} (${m.symbol}) price, chart & market data`,
-      description: `Live ${m.name} price ${formatPrice(m.price)}, market cap ${formatUsd(m.marketCap)}. Real-time charts, order book, trades and exchange markets on Bajar.`,
+      title: `${m.name} price today: ${m.symbol} to USD live chart & market cap`,
+      description: `${m.name} (${m.symbol}) price is ${formatPrice(m.price)}${m.change24h !== null ? ` (${m.change24h >= 0 ? "+" : ""}${m.change24h.toFixed(2)}% 24h)` : ""}, market cap ${formatUsd(m.marketCap)}, 24h volume ${formatUsd(m.volume24h)}. Live chart, order book, trades and where to buy.`,
+      keywords: [`${m.name} price`, `${m.symbol} price`, `${m.symbol} to USD`, `${m.name} market cap`, `${m.name} chart`],
       alternates: { canonical: `/coin/${m.id}` },
+      openGraph: { title: `${m.name} (${m.symbol}) price today`, url: `/coin/${m.id}`, type: "website" },
     };
   } catch {
     return { title: id };
@@ -75,20 +82,35 @@ export default async function CoinPage({ params }: { params: Promise<{ id: strin
   if (!r) notFound();
   const { market: m, binancePair: pair, ath, atl, exchanges } = r.data;
   const mint = await solanaMint(m.symbol);
-  const jsonLd = { "@context": "https://schema.org", "@type": "FinancialProduct", name: `${m.name} (${m.symbol})`, url: `/coin/${m.id}` };
+  const copy = coinPageCopy(m, r.fetchedAt);
+  const [peers, trending] = await Promise.all([
+    universe().then(({ coins }) => comparisonsFor(m.id, coins)).catch(() => []),
+    trendingSearches(),
+  ]);
+  const related = [...categoriesOf(m).map((c) => ({ label: c.label, href: `/markets/${c.slug}` })), ...peers];
+  const jsonLd = {
+    "@context": "https://schema.org", "@type": "WebPage", name: `${m.name} (${m.symbol}) price`, url: absolute(`/coin/${m.id}`),
+    dateModified: new Date(r.fetchedAt).toISOString(),
+    mainEntity: {
+      "@type": "ExchangeRateSpecification", currency: m.symbol,
+      currentExchangeRate: m.price !== null ? { "@type": "UnitPriceSpecification", price: m.price, priceCurrency: "USD" } : undefined,
+    },
+    about: { "@type": "Thing", name: m.name, alternateName: m.symbol, image: m.image?.startsWith("/") ? absolute(m.image) : m.image },
+  };
 
   const exec = await executionFor(m.symbol, mint);
   const execAsset: ExecAsset = { symbol: m.symbol, name: m.name, href: `/coin/${m.id}`, ...exec };
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd data={jsonLd} />
+      <Breadcrumbs items={[{ label: "Bajar", href: "/" }, { label: "Markets", href: "/markets/largest" }, { label: `${m.name} price`, href: `/coin/${m.id}` }]} />
       <AssetWorkspace
         asset={execAsset}
         header={
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div className="flex items-center gap-3 min-w-0">
-              <TokenIcon src={m.image} symbol={m.symbol} size={44} />
+              <TokenIcon src={m.image} symbol={m.symbol} size={44} canonical />
               <h1 className="text-[28px] flex items-center gap-2 flex-wrap">{m.name} <span className="text-muted text-base font-sans font-medium">{m.symbol}</span>{m.rank && <Badge>Rank #{m.rank}</Badge>}</h1>
             </div>
             <LivePrice symbol={pair} fallback={m.price} fallbackChange={m.change24h} fetchedAt={r.fetchedAt} />
@@ -135,7 +157,7 @@ export default async function CoinPage({ params }: { params: Promise<{ id: strin
                   <tbody>
                     {exchanges.slice(0, 8).map((x) => (
                       <tr key={x.exchange + x.pair} className="border-t border-line/60">
-                        <td className="px-4 py-1.5"><span className="font-medium">{x.exchange}</span> <span className="text-faint">{x.pair}</span></td>
+                        <td className="px-4 py-1.5"><span className="inline-flex items-center gap-1.5 font-medium"><InstitutionLogo name={x.exchange} />{x.exchange}</span> <span className="text-faint">{x.pair}</span></td>
                         <td className="text-right">{formatPrice(x.price)}</td>
                         <td className="text-right px-4">{formatUsd(x.volumeUsd)}</td>
                       </tr>
@@ -148,6 +170,13 @@ export default async function CoinPage({ params }: { params: Promise<{ id: strin
           </>
         }
       />
+      <section className="mt-8 space-y-6" aria-label={`About the ${m.name} price`}>
+        <h2 className="text-xl">{m.name} price today</h2>
+        <DataSummary summary={copy.summary} updated={r.fetchedAt} />
+        <FaqSection faq={copy.faq} title={`${m.name} FAQ`} />
+        <RelatedLinks title={`Compare ${m.symbol} and explore`} links={related} testid="coin-related" />
+        <RelatedLinks title="Trending searches" links={trending} testid="trending-searches" />
+      </section>
     </>
   );
 }

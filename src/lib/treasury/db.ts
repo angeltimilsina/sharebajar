@@ -175,6 +175,25 @@ create table if not exists validation_runs (
   details text,
   at timestamptz not null default now()
 );
+create table if not exists token_metadata (
+  id text primary key,
+  json text not null,
+  created_at timestamptz not null default now()
+);
+create table if not exists token_launches (
+  mint text primary key,
+  chain text not null,
+  name text not null,
+  symbol text not null,
+  creator text not null,
+  signature text not null,
+  metadata_uri text,
+  fixed_supply boolean not null,
+  freeze_revoked boolean not null,
+  supply text not null,
+  decimals int not null,
+  created_at timestamptz not null default now()
+);
 `;
 
 const g = globalThis as unknown as { __sbDb?: Promise<Db> };

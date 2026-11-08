@@ -14,7 +14,7 @@ export function Footer() {
         </div>
         <div>
           <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Markets</div>
-          <ul className="space-y-1.5 text-muted"><li><Link href="/" className="hover:text-fg">Market overview</Link></li><li><Link href="/discover" className="hover:text-fg">Token discovery</Link></li><li><Link href="/launchpad" className="hover:text-fg">New launches</Link></li></ul>
+          <ul className="space-y-1.5 text-muted"><li><Link href="/" className="hover:text-fg">Market overview</Link></li><li><Link href="/discover" className="hover:text-fg">Token discovery</Link></li><li><Link href="/launchpad" className="hover:text-fg">New launches</Link></li><li><Link href="/markets" className="hover:text-fg">All market lists</Link></li><li><Link href="/markets/top-gainers" className="hover:text-fg">Top gainers today</Link></li><li><Link href="/markets/top-losers" className="hover:text-fg">Top losers today</Link></li><li><Link href="/markets/trending-tokens" className="hover:text-fg">Trending tokens</Link></li></ul>
         </div>
         <div>
           <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Trade</div>

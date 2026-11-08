@@ -6,6 +6,7 @@ import { log } from "../server/log";
 import { getExchangeMarkets, getLoreCoins, getLoreGlobal, type LoreCoin } from "./coinlore";
 import { getUsdtSymbols } from "./binance";
 import type { CoinMarket, Envelope, GlobalStats } from "../types";
+import { tokenLogo } from "../logos";
 
 /**
  * Keyless market data, merged from:
@@ -14,7 +15,8 @@ import type { CoinMarket, Envelope, GlobalStats } from "../types";
  * No API keys required.
  */
 const BINANCE = process.env.BINANCE_REST_URL || "https://data-api.binance.vision";
-const ICON = (s: string) => `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${s.toLowerCase()}.png`;
+// Self-hosted official logo when we have one; open icon CDN for the rest.
+const ICON = (s: string) => tokenLogo(s) ?? `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${s.toLowerCase()}.png`;
 export const coinIcon = ICON;
 
 interface BnTicker { symbol: string; lastPrice: string; priceChangePercent: string; highPrice: string; lowPrice: string; quoteVolume: string; closeTime: number }

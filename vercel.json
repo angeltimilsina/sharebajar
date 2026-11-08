@@ -13,12 +13,19 @@
     },
     "src/app/api/treasury/index/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/seo/cron/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/treasury/cron",
       "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/api/seo/cron",
+      "schedule": "41 6 * * *"
     }
   ]
 }

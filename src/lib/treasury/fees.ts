@@ -13,16 +13,15 @@ export const DEFAULT_FEE_BPS = Number(process.env.PLATFORM_FEE_BPS ?? 30);
 export const MAX_FEE_BPS = Number(process.env.TREASURY_MAX_FEE_BPS ?? 100);
 
 /**
- * Token launch fee (USDC). Configurable via TOKEN_LAUNCH_FEE_USDC; it is only
- * disclosed and charged by a launch flow that actually creates tokens on
- * Bajar. The current Launchpad lists external launches only, so nothing
- * is collected today.
+ * Token launch fee (USDC), set with TOKEN_LAUNCH_FEE_USDC. Charged inside the
+ * launch transaction (disclosed before signing) only when an active, verified
+ * Solana treasury exists to receive it; otherwise no fee is taken.
  */
 const launchAmount = Number(process.env.TOKEN_LAUNCH_FEE_USDC ?? 0);
 export const LAUNCH_FEE = {
   enabled: launchAmount > 0,
   amountUsdc: launchAmount,
-  note: launchAmount > 0 ? `A ${launchAmount} USDC launch fee will be disclosed and charged when on-platform token creation ships. Not collected today.` : "No token launch fee configured.",
+  note: launchAmount > 0 ? `${launchAmount} USDC per token launch, shown to the creator before signing and paid to the active Solana treasury.` : "No token launch fee configured.",
 };
 
 export const PROVIDER_RULES = {
