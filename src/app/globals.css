@@ -210,5 +210,10 @@ h1 { line-height: 1.15; }
   .marquee, .pulse-dot, .flash-up, .flash-down, .rise { animation: none; }
 }
 
-/* Logged-in wallet is an app view: no marketing footer. */
+/* Once a wallet is connected the site is an app view: no marketing footer. */
 html[data-app-view] .site-footer { display: none; }
+
+/* Home market board rows: phone = asset | price+stat; desktop = full columns. */
+.board-grid { grid-template-columns: minmax(0, 1fr) auto; }
+@media (min-width: 1024px) { .board-grid { grid-template-columns: 22px 28px minmax(160px, 1fr) 100px repeat(5, 78px); } }
+@media (min-width: 1536px) { .board-grid { grid-template-columns: 22px 28px minmax(200px, 1fr) 110px repeat(5, 88px) 96px; } }

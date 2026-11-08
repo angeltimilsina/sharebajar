@@ -3,9 +3,12 @@ import { expect, test } from "@playwright/test";
 test.describe("public marketplace", () => {
   test("homepage renders market overview without an account", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
-    await expect(page.getByText("Total Market Cap")).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Market Overview" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { level: 1, name: "Markets" })).toBeVisible();
+    // No hero or stat cards: straight into the market list.
+    await expect(page.getByText("Total Market Cap")).toHaveCount(0);
+    await expect(page.locator("main .pulse-dot")).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Top", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("board-row").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("Trending Tokens", { exact: true })).toBeVisible();
   });
 
@@ -14,17 +17,21 @@ test.describe("public marketplace", () => {
     const sol = page.getByRole("radio", { name: /Solana/ });
     await sol.click();
     await expect(sol).toHaveAttribute("aria-checked", "true");
-    await page.getByRole("tab", { name: "New Tokens" }).click();
-    await expect(page.getByRole("tab", { name: "New Tokens" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("board-caption")).toContainText("Solana");
+    await page.getByRole("tab", { name: "New", exact: true }).click();
+    await expect(page.getByRole("tab", { name: "New", exact: true })).toHaveAttribute("aria-selected", "true");
   });
 
-  test("network pulse shows live chain data for Bitcoin, Ethereum and Solana", async ({ page }) => {
+  test("stat switch changes the highlighted stat and what gainers means", async ({ page }) => {
     await page.goto("/");
-    const pulse = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "Network Pulse" }) }).first();
-    for (const name of ["Bitcoin", "Ethereum", "Solana"]) await expect(pulse.getByText(name, { exact: true }).first()).toBeVisible();
-    await expect(pulse.getByText(/sat\/vB/)).toBeVisible();
-    await expect(pulse.getByText(/gwei/).first()).toBeVisible();
-    await expect(pulse.getByText(/TPS/).first()).toBeVisible();
+    await expect(page.getByTestId("board-row").first()).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("board-stats").getByRole("radio", { name: "7d" }).click();
+    await expect(page.getByTestId("board-stats").getByRole("radio", { name: "7d" })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("tab", { name: "Gainers", exact: true }).click();
+    await expect(page.getByTestId("board-caption")).toContainText("Gainers · 7d");
+    // Preference is remembered.
+    await page.reload();
+    await expect(page.getByTestId("board-caption")).toContainText("Gainers · 7d");
   });
 
   test("live ticker connects to the price stream", async ({ page }) => {
@@ -58,8 +65,8 @@ test.describe("public marketplace", () => {
     await page.route("**/api/market/coins?ids=**", (r) => r.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "api.coinlore.net unavailable (503)" }) }));
     await page.goto("/");
     await expect(async () => {
-      await page.getByRole("tab", { name: "Watchlist" }).click();
-      await expect(page.getByRole("tab", { name: "Watchlist" })).toHaveAttribute("aria-selected", "true", { timeout: 2000 });
+      await page.getByRole("tab", { name: "Watchlist", exact: true }).click();
+      await expect(page.getByRole("tab", { name: "Watchlist", exact: true })).toHaveAttribute("aria-selected", "true", { timeout: 2000 });
     }).toPass({ timeout: 30_000 });
     await expect(page.getByText("Market data unavailable")).toBeVisible();
   });
@@ -110,10 +117,16 @@ test.describe("wallet", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Connect wallet" }).first().click();
     await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-    await expect(page.getByRole("button", { name: /9WzD…AWWM/ }).first()).toBeVisible();
-    await page.getByRole("button", { name: /9WzD…AWWM/ }).first().click();
-    await page.getByRole("button", { name: "Disconnect" }).click();
+    // Connected: no Connect button, no footer; wallet controls live in the menu.
+    await expect(page.getByRole("button", { name: "Connect wallet" })).toHaveCount(0);
+    await expect(page.locator(".site-footer")).toBeHidden();
+    await page.getByTestId("menu-button").click();
+    const menu = page.getByTestId("account-menu");
+    await expect(menu.getByText("9WzD…AWWM")).toBeVisible();
+    await expect(page.getByTestId("account-switch")).toBeVisible();
+    await page.getByTestId("account-disconnect").click();
     await expect(page.getByRole("button", { name: "Connect wallet" }).first()).toBeVisible();
+    await expect(page.locator(".site-footer")).toBeVisible();
   });
 });
 
@@ -128,15 +141,23 @@ test.describe("trading", () => {
 
 test("homepage has no horizontal overflow on desktop", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Markets" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 test.describe("mobile @mobile", () => {
   test("homepage has no horizontal overflow on phones @mobile", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Markets" })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("tapping the stat on a row cycles the stat @mobile", async ({ page }) => {
+    await page.goto("/");
+    const pill = page.getByTestId("board-stat-pill").first();
+    await expect(pill).toBeVisible({ timeout: 30_000 });
+    await pill.click();
+    await expect(page.getByTestId("board-stats").getByRole("radio", { name: "7d" })).toHaveAttribute("aria-checked", "true");
   });
 });

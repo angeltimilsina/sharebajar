@@ -72,14 +72,6 @@ export function WalletApp() {
     return () => { window.removeEventListener("pointerdown", onAct); window.removeEventListener("keydown", onAct); };
   }, [unlocked]);
 
-  // Hide the site footer while the wallet is unlocked (app view, not a marketing page).
-  const appView = mounted && hasVault && !onboarding && unlocked && !!accounts;
-  useEffect(() => {
-    if (!appView) return;
-    document.documentElement.setAttribute("data-app-view", "wallet");
-    return () => document.documentElement.removeAttribute("data-app-view");
-  }, [appView]);
-
   if (!mounted) return <div className="mx-auto max-w-5xl py-2" />;
   if (!hasVault || onboarding) return <div className="mx-auto max-w-5xl py-1 sm:py-2"><Onboard onFinish={() => setOnboarding(false)} /></div>;
   if (!unlocked || !accounts) return <div className="mx-auto max-w-5xl py-1 sm:py-2"><Unlock /></div>;

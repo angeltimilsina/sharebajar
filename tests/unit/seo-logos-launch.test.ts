@@ -129,3 +129,30 @@ describe("wallet insights", () => {
     expect(assetHref({ network: "bsc", token: "0x0", symbol: "BNB", native: true })).toBeNull();
   });
 });
+
+import { applyLens, coinRow, coinSignals, lensSource, statFor } from "@/lib/market/board";
+
+describe("market board", () => {
+  const mk = (id: string, o: Partial<CoinMarket>) => coin(id, id.toUpperCase(), o.marketCap ?? 1e9, o.volume24h ?? 5e6, o.change24h ?? 0, o.change7d ?? 0);
+  it("picks the right data source per lens and network", () => {
+    expect(lensSource("top", "all")).toEqual({ kind: "coins" });
+    expect(lensSource("top", "solana")).toEqual({ kind: "pools", feed: "top" });
+    expect(lensSource("new", "all")).toEqual({ kind: "pools", feed: "new" });
+    expect(lensSource("watchlist", "base")).toEqual({ kind: "watchlist" });
+  });
+  it("gainers follow the selected timeframe and skip illiquid coins", () => {
+    const rows = [mk("a", { change24h: 5, change7d: 1 }), mk("b", { change24h: 1, change7d: 30 }), { ...mk("c", { change24h: 50 }), volume24h: 10 } as CoinMarket].map((c) => coinRow(c));
+    expect(applyLens(rows, "gainers", "change24h").map((r) => r.symbol)).toEqual(["A", "B"]);
+    expect(applyLens(rows, "gainers", "change7d").map((r) => r.symbol)).toEqual(["B", "A"]);
+    expect(applyLens(rows, "gainers", "volume").map((r) => r.symbol)).toEqual(["A", "B"]); // non-change stat → 24h
+  });
+  it("falls back to 24h when a stat doesn't apply", () => {
+    expect(statFor([coinRow(mk("a", {}))], "liquidity")).toBe("change24h");
+    expect(statFor([coinRow(mk("a", {}))], "marketCap")).toBe("marketCap");
+  });
+  it("signals come only from the data", () => {
+    expect(coinSignals({ ...mk("a", { change24h: 6, change7d: -15 }), change1h: 0 } as CoinMarket).map((s) => s.label)).toContain("Rebounding");
+    expect(coinSignals({ ...mk("a", {}), volume24h: 5e8, marketCap: 1e9 } as CoinMarket).map((s) => s.label)).toContain("Heavy volume");
+    expect(coinSignals(mk("a", {}))).toEqual([]);
+  });
+});

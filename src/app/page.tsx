@@ -1,30 +1,17 @@
-import { Hero } from "@/components/market/Hero";
-import { StatCards, type Overview } from "@/components/market/StatCards";
-import { HomeMarkets } from "@/components/market/HomeMarkets";
-import { NetworkPulse } from "@/components/market/NetworkPulse";
-import { getGlobal, getMarkets } from "@/lib/market/markets";
-import { getDefiTvl } from "@/lib/market/defillama";
-import { errorMessage } from "@/lib/server/cache";
+import { MarketBoard } from "@/components/market/MarketBoard";
+import { getMarkets } from "@/lib/market/markets";
 
 export const dynamic = "force-dynamic";
 
-async function loadInitial() {
-  const [g, t, m] = await Promise.allSettled([getGlobal(), getDefiTvl(), getMarkets({ perPage: 100 })]);
-  const overview: Overview = {
-    global: g.status === "fulfilled" ? g.value : { error: errorMessage(g.reason) },
-    tvl: t.status === "fulfilled" ? t.value : { error: errorMessage(t.reason) },
-  };
-  return { overview, coins: m.status === "fulfilled" ? m.value : null };
-}
-
 export default async function HomePage() {
-  const { overview, coins } = await loadInitial();
+  const coins = await getMarkets({ perPage: 100 }).catch(() => null);
   return (
     <div className="space-y-4">
-      <Hero />
-      <StatCards initial={overview} />
-      <NetworkPulse />
-      <HomeMarkets initialCoins={coins} />
+      <div>
+        <h1 className="text-[28px] sm:text-[34px] leading-tight">Markets</h1>
+        <p className="text-muted text-[14.5px] mt-1">Live prices across every major network. Switch the view, the network or the stat you care about.</p>
+      </div>
+      <MarketBoard initialCoins={coins} />
     </div>
   );
 }
