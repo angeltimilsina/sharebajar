@@ -6,6 +6,9 @@ import { ProChart } from "../chart/ProChart";
 import { OrderBook } from "./OrderBook";
 import { TradeFeed } from "./TradeFeed";
 import { SwapPanel } from "./SwapPanel";
+import { EvmSwapPanel } from "./EvmSwapPanel";
+import { Tabs } from "../ui/primitives";
+import { useWallet } from "../wallet/WalletProvider";
 import { MarketPicker } from "./MarketPicker";
 import { Notice } from "../ui/primitives";
 import { TokenIcon } from "../ui/TokenIcon";
@@ -22,6 +25,9 @@ export function TradeView() {
   const symParam = (sp.get("symbol") ?? "").toUpperCase();
   const symbol = SYMBOL_RE.test(symParam) ? symParam : "SOLUSDT";
   const [pair, setPair] = useState<DexPair | null>(null);
+  const { wallet } = useWallet();
+  const [venue, setVenue] = useState<"solana" | "evm">("solana");
+  useEffect(() => { if (wallet?.chainType === "evm" && !output) setVenue("evm"); }, [wallet, output]);
   const [pairErr, setPairErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,7 +67,8 @@ export function TradeView() {
           {dex ? <Notice>AMM pool — no order book. Execution prices come from pool reserves via Jupiter routing.</Notice> : <OrderBook symbol={symbol} base={base} rows={14} />}
         </div>
         <div className="space-y-4 min-w-0">
-          <SwapPanel defaultOutput={output} side={side} />
+          {!output && <Tabs size="sm" tabs={[{ id: "solana", label: "Solana · Jupiter" }, { id: "evm", label: "EVM · 0x" }]} value={venue} onChange={setVenue} />}
+          {venue === "evm" && !output ? <EvmSwapPanel /> : <SwapPanel defaultOutput={output} side={side} />}
           {!dex && <Notice>The chart and order book show Binance spot markets for price discovery. Swaps execute on-chain on Solana via Jupiter — prices may differ slightly from centralized exchanges.</Notice>}
           <div className="xl:hidden">{!dex && <OrderBook symbol={symbol} base={base} rows={10} />}</div>
         </div>

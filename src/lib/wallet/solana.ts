@@ -57,3 +57,15 @@ export async function solanaSignAndSend(p: InjectedSolana, base64Tx: string, rpc
   const conn = new Connection(rpcUrl, "confirmed");
   return conn.sendRawTransaction(signed.serialize(), { skipPreflight: false, maxRetries: 3 });
 }
+
+/** Sign without sending (Jupiter /order route: Jupiter lands it via /execute). */
+export async function solanaSignOnly(p: InjectedSolana, base64Tx: string): Promise<string> {
+  const { VersionedTransaction } = await import("@solana/web3.js");
+  const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(base64Tx), (c) => c.charCodeAt(0)));
+  if (!p.signTransaction) throw new Error("Wallet cannot sign transactions");
+  const signed = await p.signTransaction(tx);
+  const bytes = signed.serialize();
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
+}

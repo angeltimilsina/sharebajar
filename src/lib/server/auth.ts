@@ -94,4 +94,4 @@ export function verifyEvm(message: string, signatureHex: string, address: string
   return !!rec && rec.toLowerCase() === address.toLowerCase();
 }
 
-export interface Session { address: string; chainType: ChainType; exp: number }
+export interface Session { address: string; chainType: ChainType; exp: number; /** issued-at (ms) — admin actions require a recent sign-in */ iat?: number }

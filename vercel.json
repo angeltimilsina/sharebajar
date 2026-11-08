@@ -1,8 +1,24 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": ["iad1"],
+  "regions": [
+    "iad1"
+  ],
   "functions": {
-    "src/app/api/ai/chat/route.ts": { "maxDuration": 120 }
-  }
+    "src/app/api/ai/chat/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/treasury/cron/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/treasury/index/route.ts": {
+      "maxDuration": 300
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/treasury/cron",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }

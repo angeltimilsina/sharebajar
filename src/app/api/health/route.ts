@@ -14,7 +14,7 @@ export async function GET() {
         marketData: "CoinLore + Binance (keyless)",
         networks: "mempool.space + public JSON-RPC",
         solanaRpc: process.env.NEXT_PUBLIC_SOLANA_RPC_URL ? "custom" : "public (rate-limited)",
-        evmSwaps: { configured: false, note: "EVM swap routing not yet integrated" },
+        evmSwaps: { configured: !!process.env.ZEROX_API_KEY, note: process.env.ZEROX_API_KEY ? "0x Swap API" : "ZEROX_API_KEY not set" },
         limitOrders: { configured: false, note: "Limit orders not yet integrated" },
       },
       upstreams: getHostStats(),

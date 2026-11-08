@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, ChevronDown, Settings2, Loader2, AlertTriangle, CheckCircle2, XCircle, ExternalLink, ShieldCheck, Info } from "lucide-react";
+import { ArrowDownUp, ChevronDown, Settings2, Loader2, AlertTriangle, CheckCircle2, XCircle, ExternalLink, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import { useWallet } from "../wallet/WalletProvider";
 import { Badge, Button, Card, Notice, Tabs } from "../ui/primitives";
@@ -9,13 +9,18 @@ import { TokenIcon } from "../ui/TokenIcon";
 import { COMMON, TokenPicker, type SwapToken } from "./TokenPicker";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { getSolBalance, getSplHoldings, getSignatureStatus, simulateBase64, SOLANA_RPC, SOL_MINT, type SimResult } from "@/lib/wallet/rpc";
-import { solanaSignAndSend } from "@/lib/wallet/solana";
+import { solanaSignAndSend, solanaSignOnly } from "@/lib/wallet/solana";
+
+type FeeDisclosure =
+  | { applied: true; bps: number; mode: string; provider: string; token: string | null; symbol: string | null; decimals: number | null; estimatedAmount: string | null; recipient: string; providerShareBps: number; isTest: boolean; note: string }
+  | { applied: false; reason: string };
 
 interface Quote {
-  inAmount: string; outAmount: string; otherAmountThreshold: string; priceImpactPct: string; slippageBps: number;
-  routePlan: { swapInfo: { label: string; inputMint: string; outputMint: string }; percent: number }[];
-  contextSlot?: number; timeTaken?: number;
+  provider: string; route: "build" | "order";
+  inAmount: string; outAmount: string; otherAmountThreshold: string; priceImpactPct: number; slippageBps: number;
+  routeLabels: string[]; fee: FeeDisclosure; jupiterFee: { bps: number; mint: string | null } | null; intentToken: string | null;
 }
+interface Prepared { route: "build" | "order"; transaction: string; requestId: string | null; lastValidBlockHeight: number | null; unitsConsumed?: number | null; quote: Quote }
 
 const toBase = (v: string, decimals: number): string | null => {
   if (!/^\d*\.?\d*$/.test(v) || v === "" || v === ".") return null;
@@ -50,7 +55,7 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
   // review / execution
   const [review, setReview] = useState(false);
   const [step, setStep] = useState<Step>("idle");
-  const [tx, setTx] = useState<{ swapTransaction: string; prioritizationFeeLamports?: number; lastValidBlockHeight: number } | null>(null);
+  const [tx, setTx] = useState<Prepared | null>(null);
   const [sim, setSim] = useState<SimResult | null>(null);
   const [execErr, setExecErr] = useState<string | null>(null);
   const [sig, setSig] = useState<string | null>(null);
@@ -103,7 +108,7 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
     const id = ++reqId.current;
     setQuoting(true);
     try {
-      const r = await fetch(`/api/swap/quote?inputMint=${input.address}&outputMint=${output.address}&amount=${baseAmount}&slippageBps=${slippageBps}`);
+      const r = await fetch(`/api/swap/quote?inputMint=${input.address}&outputMint=${output.address}&amount=${baseAmount}&slippageBps=${slippageBps}${wallet?.chainType === "solana" ? `&taker=${wallet.address}` : ""}`);
       const b = await r.json();
       if (id !== reqId.current) return;
       if (!r.ok) throw new Error(b.error ?? "Quote failed");
@@ -116,7 +121,7 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
       const m = (e as Error).message;
       setQuoteErr(/not tradable|TOKEN_NOT_TRADABLE/i.test(m) ? "This token is not tradable via Jupiter routing." : /No routes|COULD_NOT_FIND/i.test(m) ? "No route found for this pair and amount." : m);
     } finally { if (id === reqId.current) setQuoting(false); }
-  }, [baseAmount, input.address, output.address, slippageBps, mode]);
+  }, [baseAmount, input.address, output.address, slippageBps, mode, wallet]);
   useEffect(() => { const t = setTimeout(fetchQuote, 400); return () => clearTimeout(t); }, [fetchQuote]);
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1000);
@@ -127,10 +132,11 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
 
   const out = quote ? fromBase(quote.outAmount, output.decimals) : null;
   const minOut = quote ? fromBase(quote.otherAmountThreshold, output.decimals) : null;
-  const impact = quote ? Number(quote.priceImpactPct) * 100 : 0;
+  const impact = quote ? Math.abs(Number(quote.priceImpactPct)) * 100 : 0;
   const inUsd = prices[input.address] && amount ? Number(amount) * prices[input.address] : null;
   const outUsd = prices[output.address] && out !== null ? out * prices[output.address] : null;
-  const route = useMemo(() => [...new Set(quote?.routePlan.map((r) => r.swapInfo.label) ?? [])], [quote]);
+  const route = useMemo(() => quote?.routeLabels ?? [], [quote]);
+  const feeAmt = (f: FeeDisclosure | undefined) => (f?.applied && f.estimatedAmount && f.decimals !== null ? `≈ ${formatNumber(Number(f.estimatedAmount) / 10 ** f.decimals, 6)} ${f.symbol ?? ""}` : "");
   const inBal = balances?.[input.address];
   const insufficient = inBal !== undefined && Number(amount) > inBal;
   const highImpact = impact > 5;
@@ -142,13 +148,14 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
     if (!wallet || wallet.chainType !== "solana" || !quote) return;
     setReview(true); setStep("building"); setExecErr(null); setSim(null); setSig(null); setTx(null); setAckImpact(false);
     try {
-      const r = await fetch("/api/swap/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteResponse: quote, userPublicKey: wallet.address }) });
-      const b = await r.json();
+      const r = await fetch("/api/swap/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inputMint: input.address, outputMint: output.address, amount: baseAmount, slippageBps, userPublicKey: wallet.address }) });
+      const b = (await r.json()) as Prepared & { error?: string };
       if (!r.ok) throw new Error(b.error ?? "Could not build transaction");
       setTx(b);
+      setQuote(b.quote);
       setStep("simulating");
       try {
-        const s = await simulateBase64(b.swapTransaction);
+        const s = await simulateBase64(b.transaction);
         setSim(s);
         if (s.err) { setStep("failed"); setExecErr(`Simulation failed: ${JSON.stringify(s.err)}. The swap would likely fail on-chain — no transaction was sent.`); return; }
       } catch (e) {
@@ -165,7 +172,19 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
     if (!p || !tx) return;
     setStep("signing"); setExecErr(null);
     try {
-      const signature = await solanaSignAndSend(p, tx.swapTransaction, SOLANA_RPC);
+      let signature: string;
+      if (tx.route === "order") {
+        // Jupiter /order: sign only, Jupiter lands it via /execute.
+        const signed = await solanaSignOnly(p, tx.transaction);
+        const r = await fetch("/api/swap/execute", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signedTransaction: signed, requestId: tx.requestId, intentToken: tx.quote.intentToken }) });
+        const b = await r.json();
+        if (!b.signature) throw new Error(b.error ?? `Execution failed (code ${b.code ?? "?"})`);
+        signature = b.signature;
+      } else {
+        signature = await solanaSignAndSend(p, tx.transaction, SOLANA_RPC);
+        // Report the hash so the treasury indexer can verify the fee on-chain.
+        if (tx.quote.intentToken) fetch("/api/treasury/intents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ intentToken: tx.quote.intentToken, txHash: signature }) }).catch(() => {});
+      }
       setSig(signature);
       setStep("submitted");
       const started = Date.now();
@@ -251,15 +270,17 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
             <div className="mt-3 space-y-1.5 text-xs">
               <Row k="Rate" v={out && Number(amount) ? `1 ${input.symbol} ≈ ${formatNumber(out / Number(amount), 6)} ${output.symbol}` : "—"} />
               <Row k="Price impact" v={<span className={impact > 5 ? "text-down" : impact > 1 ? "text-warn" : "text-up"}>{impact < 0.01 ? "< 0.01%" : `${impact.toFixed(2)}%`}</span>} />
+              <Row k="Platform fee" v={quote.fee.applied ? <span title={quote.fee.note}>{(quote.fee.bps / 100).toFixed(2)}% {feeAmt(quote.fee)}{quote.fee.isTest && <Badge tone="warn" className="ml-1">TEST</Badge>}</span> : <span className="text-muted">None</span>} />
+              {quote.fee.applied ? <div className="text-[11px] text-faint">{quote.fee.note}</div> : <div className="text-[11px] text-faint">{quote.fee.reason}</div>}
+              {quote.jupiterFee && <Row k="Jupiter fee" v={`${(quote.jupiterFee.bps / 100).toFixed(2)}%`} />}
               <Row k={`Minimum received (${slippageBps / 100}% slippage)`} v={`${formatNumber(minOut, 6)} ${output.symbol}`} />
               <Row k="Route" v={<span className="text-right">{route.join(" → ") || "—"}</span>} />
-              <Row k="Network fee" v="≈ 0.000005 SOL + priority fee (shown at review)" />
-              <div className="flex justify-between text-faint pt-1"><span>Quote by Jupiter · refreshes in {Math.max(0, QUOTE_REFRESH - age)}s</span>{quoting && <Loader2 size={12} className="animate-spin" />}</div>
+              <Row k="Network fee" v="≈ 0.000005 SOL + priority fee" />
+              <div className="flex justify-between text-faint pt-1"><span>Jupiter Swap V2 ({quote.route === "order" ? "/order" : "/build"}) · refreshes in {Math.max(0, QUOTE_REFRESH - age)}s</span>{quoting && <Loader2 size={12} className="animate-spin" />}</div>
             </div>
           )}
           <div className="mt-4">{cta}</div>
           <p className="mt-3 text-[11px] text-faint flex gap-1.5"><ShieldCheck size={13} className="shrink-0 text-brand" /> Non-custodial. You review and sign every transaction in your own wallet. ShareBajar never asks for seed phrases or private keys.</p>
-          <p className="mt-1 text-[11px] text-faint flex gap-1.5"><Info size={13} className="shrink-0" /> EVM swaps (Ethereum, Base, BNB Chain…) are not yet enabled.</p>
         </>
       )}
       <TokenPicker open={picker !== null} onClose={() => setPicker(null)} onPick={(t) => { if (picker === "in") { if (t.address === output.address) setOutput(input); setInput(t); } else { if (t.address === input.address) setInput(output); setOutput(t); } setQuote(null); }} />
@@ -271,7 +292,9 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
             <div className="flex justify-between"><span className="text-muted">Receive (est.)</span><span className="font-semibold num">{formatNumber(out, 6)} {output.symbol}</span></div>
             <div className="flex justify-between"><span className="text-muted">Minimum received</span><span className="num">{formatNumber(minOut, 6)} {output.symbol}</span></div>
             <div className="flex justify-between"><span className="text-muted">Price impact</span><span className={impact > 5 ? "text-down" : ""}>{impact.toFixed(2)}%</span></div>
-            {tx && <div className="flex justify-between"><span className="text-muted">Network fee (max)</span><span className="num">≈ {((5000 + (tx.prioritizationFeeLamports ?? 0)) / 1e9).toFixed(6)} SOL</span></div>}
+            <div className="flex justify-between"><span className="text-muted">Platform fee</span><span className="num text-right">{quote?.fee.applied ? `${(quote.fee.bps / 100).toFixed(2)}% ${feeAmt(quote.fee)}` : "None"}</span></div>
+            {quote?.fee.applied && quote.fee.providerShareBps > 0 && <div className="text-[11px] text-faint">Includes Jupiter&apos;s {quote.fee.providerShareBps / 100}% share of the referral fee.</div>}
+            {tx && <div className="flex justify-between"><span className="text-muted">Network fee</span><span className="num">≈ 0.000005 SOL + priority fee{tx.unitsConsumed ? ` · ${tx.unitsConsumed.toLocaleString()} CU` : ""}</span></div>}
           </div>
           <ol className="space-y-1.5 text-xs">
             <StepRow label="Build transaction" state={step === "building" ? "active" : tx ? "done" : step === "failed" && !tx ? "error" : "todo"} />

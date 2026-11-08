@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   if (!sig || sig.length > 200) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   const valid = pending.chainType === "solana" ? verifySolana(pending.message, sig, pending.address) : verifyEvm(pending.message, sig, pending.address);
   if (!valid) return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });
-  const session: Session = { address: pending.address, chainType: pending.chainType, exp: Date.now() + 7 * 24 * 3600_000 };
+  const session: Session = { address: pending.address, chainType: pending.chainType, exp: Date.now() + 7 * 24 * 3600_000, iat: Date.now() };
   const res = NextResponse.json({ ok: true, session });
   const secure = new URL(req.url).protocol === "https:";
   res.cookies.set(SESSION_COOKIE, seal(session), { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: 7 * 24 * 3600 });

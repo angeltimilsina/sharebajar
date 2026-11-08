@@ -16,12 +16,12 @@ ShareBajar is a real-time, multi-chain crypto marketplace: token discovery, mark
 | **Token pages** | `/coin/[id]` for listed coins (CoinLore + Binance price, order book & trades, top exchange markets) and `/token/[chain]/[address]` for any DEX token (DexScreener + GeckoTerminal + GoPlus): price, MC/FDV/supply/liquidity/volume, live swaps feed with large-trade detection, buy/sell activity, pools table, holder concentration, contract risk analysis, related news, AI summary, buy/sell/swap/watch/share. SEO metadata + JSON-LD. |
 | **Wallets & trading** (`/trade`, `/portfolio`) | Wallet picker: **BAJAR Wallet (upcoming)**, Phantom, Solflare, Backpack, MetaMask and any EIP-6963 wallet. Wallet sign-in (signed message, server-verified, httpOnly session). Solana swaps via Jupiter: live quotes, slippage settings, price impact, minimum received, route, fee estimate, **transaction simulation**, explicit wallet approval, on-chain status tracking. Portfolio balances, holdings value, recent transactions, watchlist & price alerts. |
 | **Intelligence** (`/intelligence`) | Streaming AI assistant (Claude) with tools for market overview, coin data, technical indicators computed from real candles, DEX token analysis (liquidity, holders, security), trending pools with anomaly signals and news. Proposes watchlists/alerts the user confirms. Always-on rule-based unusual-activity feed. |
+| **Treasury** (`/admin/treasury`) | Noncustodial revenue: register Solana wallet / Squads / Jupiter referral and EVM wallet / Safe treasuries, wallet-signed dual approvals, fee collection via Jupiter Swap V2 and 0x with disclosure, on-chain indexer + reconciliation, hash-chained ledger, dashboard, CSV exports, unsigned transfer/convert builders (wallet, Safe batch, Squads). See [docs/TREASURY.md](docs/TREASURY.md). |
 | **Ops** | `/status` and `/api/health` (integration + upstream health), structured JSON logs, per-IP rate limits, security headers. |
 
 ### Not yet available (clearly labelled in the UI)
 
 - **BAJAR Wallet** — upcoming native wallet.
-- **EVM swaps** — the swap adapter currently routes Solana only.
 - **Limit orders** — not yet integrated.
 - **Token creation** on the Launchpad — preview only, nothing is deployed.
 - **ERC-20 balances / EVM tx history** in Portfolio — needs an indexing provider.
