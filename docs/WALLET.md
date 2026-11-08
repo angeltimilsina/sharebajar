@@ -1,6 +1,6 @@
-# BAJAR Wallet
+# Bajar Wallet
 
-BAJAR Wallet is ShareBajar's built-in noncustodial wallet for **Bitcoin, Ethereum/EVM and Solana**, at `/wallet`.
+Bajar Wallet is Bajar's built-in noncustodial wallet for **Bitcoin, Ethereum/EVM and Solana**, at `/wallet`.
 
 > **Development build.** It must pass thorough testing and an independent security audit before anyone keeps meaningful funds in it. Until then, treat it as experimental software.
 
@@ -16,20 +16,20 @@ BAJAR Wallet is ShareBajar's built-in noncustodial wallet for **Bitcoin, Ethereu
 | Receive | QR codes plus copyable addresses for each network. |
 | Swap | See **Universal swaps** below. |
 | Activity | Bitcoin and Solana history comes from the networks. EVM shows transactions sent from this device, with explorer links for the rest. |
-| dApp provider | BAJAR shows up in **Connect wallet** as *BAJAR Wallet · Solana* and *BAJAR Wallet · EVM*, so the existing Trade, Portfolio and Treasury pages work with it. |
+| dApp provider | BAJAR shows up in **Connect wallet** as *Bajar Wallet · Solana* and *Bajar Wallet · EVM*, so the existing Trade, Portfolio and Treasury pages work with it. |
 
 ## Security model
 
 - **Keys never leave the browser.** The server only ever receives public addresses, signed transactions and signatures. `/api/wallet/rpc` is an allowlisted read/broadcast relay: it cannot sign anything.
-- **Explicit approval for every signature.** Every message, transaction, token approval, swap and bridge step opens the BAJAR approval dialog. It shows the network, accounts, amounts, network fee, simulation result and any ShareBajar fee. Nothing is signed until you click **Approve**. Token approvals are for the exact amount, never unlimited.
-- **Separate from the treasury.** The wallet's signing code (`src/lib/bajar/*`, browser only) shares no keys, storage or code paths with BAJAR Treasury (`src/lib/treasury/*`). The treasury never signs: it builds unsigned transactions for the owners' own multisig wallets.
-- **ShareBajar never asks for your recovery phrase.** The only place it is ever typed is the import screen of your own wallet, on your own device.
+- **Explicit approval for every signature.** Every message, transaction, token approval, swap and bridge step opens the BAJAR approval dialog. It shows the network, accounts, amounts, network fee, simulation result and any Bajar fee. Nothing is signed until you click **Approve**. Token approvals are for the exact amount, never unlimited.
+- **Separate from the treasury.** The wallet's signing code (`src/lib/bajar/*`, browser only) shares no keys, storage or code paths with Bajar Treasury (`src/lib/treasury/*`). The treasury never signs: it builds unsigned transactions for the owners' own multisig wallets.
+- **Bajar never asks for your recovery phrase.** The only place it is ever typed is the import screen of your own wallet, on your own device.
 
 ## Post-quantum (ML-DSA-65) protection: what it does and doesn't do
 
 BAJAR derives an **ML-DSA-65** (NIST FIPS 204) key pair from your phrase (`HMAC-SHA512("BAJAR/ML-DSA-65/v1", seed)` → 32-byte seed). It is used for:
 
-1. **Hybrid sign-in.** The ShareBajar sign-in message includes your PQ key fingerprint. The server verifies **both** the Ed25519 signature and the ML-DSA-65 signature (context `BAJAR-AUTH-v1`), and records `pq` on the session.
+1. **Hybrid sign-in.** The Bajar sign-in message includes your PQ key fingerprint. The server verifies **both** the Ed25519 signature and the ML-DSA-65 signature (context `BAJAR-AUTH-v1`), and records `pq` on the session.
 2. **Backups.** Encrypted backup files are signed (`BAJAR-BACKUP-v1`). Restore rejects tampered files.
 3. **Authorization log.** Every approval you give is recorded locally with a SHA-256 digest of the request and an ML-DSA-65 signature (`BAJAR-TX-AUTH-v1`).
 
@@ -37,7 +37,7 @@ BAJAR derives an **ML-DSA-65** (NIST FIPS 204) key pair from your phrase (`HMAC-
 
 ## Universal swaps
 
-| Route | Provider | ShareBajar fee |
+| Route | Provider | Bajar fee |
 |---|---|---|
 | Same-chain Solana (SOL, USDC, USDT, SPL) | Jupiter Swap V2 | 0.30% where supported and a treasury is active |
 | Same-chain EVM (ETH, USDC, USDT, WBTC, cbBTC) | 0x Swap API | 0.30% where supported (USDC preferred as fee token) |

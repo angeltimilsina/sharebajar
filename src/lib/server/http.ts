@@ -71,7 +71,7 @@ export async function fetchUpstream<T = unknown>(url: string, opts: FetchOptions
         method,
         headers: {
           accept: text ? "application/rss+xml, application/xml, text/xml, */*" : "application/json",
-          "user-agent": "ShareBajar/0.1 (+https://sharebajar.app)",
+          "user-agent": "Bajar/0.1 (+https://sharebajar.app)",
           ...(body ? { "content-type": "application/json" } : {}),
           ...headers,
         },

@@ -4,12 +4,17 @@ import { Lock, Wallet, Send, QrCode, Repeat, History, ShieldCheck } from "lucide
 import { Button, Tabs, Badge } from "../ui/primitives";
 import { useBajar } from "./useBajar";
 import { Onboard, Unlock } from "./Onboard";
+import dynamic from "next/dynamic";
 import { PortfolioPanel } from "./PortfolioPanel";
-import { SendPanel } from "./SendPanel";
-import { ReceivePanel } from "./ReceivePanel";
-import { BajarSwap } from "./BajarSwap";
-import { ActivityPanel } from "./ActivityPanel";
-import { SecurityPanel } from "./SecurityPanel";
+import { Skeleton } from "../ui/primitives";
+
+// Heavier tabs (signing libraries, QR encoder) load only when opened.
+const loading = () => <Skeleton className="h-64 w-full max-w-xl" />;
+const SendPanel = dynamic(() => import("./SendPanel").then((m) => m.SendPanel), { loading });
+const ReceivePanel = dynamic(() => import("./ReceivePanel").then((m) => m.ReceivePanel), { loading });
+const BajarSwap = dynamic(() => import("./BajarSwap").then((m) => m.BajarSwap), { loading });
+const ActivityPanel = dynamic(() => import("./ActivityPanel").then((m) => m.ActivityPanel), { loading });
+const SecurityPanel = dynamic(() => import("./SecurityPanel").then((m) => m.SecurityPanel), { loading });
 import { lock, touch } from "@/lib/bajar/session";
 
 type Tab = "portfolio" | "send" | "receive" | "swap" | "activity" | "security";
@@ -18,7 +23,7 @@ export function WalletApp() {
   const { hasVault, unlocked, accounts } = useBajar();
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<Tab>("portfolio");
-  useEffect(() => setMounted(true), []);
+  useEffect(() => { setMounted(true); window.dispatchEvent(new Event("bajar:load")); }, []);
   useEffect(() => {
     if (!unlocked) return;
     const onAct = () => touch();
@@ -27,13 +32,13 @@ export function WalletApp() {
     return () => { window.removeEventListener("pointerdown", onAct); window.removeEventListener("keydown", onAct); };
   }, [unlocked]);
 
-  if (!mounted) return <div className="mx-auto max-w-5xl px-4 py-8" />;
+  if (!mounted) return <div className="mx-auto max-w-5xl py-2" />;
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 space-y-4">
+    <div className="mx-auto max-w-5xl py-1 sm:py-2 space-y-4">
       {!hasVault ? <Onboard /> : !unlocked || !accounts ? <Unlock /> : (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-xl font-bold inline-flex items-center gap-2"><Wallet size={20} className="text-brand" />BAJAR Wallet</h1>
+            <h1 className="text-xl font-bold inline-flex items-center gap-2"><Wallet size={20} className="text-brand" />Bajar Wallet</h1>
             <Badge tone="up">Unlocked</Badge>
             <Badge tone="ai" title="ML-DSA-65 protects sign-in, backups and authorization records. Blockchain transactions use each network's own signature scheme.">PQ identity {accounts.pq.fingerprint.split(":").pop()?.slice(0, 8)}</Badge>
             <Button size="sm" variant="outline" className="ml-auto" onClick={() => lock()} data-testid="bajar-lock"><Lock size={14} className="mr-1" />Lock</Button>

@@ -35,12 +35,12 @@ export function StatusView() {
           {row("Market data (CoinLore + Binance)", true, "Keyless")}
           {row("Chain data (Bitcoin, EVM & Solana RPC)", true, h?.integrations.networks ?? "…")}
           {row("Live price stream (Binance WebSocket)", ws === "open", ws)}
-          {row("ShareBajar Intelligence (AI)", h ? h.integrations.ai.configured : null, h?.integrations.ai.configured ? "Configured" : "Not configured")}
+          {row("Bajar Intelligence (AI)", h ? h.integrations.ai.configured : null, h?.integrations.ai.configured ? "Configured" : "Not configured")}
           {row("Solana swaps (Jupiter)", true, "Enabled")}
           {row("Solana RPC", h ? h.integrations.solanaRpc === "custom" : null, h?.integrations.solanaRpc ?? "…")}
           {row("EVM swaps", false, h?.integrations.evmSwaps.note ?? "…")}
           {row("Limit orders", false, h?.integrations.limitOrders.note ?? "…")}
-          {row("BAJAR Wallet", false, "Upcoming")}
+          {row("Bajar Wallet", false, "Upcoming")}
         </ul>
       </Card>
       <Card>

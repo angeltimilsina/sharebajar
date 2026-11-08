@@ -62,7 +62,7 @@ export function Chat() {
     <Card className="flex flex-col min-h-[640px]">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-line">
         <span className="h-8 w-8 rounded-lg grid place-items-center bg-brand-soft text-brand font-bold text-xs border border-brand/30">AI</span>
-        <div className="flex-1"><div className="font-semibold">ShareBajar Intelligence</div><div className="text-[11px] text-muted">Grounded in live market data · analysis, not financial advice</div></div>
+        <div className="flex-1"><div className="font-semibold">Bajar Intelligence</div><div className="text-[11px] text-muted">Grounded in live market data · analysis, not financial advice</div></div>
         {configured && <Badge tone="up">Online</Badge>}
         {configured === false && <Badge tone="warn">Not configured</Badge>}
       </div>
@@ -138,7 +138,7 @@ function ActionCard({ action }: { action: AiAction }) {
   return (
     <div className="mt-2 rounded-xl border border-ai/30 bg-ai/[0.06] p-3 text-sm">
       <div className="font-semibold flex items-center gap-1.5"><BellPlus size={15} className="text-ai" /> Proposed alert: {action.label}</div>
-      <div className="text-xs text-muted my-1.5">Notify when price goes {action.condition} {formatPrice(action.price)} (checked every 30s while ShareBajar is open).</div>
+      <div className="text-xs text-muted my-1.5">Notify when price goes {action.condition} {formatPrice(action.price)} (checked every 30s while Bajar is open).</div>
       <Button size="sm" disabled={done} onClick={() => {
         al.add({ label: action.label, target: action.target, condition: action.condition, price: action.price });
         if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});

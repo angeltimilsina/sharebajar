@@ -21,7 +21,7 @@ export function Launchpad() {
         <div className="rounded-2xl border border-ai/25 p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--ai) 22%, var(--surface)), var(--surface))" }}>
           <Rocket size={120} className="absolute right-6 bottom-2 text-ai opacity-30 -rotate-12" />
           <h1 className="text-2xl font-bold tracking-tight">Launchpad</h1>
-          <p className="text-sm text-muted mt-1 max-w-xl">Track every new liquidity pool the moment it appears on-chain, and — soon — launch your own token across multiple networks directly from ShareBajar.</p>
+          <p className="text-sm text-muted mt-1 max-w-xl">Track every new liquidity pool the moment it appears on-chain, and — soon — launch your own token across multiple networks directly from Bajar.</p>
           <div className="mt-4 flex gap-2 flex-wrap"><Badge tone="up">Live pool feed</Badge><Badge tone="brand">Multi-chain</Badge><Badge tone="ai">Token creation coming soon</Badge></div>
         </div>
         <Card id="create">

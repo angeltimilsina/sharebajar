@@ -2,22 +2,27 @@
 
 @custom-variant light (&:where([data-theme=light], [data-theme=light] *));
 
-/* BAJAR identity — dark first. */
+/* Bajar identity — silver first, green only as an accent (logo, live, gains). */
 :root {
-  --bg: #040605;
-  --bg-elev: #080b0a;
-  --surface: #0b0f0e;
-  --surface-2: #111614;
-  --surface-3: #171e1b;
+  --bg: #050607;
+  --bg-elev: #090a0c;
+  --surface: #0d0f11;
+  --surface-2: #131619;
+  --surface-3: #1a1e22;
   --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.13);
-  --text: #e9eeec;
-  --muted: #8a9690;
-  --faint: #5b6661;
-  --brand: #00f53a;
-  --brand-strong: #19ff4f;
-  --brand-ink: #021a08;
-  --brand-soft: rgba(0, 245, 58, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #eceef0;
+  --muted: #8d939a;
+  --faint: #5d636a;
+  --brand: #c9ced4;
+  --brand-strong: #e6e9ec;
+  --brand-ink: #0b0d0f;
+  --brand-soft: rgba(201, 206, 212, 0.1);
+  --silver-1: #f3f5f7;
+  --silver-2: #c4c9cf;
+  --silver-3: #9aa1a9;
+  --accent: #00f53a;
+  --accent-soft: rgba(0, 245, 58, 0.12);
   --up: #19e07d;
   --down: #ff4d5f;
   --warn: #f5b83d;
@@ -32,20 +37,25 @@
 }
 
 [data-theme="light"] {
-  --bg: #f4f6f5;
-  --bg-elev: #eef1f0;
+  --bg: #f3f4f6;
+  --bg-elev: #eceef1;
   --surface: #ffffff;
-  --surface-2: #f5f7f6;
-  --surface-3: #ebefed;
-  --border: rgba(10, 20, 15, 0.08);
-  --border-strong: rgba(10, 20, 15, 0.16);
-  --text: #0b1310;
-  --muted: #56635d;
-  --faint: #8c9893;
-  --brand: #00a82a;
-  --brand-strong: #00c232;
+  --surface-2: #f5f6f8;
+  --surface-3: #e9ecef;
+  --border: rgba(15, 18, 22, 0.08);
+  --border-strong: rgba(15, 18, 22, 0.16);
+  --text: #101317;
+  --muted: #59606a;
+  --faint: #8d949c;
+  --brand: #4a525c;
+  --brand-strong: #2f363e;
   --brand-ink: #ffffff;
-  --brand-soft: rgba(0, 168, 42, 0.09);
+  --brand-soft: rgba(74, 82, 92, 0.09);
+  --silver-1: #5d6670;
+  --silver-2: #3c434b;
+  --silver-3: #2a3037;
+  --accent: #00a82a;
+  --accent-soft: rgba(0, 168, 42, 0.1);
   --up: #079a50;
   --down: #dc2638;
   --warn: #b77900;
@@ -73,6 +83,8 @@
   --color-brand-strong: var(--brand-strong);
   --color-brand-ink: var(--brand-ink);
   --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --color-up: var(--up);
   --color-down: var(--down);
   --color-warn: var(--warn);
@@ -82,6 +94,9 @@
 }
 
 html, body { background: var(--bg); color: var(--text); }
+/* room for the mobile bottom nav */
+@media (max-width: 767px) { body { padding-bottom: calc(56px + env(safe-area-inset-bottom)); } }
+html { -webkit-tap-highlight-color: transparent; text-size-adjust: 100%; }
 body {
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
@@ -91,7 +106,26 @@ body {
 }
 
 * { border-color: var(--border); }
-::selection { background: var(--brand-soft); }
+::selection { background: color-mix(in srgb, var(--brand) 28%, transparent); }
+
+/* Brushed-silver primary button */
+.btn-silver {
+  background: linear-gradient(180deg, var(--silver-1) 0%, var(--silver-2) 55%, var(--silver-3) 100%);
+  color: var(--brand-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.18), 0 6px 18px -10px rgba(0, 0, 0, 0.7);
+}
+.btn-silver:hover { filter: brightness(1.06); }
+.btn-silver:active { filter: brightness(0.96); }
+[data-theme="light"] .btn-silver { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -10px rgba(15, 18, 22, 0.5); }
+.text-silver {
+  background: linear-gradient(180deg, var(--silver-1), var(--silver-3));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 
 .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 

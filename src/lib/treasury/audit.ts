@@ -42,7 +42,7 @@ export async function alert(severity: Severity, kind: string, message: string, d
     fetch(hook, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text: `[ShareBajar Treasury · ${severity.toUpperCase()}] ${message}`, content: `[ShareBajar Treasury · ${severity.toUpperCase()}] ${message}` }),
+      body: JSON.stringify({ text: `[Bajar Treasury · ${severity.toUpperCase()}] ${message}`, content: `[Bajar Treasury · ${severity.toUpperCase()}] ${message}` }),
       signal: AbortSignal.timeout(5000),
     }).catch((e) => log("warn", "alert webhook failed", { error: String(e) }));
   }

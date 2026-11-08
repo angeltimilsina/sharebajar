@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     if (!p) return { title: "Token not found" };
     return {
       title: `${p.base.symbol} (${p.base.name}) on ${r!.chain.name} — price & chart`,
-      description: `${p.base.name} price ${formatPrice(p.priceUsd)}, liquidity ${formatUsd(p.liquidityUsd)}, 24h volume ${formatUsd(p.volume.h24)}. Live chart, trades, holders and contract risk analysis on ShareBajar.`,
+      description: `${p.base.name} price ${formatPrice(p.priceUsd)}, liquidity ${formatUsd(p.liquidityUsd)}, 24h volume ${formatUsd(p.volume.h24)}. Live chart, trades, holders and contract risk analysis on Bajar.`,
       alternates: { canonical: `/token/${chain}/${address}` },
     };
   } catch {

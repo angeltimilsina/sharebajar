@@ -28,10 +28,10 @@ function Progress({ p }: { p: number | null }) {
 export function Onboard() {
   const [mode, setMode] = useState<"create" | "import" | "backup">("create");
   return (
-    <Card className="p-5 max-w-xl mx-auto">
-      <h1 className="text-xl font-bold mb-1">BAJAR Wallet</h1>
-      <p className="text-sm text-muted mb-4">A noncustodial wallet for Bitcoin, Ethereum/EVM and Solana. Your recovery phrase is generated and encrypted in this browser and never sent to ShareBajar servers.</p>
-      <Tabs tabs={[{ id: "create", label: "Create" }, { id: "import", label: "Import phrase" }, { id: "backup", label: "Restore backup" }]} value={mode} onChange={setMode} className="mb-4" />
+    <Card className="p-4 sm:p-5 max-w-xl mx-auto">
+      <h1 className="text-xl font-bold mb-1">Bajar Wallet</h1>
+      <p className="text-sm text-muted mb-4">A noncustodial wallet for Bitcoin, Ethereum/EVM and Solana. Your recovery phrase is generated and encrypted in this browser and never sent to Bajar servers.</p>
+      <Tabs tabs={[{ id: "create", label: "Create" }, { id: "import", label: "Import" }, { id: "backup", label: "Restore" }]} value={mode} onChange={setMode} className="mb-4" />
       {mode === "create" ? <Create /> : mode === "import" ? <ImportPhrase /> : <RestoreBackup />}
     </Card>
   );
@@ -57,11 +57,11 @@ function Create() {
         <Button size="sm" variant={strength === 256 ? "primary" : "outline"} onClick={() => setStrength(256)}>24 words</Button>
         <Button size="sm" variant="ghost" onClick={() => { setSeed(seed + 1); setRevealed(false); }}>Regenerate</Button>
       </div>
-      <Notice tone="warn" title="Write these words down, in order">Anyone with this phrase controls your funds. ShareBajar will never ask for it. Store it offline — it is the only way to recover the wallet.</Notice>
+      <Notice tone="warn" title="Write these words down, in order">Anyone with this phrase controls your funds. Bajar will never ask for it. Store it offline — it is the only way to recover the wallet.</Notice>
       <div className={`relative grid grid-cols-3 gap-1.5 ${revealed ? "" : "blur-sm select-none"}`} data-testid="bajar-phrase">
         {words.map((w, i) => <div key={i} className="rounded-md bg-surface-2 border border-line px-2 py-1 text-xs font-mono"><span className="text-faint mr-1">{i + 1}.</span>{w}</div>)}
       </div>
-      {!revealed && <Button variant="outline" className="w-full" onClick={() => setRevealed(true)} data-testid="bajar-reveal"><Eye size={14} className="mr-1" />Reveal phrase (make sure nobody is watching)</Button>}
+      {!revealed && <Button variant="outline" className="w-full" onClick={() => setRevealed(true)} data-testid="bajar-reveal"><Eye size={14} className="mr-1" />Reveal phrase (check nobody is watching)</Button>}
       <Button className="w-full" disabled={!revealed} onClick={() => setStep("confirm")}>I wrote it down</Button>
     </div>
   );
@@ -116,7 +116,7 @@ function RestoreBackup() {
   const [err, setErr] = useState<string | null>(null);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">Restore an encrypted BAJAR backup file. Its ML-DSA-65 signature is verified before it is accepted.</p>
+      <p className="text-sm text-muted">Restore an encrypted Bajar backup file. Its ML-DSA-65 signature is verified before it is accepted.</p>
       <input type="file" accept="application/json,.json" className="text-xs" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setJson(await f.text()); }} />
       <textarea className={`${input} h-20 font-mono text-[11px]`} placeholder="…or paste backup JSON" value={json} onChange={(e) => setJson(e.target.value)} />
       <PasswordFields pw={pw} setPw={setPw} />
@@ -140,7 +140,7 @@ export function Unlock() {
   };
   return (
     <Card className="p-5 max-w-md mx-auto">
-      <h1 className="text-xl font-bold mb-1">Unlock BAJAR Wallet</h1>
+      <h1 className="text-xl font-bold mb-1">Unlock Bajar Wallet</h1>
       <p className="text-sm text-muted mb-4">Your encrypted wallet is stored in this browser.</p>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <PasswordFields pw={pw} setPw={setPw} />

@@ -1,10 +1,10 @@
-# ShareBajar Treasury
+# Bajar Treasury
 
 Noncustodial revenue collection, monitoring and accounting at `/admin/treasury`.
 
 ## Principles
 
-- **No keys in ShareBajar.** Treasury wallets and multisigs are created in external apps: Phantom/Solflare, Squads, MetaMask, Safe, or the Jupiter referral dashboard. ShareBajar stores only **public** addresses and never asks for recovery phrases or private keys.
+- **No keys in Bajar.** Treasury wallets and multisigs are created in external apps: Phantom/Solflare, Squads, MetaMask, Safe, or the Jupiter referral dashboard. Bajar stores only **public** addresses and never asks for recovery phrases or private keys.
 - **Revenue counts only when fees arrive on-chain.** Quotes, swap volume and reported transactions are never counted as revenue.
 - **Every fee is disclosed before signing.** If a route can't carry the fee, the user sees "No platform fee" and none is charged or claimed.
 - **No backend signing.** Outgoing operations are built and simulated unsigned. They execute only after treasury wallet or multisig approval: in the wallet itself, through a Safe Transaction Builder batch, or as a Squads proposal.
@@ -30,7 +30,7 @@ Bitcoin (native BTC) treasuries receive LI.FI cross-chain fees on BTC-source rou
 
 ### Token launch fee
 
-`TOKEN_LAUNCH_FEE_USDC` configures a USDC launch fee, shown in the admin config. It is disclosed but **not collected**: ShareBajar's Launchpad lists external launches and has no on-platform token creation yet.
+`TOKEN_LAUNCH_FEE_USDC` configures a USDC launch fee, shown in the admin config. It is disclosed but **not collected**: Bajar's Launchpad lists external launches and has no on-platform token creation yet.
 
 The 30 bps default is below Jupiter's referral minimum. Solana wallet/Squads treasuries therefore use `/build`. Jupiter referral treasuries start at 50 bps.
 
@@ -70,4 +70,4 @@ The 30 bps default is below Jupiter's referral minimum. Solana wallet/Squads tre
 - `tests/integration/treasury-flow.mjs`: 29 end-to-end checks against a live server and real chain reads. They cover access control, forged signatures, dual approval, ownership, fee caps, activation gating, fee disclosure, indexing, ledger, audit, CSV and emergency disable.
 - Unit tests: classification, fee policy, encryption, integrity tampering on a real embedded Postgres, governance, ledger tampering and intent forgery.
 - Mainnet fixtures: a real Jupiter referral account's fee and claim transactions, including swaps routed via DFlow.
-- **Not yet done:** a real test swap paying a fee into a ShareBajar-owned treasury. That needs your funded treasury wallets and must be done by you (Production validation tab).
+- **Not yet done:** a real test swap paying a fee into a Bajar-owned treasury. That needs your funded treasury wallets and must be done by you (Production validation tab).

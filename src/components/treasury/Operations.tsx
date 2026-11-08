@@ -105,7 +105,7 @@ function OpBuilder({ list, bals }: { list: any[]; bals: Record<string, any> }) {
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center justify-between"><div className="text-sm font-semibold">Treasury operations</div><Tabs size="sm" tabs={[{ id: "transfer", label: "Transfer / consolidate" }, { id: "convert", label: "Convert to USDC" }]} value={op} onChange={(v) => { setOp(v); setRes(null); }} /></div>
-      <p className="text-xs text-muted">ShareBajar only <b>prepares and simulates</b> transactions. Execution always requires the treasury wallet or multisig signers. Transfers can only go to other registered, ownership-verified treasuries (address allowlist). No automatic withdrawals exist.</p>
+      <p className="text-xs text-muted">Bajar only <b>prepares and simulates</b> transactions. Execution always requires the treasury wallet or multisig signers. Transfers can only go to other registered, ownership-verified treasuries (address allowlist). No automatic withdrawals exist.</p>
       <div className="grid gap-2 sm:grid-cols-4">
         <select value={src} onChange={(e) => { setSrc(e.target.value); setToken(""); setDest(""); setRes(null); }} className="h-10 rounded-lg bg-surface-2 border border-line px-2 text-sm"><option value="">Source treasury…</option>{list.filter((t) => t.kind !== "jupiter_referral").map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select>
         <select value={token} onChange={(e) => setToken(e.target.value)} className="h-10 rounded-lg bg-surface-2 border border-line px-2 text-sm"><option value="">Token…</option>{tokens.map((b: any) => <option key={b.token} value={b.token}>{b.symbol} ({b.amount})</option>)}</select>

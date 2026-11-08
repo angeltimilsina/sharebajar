@@ -1,10 +1,10 @@
-# ShareBajar — The Open Crypto Marketplace
+# Bajar — The Open Crypto Marketplace
 
-ShareBajar is a real-time, multi-chain crypto marketplace: token discovery, market intelligence, pro charts, non-custodial trading and wallet portfolios in one interface. Everything public works **without an account**.
+Bajar is a real-time, multi-chain crypto marketplace: token discovery, market intelligence, pro charts, non-custodial trading and wallet portfolios in one interface. Everything public works **without an account**.
 
 > **No API keys required for market data.** Prices, market caps and charts come from CoinLore and Binance public data; network conditions are read directly from the blockchains.
 >
-> **Data honesty policy.** ShareBajar only shows real market data. Every live widget carries a freshness badge (`Live`, `Delayed`, `Stale`, `Unavailable`) with its source and timestamp. When an upstream fails we show the last good value marked *stale* or an explicit error — never simulated prices. Features that aren't integrated yet are labelled as such in the UI.
+> **Data honesty policy.** Bajar only shows real market data. Every live widget carries a freshness badge (`Live`, `Delayed`, `Stale`, `Unavailable`) with its source and timestamp. When an upstream fails we show the last good value marked *stale* or an explicit error — never simulated prices. Features that aren't integrated yet are labelled as such in the UI.
 
 ## Features
 
@@ -12,16 +12,16 @@ ShareBajar is a real-time, multi-chain crypto marketplace: token discovery, mark
 | --- | --- |
 | **Marketplace** (`/`) | Live ticker (Binance WebSocket), total market cap / volume / DeFi TVL / BTC & ETH dominance, **Network Pulse** (live block height, fees/gas and throughput read directly from Bitcoin, Ethereum, Solana, Base, BNB Chain, Polygon, Arbitrum, Avalanche, Optimism), network filters (a chain shows its real on-chain pools), market table with live price overlay, trending / gainers / losers / new tokens / high volume / watchlist tabs, trending & newly launched pools, news, launchpad. |
 | **Discovery** (`/discover`) | Trending (5m/1h/6h/24h), new pools, top volume, latest token profiles, boosted tokens. Filters for liquidity, volume, FDV, age and 24h change. Contract-address lookup. Rule-based activity signals (volume/liquidity spikes, buy/sell pressure, thin liquidity, fresh pools). Solana is the default network. |
-| **Charts** (`/charts`, token pages) | TradingView *lightweight-charts* v5. Candles / line / area; **1s, 5s, 15s**, 1m … 1w. Real-time candle formation, zoom/pan/pinch, crosshair legend, fullscreen. MA20/50, EMA21, Bollinger, VWAP, RSI, MACD, volume, **volume profile**, live **large-trade markers**, ShareBajar **Buyer/Seller Ratio** and **Momentum**. Drawing tools (horizontal & trend lines). |
+| **Charts** (`/charts`, token pages) | TradingView *lightweight-charts* v5. Candles / line / area; **1s, 5s, 15s**, 1m … 1w. Real-time candle formation, zoom/pan/pinch, crosshair legend, fullscreen. MA20/50, EMA21, Bollinger, VWAP, RSI, MACD, volume, **volume profile**, live **large-trade markers**, Bajar **Buyer/Seller Ratio** and **Momentum**. Drawing tools (horizontal & trend lines). |
 | **Token pages** | `/coin/[id]` for listed coins (CoinLore + Binance price, order book & trades, top exchange markets) and `/token/[chain]/[address]` for any DEX token (DexScreener + GeckoTerminal + GoPlus): price, MC/FDV/supply/liquidity/volume, live swaps feed with large-trade detection, buy/sell activity, pools table, holder concentration, contract risk analysis, related news, AI summary, buy/sell/swap/watch/share. SEO metadata + JSON-LD. |
-| **Wallets & trading** (`/trade`, `/portfolio`) | Wallet picker: **BAJAR Wallet**, Phantom, Solflare, Backpack, MetaMask and any EIP-6963 wallet. Wallet sign-in (signed message, server-verified, httpOnly session). Solana swaps via Jupiter: live quotes, slippage settings, price impact, minimum received, route, fee estimate, **transaction simulation**, explicit wallet approval, on-chain status tracking. Portfolio balances, holdings value, recent transactions, watchlist & price alerts. |
+| **Wallets & trading** (`/trade`, `/portfolio`) | Wallet picker: **Bajar Wallet**, Phantom, Solflare, Backpack, MetaMask and any EIP-6963 wallet. Wallet sign-in (signed message, server-verified, httpOnly session). Solana swaps via Jupiter: live quotes, slippage settings, price impact, minimum received, route, fee estimate, **transaction simulation**, explicit wallet approval, on-chain status tracking. Portfolio balances, holdings value, recent transactions, watchlist & price alerts. |
 | **Intelligence** (`/intelligence`) | Streaming AI assistant (Claude) with tools for market overview, coin data, technical indicators computed from real candles, DEX token analysis (liquidity, holders, security), trending pools with anomaly signals and news. Proposes watchlists/alerts the user confirms. Always-on rule-based unusual-activity feed. |
 | **Treasury** (`/admin/treasury`) | Noncustodial revenue: register Solana wallet / Squads / Jupiter referral and EVM wallet / Safe treasuries, wallet-signed dual approvals, fee collection via Jupiter Swap V2 and 0x with disclosure, on-chain indexer + reconciliation, hash-chained ledger, dashboard, CSV exports, unsigned transfer/convert builders (wallet, Safe batch, Squads). See [docs/TREASURY.md](docs/TREASURY.md). |
 | **Ops** | `/status` and `/api/health` (integration + upstream health), structured JSON logs, per-IP rate limits, security headers. |
 
 ### Not yet available (clearly labelled in the UI)
 
-- **BAJAR Wallet** (`/wallet`) — noncustodial BTC/EVM/Solana wallet: encrypted local vault, send/receive/QR, live portfolio, universal swaps (Jupiter, 0x, LI.FI incl. native BTC), ML-DSA-65 hybrid sign-in and signed backups. See [docs/WALLET.md](docs/WALLET.md).
+- **Bajar Wallet** (`/wallet`) — noncustodial BTC/EVM/Solana wallet: encrypted local vault, send/receive/QR, live portfolio, universal swaps (Jupiter, 0x, LI.FI incl. native BTC), ML-DSA-65 hybrid sign-in and signed backups. See [docs/WALLET.md](docs/WALLET.md).
 - **Limit orders** — not yet integrated.
 - **Token creation** on the Launchpad — preview only, nothing is deployed.
 - **ERC-20 balances / EVM tx history** in Portfolio — needs an indexing provider.
@@ -106,7 +106,7 @@ See [docs/DEPLOY.md](docs/DEPLOY.md) for Vercel deployment and connecting a cust
 
 See [`.env.example`](.env.example). Highlights:
 
-- `ANTHROPIC_API_KEY` — enables ShareBajar Intelligence (server-side only).
+- `ANTHROPIC_API_KEY` — enables Bajar Intelligence (server-side only).
 - `RPC_URL_<CHAIN>` — use your own RPC nodes for network stats (optional).
 - `NEXT_PUBLIC_SOLANA_RPC_URL` — dedicated Solana RPC for balances, simulation and status (the public endpoint is rate-limited and often blocks browsers).
 - `SESSION_SECRET` — HMAC secret for wallet sessions (required in production).
@@ -122,4 +122,4 @@ See [`.env.example`](.env.example). Highlights:
 
 More detail on ownership areas and the QA checklist: [docs/ENGINEERING.md](docs/ENGINEERING.md).
 
-*Nothing on ShareBajar is financial advice.*
+*Nothing on Bajar is financial advice.*

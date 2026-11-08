@@ -54,7 +54,7 @@ export function Portfolio() {
       <Card className="p-10 text-center">
         <Wallet className="mx-auto text-brand" size={36} />
         <h1 className="text-xl font-semibold mt-3">Connect a wallet to view your portfolio</h1>
-        <p className="text-sm text-muted mt-1 max-w-md mx-auto">See balances, holdings value and recent transactions. ShareBajar reads public on-chain data only — it never takes custody of your assets.</p>
+        <p className="text-sm text-muted mt-1 max-w-md mx-auto">See balances, holdings value and recent transactions. Bajar reads public on-chain data only — it never takes custody of your assets.</p>
         <Button className="mt-5" onClick={openModal}>Connect Wallet</Button>
         <WatchAndAlerts />
       </Card>
@@ -149,7 +149,7 @@ function WatchAndAlerts() {
         </ul>
       </Card>
       <Card>
-        <CardHeader title="Price alerts" icon={<BellRing size={14} className="text-brand" />} sub="Checked every 30s while ShareBajar is open" />
+        <CardHeader title="Price alerts" icon={<BellRing size={14} className="text-brand" />} sub="Checked every 30s while Bajar is open" />
         <ul className="px-4 pb-4 space-y-1.5 text-sm">
           {al.alerts.map((a) => (
             <li key={a.id} className="flex items-center gap-2">
@@ -158,7 +158,7 @@ function WatchAndAlerts() {
               <button onClick={() => al.remove(a.id)} aria-label="Delete alert" className="text-faint hover:text-down"><Trash2 size={13} /></button>
             </li>
           ))}
-          {!al.alerts.length && <li className="text-xs text-muted">Ask ShareBajar Intelligence to set an alert, e.g. “alert me if SOL drops below $80”.</li>}
+          {!al.alerts.length && <li className="text-xs text-muted">Ask Bajar Intelligence to set an alert, e.g. “alert me if SOL drops below $80”.</li>}
         </ul>
       </Card>
     </div>

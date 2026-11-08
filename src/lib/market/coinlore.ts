@@ -13,7 +13,7 @@ const BASE = "https://api.coinlore.net/api";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface LoreCoin {
   id: string; // numeric CoinLore id
-  slug: string; // nameid, used in ShareBajar URLs (/coin/bitcoin)
+  slug: string; // nameid, used in Bajar URLs (/coin/bitcoin)
   symbol: string;
   name: string;
   rank: number;

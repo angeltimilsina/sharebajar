@@ -14,7 +14,7 @@ export function Toaster() {
     return () => window.removeEventListener("sb-toast", on);
   }, []);
   return (
-    <div className="fixed bottom-4 right-4 z-[120] space-y-2 max-w-sm" aria-live="polite">
+    <div className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] md:bottom-4 right-3 left-3 sm:left-auto sm:right-4 z-[120] space-y-2 sm:max-w-sm" aria-live="polite">
       {toasts.map((t) => (
         <div key={t.id} className="panel glass px-4 py-3 text-sm flex items-start gap-2"><BellRing size={16} className="text-brand mt-0.5 shrink-0" />{t.text}</div>
       ))}

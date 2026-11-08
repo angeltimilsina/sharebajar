@@ -19,7 +19,7 @@ const MAX_SIG_AGE_MS = 10 * 60_000;
 
 export function requestMessage(action: ChangeAction, payloadHash: string, requester: string, issuedAt: string) {
   return [
-    "ShareBajar Treasury — change request",
+    "Bajar Treasury — change request",
     `Action: ${action}`,
     `Payload SHA-256: ${payloadHash}`,
     `Requested by: ${requester}`,
@@ -29,7 +29,7 @@ export function requestMessage(action: ChangeAction, payloadHash: string, reques
 }
 
 export function approvalMessage(id: string, payloadHash: string, approver: string) {
-  return ["ShareBajar Treasury — approval", `Change: ${id}`, `Payload SHA-256: ${payloadHash}`, `Approver: ${approver}`, "This signature approves a configuration change only. It does not move funds."].join("\n");
+  return ["Bajar Treasury — approval", `Change: ${id}`, `Payload SHA-256: ${payloadHash}`, `Approver: ${approver}`, "This signature approves a configuration change only. It does not move funds."].join("\n");
 }
 
 export const payloadHash = (action: ChangeAction, payload: unknown) => sha256(canonical({ action, payload }));

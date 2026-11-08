@@ -1,6 +1,6 @@
-# Deploying ShareBajar to Vercel with your own domain
+# Deploying Bajar to Vercel with your own domain
 
-ShareBajar is a standard Next.js app, so Vercel runs it without extra setup. `vercel.json` pins the US East region (`iad1`), because Binance's public market-data hosts are geo-restricted in some regions. It also gives the AI route up to 120 s.
+Bajar is a standard Next.js app, so Vercel runs it without extra setup. `vercel.json` pins the US East region (`iad1`), because Binance's public market-data hosts are geo-restricted in some regions. It also gives the AI route up to 120 s.
 
 ## 1. Import the project
 

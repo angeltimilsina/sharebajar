@@ -1,5 +1,5 @@
 /**
- * Every API response from ShareBajar's backend is wrapped in an envelope so the
+ * Every API response from Bajar's backend is wrapped in an envelope so the
  * UI can always say where data came from and how fresh it is.
  */
 export interface Envelope<T> {

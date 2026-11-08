@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adapterFor } from "@/lib/treasury/adapters";
 import { getChain } from "@/lib/chains";
 
-/** Validate a custom token on-chain before adding it to BAJAR Wallet. */
+/** Validate a custom token on-chain before adding it to Bajar Wallet. */
 export async function GET(req: Request) {
   const u = new URL(req.url);
   const network = u.searchParams.get("network") ?? "", token = (u.searchParams.get("token") ?? "").trim();

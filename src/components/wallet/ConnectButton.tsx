@@ -30,7 +30,7 @@ export function ConnectButton({ compact }: { compact?: boolean }) {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setMenu((m) => !m)} className="h-10 flex items-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-3 text-sm font-semibold">
-        <span className="h-2 w-2 rounded-full bg-brand shadow-[0_0_8px_var(--brand)]" />
+        <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
         <span className="num">{shortAddress(wallet.address)}</span>
       </button>
       {menu && (

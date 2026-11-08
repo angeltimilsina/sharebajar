@@ -75,10 +75,10 @@ describe("PSBT signing (provider routes)", () => {
 
 describe("BIP-137 message signatures", () => {
   it("round-trips and rejects tampering / wrong address", () => {
-    const sig = signBitcoinMessage(secret.bitcoin, "ShareBajar treasury ownership");
-    expect(verifyBitcoinMessage(ME, "ShareBajar treasury ownership", sig)).toBe(true);
-    expect(verifyBitcoinMessage(ME, "ShareBajar treasury ownership!", sig)).toBe(false);
-    expect(verifyBitcoinMessage(TO, "ShareBajar treasury ownership", sig)).toBe(false);
+    const sig = signBitcoinMessage(secret.bitcoin, "Bajar treasury ownership");
+    expect(verifyBitcoinMessage(ME, "Bajar treasury ownership", sig)).toBe(true);
+    expect(verifyBitcoinMessage(ME, "Bajar treasury ownership!", sig)).toBe(false);
+    expect(verifyBitcoinMessage(TO, "Bajar treasury ownership", sig)).toBe(false);
   });
 });
 

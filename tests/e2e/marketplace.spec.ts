@@ -81,11 +81,11 @@ test.describe("charts", () => {
 });
 
 test.describe("wallet", () => {
-  test("wallet picker never asks for a seed phrase and lists upcoming BAJAR Wallet", async ({ page }) => {
+  test("wallet picker never asks for a seed phrase and lists upcoming Bajar Wallet", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Connect wallet" }).first().click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("BAJAR Wallet")).toBeVisible();
+    await expect(dialog.getByText("Bajar Wallet")).toBeVisible();
     await expect(dialog.getByText("Coming soon")).toBeVisible();
     await expect(dialog.getByText("Phantom")).toBeVisible();
     await expect(dialog.getByText("MetaMask")).toBeVisible();

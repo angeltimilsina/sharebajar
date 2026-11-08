@@ -1,7 +1,7 @@
 import type { ChainType } from "./types";
 
 export interface ChainInfo {
-  /** ShareBajar slug, also used in URLs: /token/[chain]/[address] */
+  /** Bajar slug, also used in URLs: /token/[chain]/[address] */
   id: string;
   name: string;
   short: string;

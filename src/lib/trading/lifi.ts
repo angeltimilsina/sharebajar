@@ -5,7 +5,7 @@ import { fetchUpstream } from "../server/http";
  * LI.FI cross-chain routing (EVM ↔ Solana ↔ native Bitcoin).
  * Integrator fee: `integrator` + `fee` (decimal). LI.FI refuses fees for
  * integrators that haven't configured a fee wallet in the LI.FI Partner Portal,
- * so ShareBajar only charges when LIFI_INTEGRATOR is set and the quote confirms it.
+ * so Bajar only charges when LIFI_INTEGRATOR is set and the quote confirms it.
  * Docs: https://docs.li.fi/introduction/integrating-lifi/monetizing-integration
  */
 const BASE = "https://li.quest/v1";

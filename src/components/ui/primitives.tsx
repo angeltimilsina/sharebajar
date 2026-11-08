@@ -31,8 +31,8 @@ export function Button({ variant = "primary", size = "md", className, ...rest }:
         size === "sm" && "h-8 px-3 text-xs",
         size === "md" && "h-10 px-4 text-sm",
         size === "lg" && "h-12 px-5 text-[15px]",
-        variant === "primary" && "bg-brand text-brand-ink hover:bg-brand-strong shadow-[0_0_24px_-6px_var(--brand)]",
-        variant === "outline" && "border border-brand/60 text-fg hover:bg-brand-soft",
+        variant === "primary" && "btn-silver",
+        variant === "outline" && "border border-line-strong text-fg hover:bg-surface-2",
         variant === "ghost" && "text-muted hover:text-fg hover:bg-surface-2",
         variant === "subtle" && "bg-surface-2 border border-line text-fg hover:bg-surface-3",
         variant === "danger" && "bg-down/90 text-white hover:bg-down",
@@ -114,7 +114,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className, size 
           )}
         >
           {t.label}
-          {size === "md" && value === t.id && <span className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-brand shadow-[0_0_10px_var(--brand)]" />}
+          {size === "md" && value === t.id && <span className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-brand" />}
         </button>
       ))}
     </div>

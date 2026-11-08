@@ -1,5 +1,5 @@
 /**
- * BAJAR Wallet key derivation (runs only in the user's browser).
+ * Bajar Wallet key derivation (runs only in the user's browser).
  *
  * One BIP-39 recovery phrase → per-network keys using each network's required
  * signature scheme, plus a supplementary post-quantum identity:

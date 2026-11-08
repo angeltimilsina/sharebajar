@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     const chain = getChain(url.searchParams.get("network"));
     const net = chain?.geckoterminal;
     const duration = (["5m", "1h", "6h", "24h"].includes(url.searchParams.get("duration") ?? "") ? url.searchParams.get("duration") : "24h") as "5m" | "1h" | "6h" | "24h";
-    // Only keep networks ShareBajar supports (token pages exist for them).
+    // Only keep networks Bajar supports (token pages exist for them).
     const supported = <T extends { data: { network: string }[] }>(env: T): T => ({ ...env, data: env.data.filter((p) => getChain(p.network)) });
     if (feed === "new") return ok(supported(await getNewPools(net)), 15);
     if (feed === "top") return ok(supported(await getTopPools(net ?? "solana")), 30);

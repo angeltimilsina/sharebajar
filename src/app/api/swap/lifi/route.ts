@@ -27,8 +27,8 @@ export async function GET(req: Request) {
     const { quote, feeRequested } = await lifiQuote({ fromNetwork, toNetwork, fromToken: g("fromToken"), toToken: g("toToken"), fromAmount, fromAddress: g("fromAddress"), toAddress: g("toAddress"), slippage, feeBps: treasury ? bps : 0 });
     const integ = integratorFeeOf(quote);
     const fee = feeRequested > 0 && integ
-      ? { applied: true as const, bps, provider: "LI.FI integrator fee", token: integ.token, symbol: integ.symbol, decimals: integ.decimals, estimatedAmount: integ.amount, note: `ShareBajar cross-chain fee ${(bps / 100).toFixed(2)}% of the amount sent (replaces the 0.30% swap fee). Paid by LI.FI to the ShareBajar treasury on ${fromNetwork}.` }
-      : { applied: false as const, reason: feeRequested > 0 ? "LI.FI did not apply the ShareBajar fee to this route, so none is charged." : !process.env.LIFI_INTEGRATOR ? "Cross-chain platform fee is not configured on this deployment." : "No active ShareBajar treasury on the source network, so no cross-chain fee is charged." };
+      ? { applied: true as const, bps, provider: "LI.FI integrator fee", token: integ.token, symbol: integ.symbol, decimals: integ.decimals, estimatedAmount: integ.amount, note: `Bajar cross-chain fee ${(bps / 100).toFixed(2)}% of the amount sent (replaces the 0.30% swap fee). Paid by LI.FI to the Bajar treasury on ${fromNetwork}.` }
+      : { applied: false as const, reason: feeRequested > 0 ? "LI.FI did not apply the Bajar fee to this route, so none is charged." : !process.env.LIFI_INTEGRATOR ? "Cross-chain platform fee is not configured on this deployment." : "No active Bajar treasury on the source network, so no cross-chain fee is charged." };
     const feeAccount = !fee.applied || !treasury ? null
       : fromNetwork === "solana" && fee.token !== "11111111111111111111111111111111" ? (await import("@/lib/treasury/solana")).ata(treasury.address, fee.token, (await import("@/lib/treasury/solana")).TOKEN_PROGRAM)
       : treasury.address;

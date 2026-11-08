@@ -15,7 +15,7 @@ export const MAX_FEE_BPS = Number(process.env.TREASURY_MAX_FEE_BPS ?? 100);
 /**
  * Token launch fee (USDC). Configurable via TOKEN_LAUNCH_FEE_USDC; it is only
  * disclosed and charged by a launch flow that actually creates tokens on
- * ShareBajar. The current Launchpad lists external launches only, so nothing
+ * Bajar. The current Launchpad lists external launches only, so nothing
  * is collected today.
  */
 const launchAmount = Number(process.env.TOKEN_LAUNCH_FEE_USDC ?? 0);

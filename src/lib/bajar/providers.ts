@@ -42,7 +42,7 @@ export function bajarSolanaProvider(): InjectedSolana & { isBajar: true } {
     get publicKey() { const a = bajar.accounts(); return a && bajar.isUnlocked() ? { toString: () => a.solana.address, toBase58: () => a.solana.address } : null; },
     get isConnected() { return bajar.isUnlocked(); },
     async connect() {
-      if (!bajar.isUnlocked()) throw new Error("Unlock BAJAR Wallet first (open /wallet).");
+      if (!bajar.isUnlocked()) throw new Error("Unlock Bajar Wallet first (open /wallet).");
       const a = bajar.accounts()!;
       return { publicKey: { toString: () => a.solana.address } };
     },
@@ -144,13 +144,13 @@ export function bajarEvmProvider(): Eip1193 & { isBajar: true } {
       switch (method) {
         case "eth_requestAccounts":
         case "eth_accounts":
-          if (!bajar.isUnlocked()) { if (method === "eth_accounts") return []; throw new Error("Unlock BAJAR Wallet first (open /wallet)."); }
+          if (!bajar.isUnlocked()) { if (method === "eth_accounts") return []; throw new Error("Unlock Bajar Wallet first (open /wallet)."); }
           return [a!.evm.address];
         case "eth_chainId": return toHex(c.evmChainId!);
         case "wallet_switchEthereumChain": {
           const id = Number(BigInt((params[0] as { chainId: string }).chainId));
           const target = chainFromEvmId(id);
-          if (!target) throw Object.assign(new Error("Unsupported network in BAJAR Wallet"), { code: 4902 });
+          if (!target) throw Object.assign(new Error("Unsupported network in Bajar Wallet"), { code: 4902 });
           saveSettings({ evmChain: target.id });
           emitEvm("chainChanged", toHex(id));
           return null;

@@ -45,4 +45,4 @@ export function settle(id: number, ok: boolean) {
   subs.forEach((s) => s());
 }
 
-export class UserRejected extends Error { constructor() { super("User rejected the request in BAJAR Wallet."); this.name = "UserRejected"; } }
+export class UserRejected extends Error { constructor() { super("User rejected the request in Bajar Wallet."); this.name = "UserRejected"; } }

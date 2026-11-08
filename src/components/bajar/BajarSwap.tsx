@@ -85,7 +85,7 @@ export function BajarSwap() {
           <Row k="You receive (est.)" v={`${fmt(q.amountOut, to.decimals)} ${to.symbol}`} />
           <Row k="Minimum received" v={`${fmt(q.minOut, to.decimals)} ${to.symbol}`} />
           <Row k="Route" v={<span>{q.providerLabel} <span className="text-faint">· {q.route}</span></span>} />
-          <Row k="ShareBajar fee" v={q.fee.applied ? <Badge tone="brand">{((q.fee.bps ?? 0) / 100).toFixed(2)}%{q.fee.estimatedAmount && q.fee.decimals != null ? ` ≈ ${fmt(q.fee.estimatedAmount, q.fee.decimals)} ${q.fee.symbol}` : ""}</Badge> : <span title={q.fee.reason}>None{q.fee.reason ? ` — ${q.fee.reason}` : ""}</span>} />
+          <Row k="Bajar fee" v={q.fee.applied ? <Badge tone="brand">{((q.fee.bps ?? 0) / 100).toFixed(2)}%{q.fee.estimatedAmount && q.fee.decimals != null ? ` ≈ ${fmt(q.fee.estimatedAmount, q.fee.decimals)} ${q.fee.symbol}` : ""}</Badge> : <span title={q.fee.reason}>None{q.fee.reason ? ` — ${q.fee.reason}` : ""}</span>} />
           {q.fee.applied && q.fee.note && <div className="px-3 py-2 text-[11px] text-faint">{q.fee.note}</div>}
           {q.durationSec !== null && <Row k="Est. time" v={q.durationSec < 90 ? `~${q.durationSec}s` : `~${Math.round(q.durationSec / 60)} min`} />}
         </dl>
@@ -93,7 +93,7 @@ export function BajarSwap() {
       {err && <Notice tone="down">{err}</Notice>}
       {tx && <Notice tone="info" title={tx.status ?? "Submitted"}>Source transaction: <a className="text-brand inline-flex items-center gap-1" href={explorerTx(tx.from.network, tx.hash)} target="_blank" rel="noopener noreferrer">{tx.hash.slice(0, 12)}… <ExternalLink size={11} /></a></Notice>}
       <Button className="w-full" size="lg" disabled={!q || busy || loading} onClick={run} data-testid="bajar-swap-go">{busy ? <Loader2 size={16} className="animate-spin" /> : "Review swap"}</Button>
-      <p className="text-[11px] text-faint">Each step (token approval, swap, bridge) opens a BAJAR approval prompt. Nothing is signed without your click.</p>
+      <p className="text-[11px] text-faint">Each step (token approval, swap, bridge) opens a Bajar approval prompt. Nothing is signed without your click.</p>
     </Card>
   );
 }

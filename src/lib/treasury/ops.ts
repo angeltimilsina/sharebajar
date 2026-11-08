@@ -67,7 +67,7 @@ async function evmSimulate(chain: string, from: string, txs: { to: string; data:
 function safeBatch(t: Treasury, name: string, txs: { to: string; data: string; value: string }[]) {
   return {
     version: "1.0", chainId: String(getChain(t.chain)!.evmChainId), createdAt: Date.now(),
-    meta: { name, description: "Prepared by ShareBajar Treasury. Review every call before signing.", txBuilderVersion: "1.16.5", createdFromSafeAddress: t.address, createdFromOwnerAddress: "", checksum: "" },
+    meta: { name, description: "Prepared by Bajar Treasury. Review every call before signing.", txBuilderVersion: "1.16.5", createdFromSafeAddress: t.address, createdFromOwnerAddress: "", checksum: "" },
     transactions: txs.map((x) => ({ to: x.to, value: x.value, data: x.data, contractMethod: null, contractInputsValues: null })),
   };
 }

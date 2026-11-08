@@ -10,7 +10,7 @@ import { CHAINS, PRIMARY_CHAIN_IDS, type ChainInfo } from "../chains";
  *  - Solana: JSON-RPC performance samples (slot, TPS)
  */
 export interface NetworkStat {
-  id: string;            // "bitcoin" or a ShareBajar chain id
+  id: string;            // "bitcoin" or a Bajar chain id
   name: string;
   symbol: string;        // native asset
   pair: string;          // Binance pair for native asset price

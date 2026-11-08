@@ -16,15 +16,16 @@ export function Modal({ open, onClose, title, children, className, wide }: { ope
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-6 pt-[8vh] sm:pt-6">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
       <div
         ref={ref}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className={clsx("relative w-full panel glass outline-none max-h-[86vh] overflow-y-auto scroll-thin", wide ? "max-w-2xl" : "max-w-md", className)}
+        className={clsx("relative w-full panel glass outline-none max-h-[88dvh] sm:max-h-[86vh] overflow-y-auto overscroll-contain scroll-thin !rounded-b-none !rounded-t-2xl sm:!rounded-[14px] pb-[env(safe-area-inset-bottom)] sm:pb-0", wide ? "max-w-2xl" : "max-w-md", className)}
       >
+        <div className="sm:hidden mx-auto mt-2 h-1 w-10 rounded-full bg-line-strong" aria-hidden />
         {title && (
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
             <h2 className="text-base font-semibold">{title}</h2>

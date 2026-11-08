@@ -34,7 +34,7 @@ export function TreasuryApp() {
     return (
       <Card className="max-w-xl mx-auto my-12 p-8 text-center">
         <Lock className="mx-auto text-brand" size={32} />
-        <h1 className="text-xl font-semibold mt-3">ShareBajar Treasury</h1>
+        <h1 className="text-xl font-semibold mt-3">Bajar Treasury</h1>
         <p className="text-sm text-muted mt-1">Private administration. Sign in with an authorized admin wallet. You will sign a message — no transaction, no fees.</p>
         <div className="mt-5 flex justify-center gap-2">
           {!wallet ? <Button onClick={openModal}><Wallet size={15} /> Connect wallet</Button>
@@ -43,7 +43,7 @@ export function TreasuryApp() {
         </div>
         {walletErr && <div className="text-xs text-down mt-3">{walletErr}</div>}
         {me!.config.ownersConfigured === 0 && <Notice tone="warn" className="mt-5 text-left" title="No owners configured">Set <code>TREASURY_OWNERS</code> (comma-separated admin wallet addresses) in the server environment to bootstrap access.</Notice>}
-        <p className="text-[11px] text-faint mt-5">ShareBajar never asks for recovery phrases or private keys. Treasury keys stay in your wallets and multisigs.</p>
+        <p className="text-[11px] text-faint mt-5">Bajar never asks for recovery phrases or private keys. Treasury keys stay in your wallets and multisigs.</p>
       </Card>
     );
   }

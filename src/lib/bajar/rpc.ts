@@ -1,6 +1,6 @@
 "use client";
 
-/** BAJAR Wallet network access through ShareBajar's allowlisted RPC relay. */
+/** Bajar Wallet network access through Bajar's allowlisted RPC relay. */
 export async function walletRpc<T>(chain: string, method: string, params: unknown[] = []): Promise<T> {
   const r = await fetch("/api/wallet/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain, method, params }) });
   const b = await r.json();

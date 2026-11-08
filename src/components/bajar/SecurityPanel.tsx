@@ -18,7 +18,7 @@ export function SecurityPanel() {
           <div><span className="text-muted">Fingerprint</span> <span className="font-mono">{a.pq.fingerprint}</span></div>
           <details><summary className="cursor-pointer text-muted">Public key (1952 bytes)</summary><div className="font-mono break-all text-[10px] mt-1 max-h-28 overflow-auto">{a.pq.publicKey}</div></details>
           <Notice tone="info" title="What this protects — and what it doesn't">
-            ML-DSA-65 signs your ShareBajar sign-in, your encrypted backups and a local log of every approval. Bitcoin, Ethereum and Solana do <b>not</b> accept ML-DSA signatures today, so on-chain transactions still use each network&apos;s own scheme (secp256k1 / Ed25519). This is a supplementary protection, not quantum-resistant transactions.
+            ML-DSA-65 signs your Bajar sign-in, your encrypted backups and a local log of every approval. Bitcoin, Ethereum and Solana do <b>not</b> accept ML-DSA signatures today, so on-chain transactions still use each network&apos;s own scheme (secp256k1 / Ed25519). This is a supplementary protection, not quantum-resistant transactions.
           </Notice>
           <HybridSignIn />
         </div>
@@ -33,7 +33,7 @@ export function SecurityPanel() {
               {[1, 5, 10, 30, 60].map((m) => <option key={m} value={m}>{m} min</option>)}
             </select>
           </label>
-          <p className="text-xs text-muted">Use BAJAR on ShareBajar pages via <b>Connect wallet → BAJAR Wallet</b> (Solana or EVM).</p>
+          <p className="text-xs text-muted">Use Bajar Wallet on Bajar pages via <b>Connect wallet → Bajar Wallet</b> (Solana or EVM).</p>
           <p className="text-xs text-muted"><b>WalletConnect</b>: not enabled on this deployment (requires a WalletConnect project ID). <b>Hardware wallets</b>: not supported yet — use Ledger/Trezor through their own apps or browser extensions.</p>
           <Button variant="danger" size="sm" onClick={() => { if (confirm("Remove the encrypted wallet from this browser? Make sure you have your recovery phrase or a backup.")) removeWallet(); }}><Trash2 size={13} className="mr-1" />Remove wallet from this browser</Button>
         </div>
@@ -51,7 +51,7 @@ function HybridSignIn() {
       const a = bajar.accounts()!;
       const n = await (await fetch(`/api/auth/nonce?chainType=solana&address=${a.solana.address}&pqPublicKey=${encodeURIComponent(a.pq.publicKey)}`)).json();
       if (!n.message) throw new Error(n.error ?? "Could not start sign-in");
-      const ok = await requestApproval({ kind: "message", network: "ShareBajar", title: "Hybrid sign-in (Ed25519 + ML-DSA-65)", rows: [["Account", a.solana.address], ["PQ key", a.pq.fingerprint]], raw: n.message }, { message: n.message });
+      const ok = await requestApproval({ kind: "message", network: "Bajar", title: "Hybrid sign-in (Ed25519 + ML-DSA-65)", rows: [["Account", a.solana.address], ["PQ key", a.pq.fingerprint]], raw: n.message }, { message: n.message });
       if (!ok) throw new Error("Sign-in cancelled.");
       const s = bajar.secrets();
       const r = await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature: solanaSign(s.solana, n.message), pqSignature: pqSign(s.pq, n.message, "auth"), pqPublicKey: a.pq.publicKey }) });
@@ -62,7 +62,7 @@ function HybridSignIn() {
   };
   return (
     <div>
-      <Button size="sm" onClick={run} data-testid="bajar-hybrid-signin"><LogIn size={13} className="mr-1" />Sign in to ShareBajar (hybrid)</Button>
+      <Button size="sm" onClick={run} data-testid="bajar-hybrid-signin"><LogIn size={13} className="mr-1" />Sign in to Bajar (hybrid)</Button>
       {msg && <p className="mt-1 text-xs" data-testid="bajar-hybrid-result">{msg}</p>}
     </div>
   );

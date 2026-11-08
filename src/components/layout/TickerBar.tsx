@@ -8,7 +8,7 @@ import { TokenIcon } from "../ui/TokenIcon";
 
 const icon = (s: string) => `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${s.toLowerCase()}.png`;
 const T = (s: string, id: string) => ({ s, id, img: icon(s) });
-/** Majors streamed live from Binance; ids are ShareBajar coin slugs (/coin/[id]). */
+/** Majors streamed live from Binance; ids are Bajar coin slugs (/coin/[id]). */
 export const TICKER = [
   T("BTC", "bitcoin"), T("ETH", "ethereum"), T("SOL", "solana"), T("BNB", "binance-coin"), T("XRP", "ripple"), T("DOGE", "dogecoin"),
   T("ADA", "cardano"), T("AVAX", "avalanche"), T("LINK", "chainlink"), T("TRX", "tron"), T("SUI", "sui"), T("TON", "toncoin"),

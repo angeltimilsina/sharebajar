@@ -7,10 +7,10 @@ import { signAndBroadcastPsbt, signAndSendSolanaB64, signSolanaB64, recordLocal 
 import { UserRejected } from "./approvals";
 
 /**
- * Universal swap engine for BAJAR Wallet.
- *  - Solana same-chain → Jupiter Swap V2 (ShareBajar 0.30% where supported)
- *  - EVM same-chain     → 0x AllowanceHolder (ShareBajar 0.30% where supported)
- *  - Cross-chain & native BTC → LI.FI (ShareBajar 0.50% replaces the swap fee, only if configured)
+ * Universal swap engine for Bajar Wallet.
+ *  - Solana same-chain → Jupiter Swap V2 (Bajar 0.30% where supported)
+ *  - EVM same-chain     → 0x AllowanceHolder (Bajar 0.30% where supported)
+ *  - Cross-chain & native BTC → LI.FI (Bajar 0.50% replaces the swap fee, only if configured)
  * Every transaction goes through BAJAR's explicit approval prompt before signing.
  */
 

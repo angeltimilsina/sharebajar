@@ -12,7 +12,7 @@ import { TreasuryDetail, useTreasuries } from "./Treasuries";
 const KINDS: Record<string, { id: string; label: string; desc: string; how: React.ReactNode }[]> = {
   solana: [
     { id: "wallet", label: "Wallet (Phantom-compatible)", desc: "Receives Jupiter /build platform fees into its token accounts.", how: <>Create a <b>new, dedicated</b> account in <a className="text-brand" href="https://phantom.com" target="_blank" rel="noopener noreferrer">Phantom</a>, Solflare or a hardware wallet (Ledger recommended). Copy its public address only.</> },
-    { id: "squads", label: "Squads multisig (recommended)", desc: "Fees land in the multisig vault; moving funds needs member approvals.", how: <>Create a multisig at <a className="text-brand" href="https://squads.so" target="_blank" rel="noopener noreferrer">squads.so</a> (threshold ≥ 2). Paste the <b>multisig account</b> address — ShareBajar derives and verifies the vault.</> },
+    { id: "squads", label: "Squads multisig (recommended)", desc: "Fees land in the multisig vault; moving funds needs member approvals.", how: <>Create a multisig at <a className="text-brand" href="https://squads.so" target="_blank" rel="noopener noreferrer">squads.so</a> (threshold ≥ 2). Paste the <b>multisig account</b> address — Bajar derives and verifies the vault.</> },
     { id: "jupiter_referral", label: "Jupiter referral account", desc: "For Swap V2 /order referral fees (50–255 bps; Jupiter keeps 20%).", how: <>Create a referral account at <a className="text-brand" href="https://referral.jup.ag" target="_blank" rel="noopener noreferrer">referral.jup.ag</a> using your treasury wallet as the partner. Paste the referral account address.</> },
   ],
   evm: [
@@ -44,8 +44,8 @@ export function Setup({ me, onDone }: { me: Me; onDone: () => void }) {
 
   return (
     <div className="space-y-4 max-w-4xl">
-      <Notice tone="ai" title="ShareBajar never creates, imports or stores treasury keys">
-        Create the wallet or multisig in your own wallet app. Here you only register its <b>public</b> address and prove control with a signature. Never enter a recovery phrase or private key anywhere on ShareBajar — we will never ask for one.
+      <Notice tone="ai" title="Bajar never creates, imports or stores treasury keys">
+        Create the wallet or multisig in your own wallet app. Here you only register its <b>public</b> address and prove control with a signature. Never enter a recovery phrase or private key anywhere on Bajar — we will never ask for one.
       </Notice>
       {inProgress.length > 0 && (
         <Card className="p-4">

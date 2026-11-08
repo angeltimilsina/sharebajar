@@ -71,7 +71,7 @@ export function signSend(plan: SendPlan, to: string, changeAddress: string, priv
 export function signPsbt(psbtHex: string, privateKey: Uint8Array): { hex: string; txid: string; outputs: { address: string | null; amount: bigint }[] } {
   const tx = btc.Transaction.fromPSBT(hexCodec.decode(psbtHex));
   const signed = tx.sign(privateKey);
-  if (!signed) throw new Error("This PSBT has no inputs belonging to your BAJAR Bitcoin address.");
+  if (!signed) throw new Error("This PSBT has no inputs belonging to your Bajar Bitcoin address.");
   tx.finalize();
   const outputs = Array.from({ length: tx.outputsLength }, (_, i) => {
     const o = tx.getOutput(i);

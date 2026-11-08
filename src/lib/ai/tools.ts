@@ -40,7 +40,7 @@ export function buildTools(emit: { action: (a: AiAction) => void }) {
     }),
     betaZodTool({
       name: "get_coin",
-      description: "Market data for a listed coin by ShareBajar slug (e.g. 'bitcoin', 'ethereum', 'solana', 'binance-coin'): live price, 1h/24h/7d change, market cap, FDV, supply, 24h range, high/low since Binance listing and top exchange markets.",
+      description: "Market data for a listed coin by Bajar slug (e.g. 'bitcoin', 'ethereum', 'solana', 'binance-coin'): live price, 1h/24h/7d change, market cap, FDV, supply, 24h range, high/low since Binance listing and top exchange markets.",
       inputSchema: z.object({ id: z.string().min(1).max(80) }),
       eager_input_streaming: true,
       run: ({ id }) => safe(async () => {
@@ -159,7 +159,7 @@ export function buildTools(emit: { action: (a: AiAction) => void }) {
     }),
     betaZodTool({
       name: "propose_price_alert",
-      description: "Propose a price alert to the user (triggers in their browser while ShareBajar is open). Not active until the user confirms it.",
+      description: "Propose a price alert to the user (triggers in their browser while Bajar is open). Not active until the user confirms it.",
       inputSchema: z.object({
         label: z.string().max(40),
         target: z.object({ kind: z.enum(["coin", "token"]), id: z.string().max(80), chain: z.enum(chainIds).optional(), address: z.string().max(64).optional() }),

@@ -28,8 +28,8 @@ const INDICATORS: { id: IndicatorId; label: string; group: string; hint: string 
   { id: "markers", label: "Large Trades", group: "Overlays", hint: "Live markers for unusually large trades" },
   { id: "rsi", label: "RSI 14", group: "Oscillators", hint: "Relative Strength Index (Wilder, 14)" },
   { id: "macd", label: "MACD", group: "Oscillators", hint: "MACD (12, 26, 9)" },
-  { id: "bsr", label: "Buyer/Seller Ratio", group: "ShareBajar", hint: "Share of volume from aggressive buyers (taker buys), smoothed" },
-  { id: "mom", label: "Momentum", group: "ShareBajar", hint: "Rate of change over 10 candles (%)" },
+  { id: "bsr", label: "Buyer/Seller Ratio", group: "Bajar", hint: "Share of volume from aggressive buyers (taker buys), smoothed" },
+  { id: "mom", label: "Momentum", group: "Bajar", hint: "Rate of change over 10 candles (%)" },
 ];
 
 const COLORS = { ma20: "#f5b83d", ma50: "#8b7bff", ema21: "#38bdf8", bb: "#64748b", vwap: "#f472b6", rsi: "#a78bfa", macd: "#38bdf8", signal: "#f5b83d", bsr: "#22d3ee", mom: "#fb923c" };
@@ -110,7 +110,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     const border = cssVar("--border", "rgba(255,255,255,0.07)");
     const up = cssVar("--up", "#19e07d");
     const down = cssVar("--down", "#ff4d5f");
-    const brand = cssVar("--brand", "#00f53a");
+    const brand = cssVar("--accent", "#00f53a"); // green accent: price line + live dot
 
     const chart = createChart(el, {
       autoSize: true,
@@ -408,13 +408,13 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
 
       {menu && (
         <div className="border-b border-line px-3 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5 text-xs bg-surface-2/60">
-          {["Overlays", "Oscillators", "ShareBajar"].map((g) => (
+          {["Overlays", "Oscillators", "Bajar"].map((g) => (
             <div key={g} className="contents">
               {INDICATORS.filter((i) => i.group === g).map((i) => {
                 return (
                   <label key={i.id} title={i.hint} className="flex items-center gap-2 cursor-pointer py-0.5">
                     <input type="checkbox" className="accent-[var(--brand)]" checked={ind.has(i.id)} onChange={() => toggleInd(i.id)} />
-                    <span>{i.label}</span>{g === "ShareBajar" && <span className="text-[9px] text-brand font-bold">SB</span>}
+                    <span>{i.label}</span>{g === "Bajar" && <span className="text-[9px] text-brand font-bold">SB</span>}
                   </label>
                 );
               })}

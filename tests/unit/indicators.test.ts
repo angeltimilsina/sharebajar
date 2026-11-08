@@ -52,7 +52,7 @@ describe("macd / bollinger / vwap / momentum", () => {
   });
 });
 
-describe("ShareBajar indicators", () => {
+describe("Bajar indicators", () => {
   it("buyer/seller ratio uses taker-buy share", () => {
     const cs = [c(1, 0, { volume: 10, buyVolume: 8 }), c(1, 1, { volume: 10, buyVolume: 2 })];
     expect(buyerSellerRatio(cs, 1)).toEqual([0.8, 0.2]);

@@ -88,7 +88,7 @@ export function vwap(candles: Candle[]): (number | null)[] {
   });
 }
 
-/** Rate of change (%), ShareBajar "momentum". */
+/** Rate of change (%), Bajar "momentum". */
 export function momentum(values: number[], period = 10): (number | null)[] {
   return values.map((v, i) => (i >= period && values[i - period] !== 0 ? ((v - values[i - period]) / values[i - period]) * 100 : null));
 }

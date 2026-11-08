@@ -3,7 +3,7 @@ import { q, newId } from "./db";
 import { seal, verifySeal } from "./crypto";
 
 /**
- * A swap intent describes the fee ShareBajar expects from a specific swap.
+ * A swap intent describes the fee Bajar expects from a specific swap.
  * The server issues it as a sealed token alongside the quote/transaction;
  * the browser can only hand it back with a transaction hash. Expected-fee
  * figures therefore always come from the server, never from the client.

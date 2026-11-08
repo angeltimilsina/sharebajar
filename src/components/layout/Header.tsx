@@ -37,7 +37,7 @@ export function Header() {
             <Link key={n.href} href={n.href} className={clsx("relative px-2.5 py-2 text-[14.5px] font-medium transition-colors", isActive(n.href) ? "text-fg" : "text-muted hover:text-fg")}>
               {n.label}
               {n.ai && <span className="ml-1.5 rounded-md bg-ai/20 text-ai text-[10px] font-bold px-1.5 py-0.5 align-middle">AI</span>}
-              {isActive(n.href) && <span className="absolute left-2.5 right-2.5 -bottom-[13px] h-[2px] rounded-full bg-brand shadow-[0_0_10px_var(--brand)]" />}
+              {isActive(n.href) && <span className="absolute left-2.5 right-2.5 -bottom-[13px] h-[2px] rounded-full bg-brand" />}
             </Link>
           ))}
         </nav>

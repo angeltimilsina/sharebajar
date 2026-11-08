@@ -97,9 +97,9 @@ export function LaunchpadCard() {
       <CardHeader title="Launchpad" icon={<Rocket size={15} className="text-ai" />} action={viewAll("/launchpad")} />
       <div className="mx-3 mb-3 rounded-xl p-4 relative overflow-hidden border border-ai/25" style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--ai) 28%, var(--surface)), var(--surface-2))" }}>
         <div className="relative z-10 max-w-[70%]">
-          <div className="font-semibold">Launch your token on ShareBajar</div>
+          <div className="font-semibold">Launch your token on Bajar</div>
           <p className="text-xs text-muted mt-1">Create, list, and grow your project across multiple chains.</p>
-          <Link href="/launchpad#create" className="mt-3 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-brand text-brand-ink text-xs font-semibold">Create Token <ArrowRight size={13} /></Link>
+          <Link href="/launchpad#create" className="mt-3 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg btn-silver text-xs font-semibold">Create Token <ArrowRight size={13} /></Link>
         </div>
         <Rocket size={72} className="absolute right-3 bottom-2 text-ai opacity-70 -rotate-12" />
       </div>

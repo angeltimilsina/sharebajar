@@ -280,7 +280,7 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
             </div>
           )}
           <div className="mt-4">{cta}</div>
-          <p className="mt-3 text-[11px] text-faint flex gap-1.5"><ShieldCheck size={13} className="shrink-0 text-brand" /> Non-custodial. You review and sign every transaction in your own wallet. ShareBajar never asks for seed phrases or private keys.</p>
+          <p className="mt-3 text-[11px] text-faint flex gap-1.5"><ShieldCheck size={13} className="shrink-0 text-brand" /> Non-custodial. You review and sign every transaction in your own wallet. Bajar never asks for seed phrases or private keys.</p>
         </>
       )}
       <TokenPicker open={picker !== null} onClose={() => setPicker(null)} onPick={(t) => { if (picker === "in") { if (t.address === output.address) setOutput(input); setInput(t); } else { if (t.address === input.address) setInput(output); setOutput(t); } setQuote(null); }} />

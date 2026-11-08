@@ -5,7 +5,7 @@ import { erpc } from "@/lib/treasury/evm";
 import { getChain } from "@/lib/chains";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
-/** Allowlisted JSON-RPC relay for BAJAR Wallet (reads, simulation, broadcast of signed txs). */
+/** Allowlisted JSON-RPC relay for Bajar Wallet (reads, simulation, broadcast of signed txs). */
 const SOL = new Set(["getLatestBlockhash", "getBalance", "getAccountInfo", "getMultipleAccounts", "simulateTransaction", "sendTransaction", "getSignatureStatuses", "getSignaturesForAddress", "getTransaction", "getMinimumBalanceForRentExemption", "getFeeForMessage", "getRecentPrioritizationFees"]);
 const EVM = new Set(["eth_chainId", "eth_blockNumber", "eth_getBalance", "eth_call", "eth_estimateGas", "eth_gasPrice", "eth_maxPriorityFeePerGas", "eth_feeHistory", "eth_getTransactionCount", "eth_sendRawTransaction", "eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_getBlockByNumber", "eth_getCode"]);
 const Body = z.object({ chain: z.string().max(20), method: z.string().max(60), params: z.array(z.unknown()).max(10) });

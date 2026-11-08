@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     const m = r.data.market;
     return {
       title: `${m.name} (${m.symbol}) price, chart & market data`,
-      description: `Live ${m.name} price ${formatPrice(m.price)}, market cap ${formatUsd(m.marketCap)}. Real-time charts, order book, trades and exchange markets on ShareBajar.`,
+      description: `Live ${m.name} price ${formatPrice(m.price)}, market cap ${formatUsd(m.marketCap)}. Real-time charts, order book, trades and exchange markets on Bajar.`,
       alternates: { canonical: `/coin/${m.id}` },
     };
   } catch {

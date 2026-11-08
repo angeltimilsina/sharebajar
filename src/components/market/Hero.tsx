@@ -31,7 +31,7 @@ function Globe() {
       <circle cx="0" cy="0" r={R} fill="none" stroke="var(--brand)" strokeOpacity="0.35" strokeWidth="1.2" />
       {dots}
       <circle cx="0" cy="-40" r="4" fill="#fff" />
-      <circle cx="0" cy="-40" r="10" fill="var(--brand)" opacity="0.3" />
+      <circle cx="0" cy="-40" r="10" fill="var(--accent)" opacity="0.35" />
     </svg>
   );
 }
@@ -47,7 +47,7 @@ export function Hero() {
           </h1>
           <p className="mt-2 text-[15px] text-muted max-w-xl">Discover tokens, analyze markets, and trade across multiple blockchains — all in one place.</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/discover" className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-brand text-brand-ink font-semibold hover:bg-brand-strong shadow-[0_0_24px_-6px_var(--brand)]">Explore Markets <ArrowRight size={16} /></Link>
+            <Link href="/discover" className="inline-flex items-center gap-2 h-11 px-5 rounded-xl btn-silver font-semibold">Explore Markets <ArrowRight size={16} /></Link>
             <Link href="/trade" className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-brand/60 font-semibold hover:bg-brand-soft">Trade Now <Zap size={16} /></Link>
           </div>
         </div>
@@ -64,10 +64,10 @@ export function Hero() {
         <div className="relative">
           <div className="flex items-center gap-2.5">
             <span className="h-9 w-9 rounded-xl grid place-items-center bg-brand-soft text-brand font-bold text-sm border border-brand/30">AI</span>
-            <h2 className="text-lg font-semibold">ShareBajar Intelligence</h2>
+            <h2 className="text-lg font-semibold">Bajar Intelligence</h2>
           </div>
           <p className="mt-2 text-sm text-muted max-w-[300px]">AI-powered market analysis, token insights, and real-time alerts — grounded in live market data.</p>
-          <Link href="/intelligence" className="mt-4 inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-brand text-brand-ink font-semibold text-sm hover:bg-brand-strong"><Sparkles size={15} /> Ask AI <ArrowRight size={15} /></Link>
+          <Link href="/intelligence" className="mt-4 inline-flex items-center gap-2 h-10 px-5 rounded-xl btn-silver font-semibold text-sm"><Sparkles size={15} /> Ask AI <ArrowRight size={15} /></Link>
         </div>
       </div>
     </section>

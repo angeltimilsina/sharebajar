@@ -21,13 +21,16 @@ export function WalletModal() {
     if (!modalOpen) return;
     setSolInstalled(Object.fromEntries(SOLANA_WALLETS.map((w) => [w.id, Boolean(w.get())])));
     setLegacyEth(Boolean(window.ethereum));
-    import("@/lib/bajar/session").then((m) => setBajarReady(m.bajar.isUnlocked())).catch(() => {});
+    // Unlocked state lives in memory, so it can only be true once the wallet modules are loaded.
+    let vault = false;
+    try { vault = !!localStorage.getItem("bajar.vault.v1"); } catch { /* ignore */ }
+    if (vault) { window.dispatchEvent(new Event("bajar:load")); import("@/lib/bajar/session").then((m) => setBajarReady(m.bajar.isUnlocked())).catch(() => {}); }
   }, [modalOpen]);
 
   const hasMetaMask = evm.some((w) => w.info.rdns === "io.metamask") || (legacyEth && Boolean(window.ethereum?.isMetaMask));
   const rows: Row[] = [
-    { id: "bajar", name: "BAJAR Wallet · Solana", icon: ICONS.bajar, chainType: "solana", installed: bajarReady, installUrl: "/wallet", note: bajarReady ? "Noncustodial · keys stay in this browser" : "Create or unlock at /wallet" },
-    { id: "bajar.evm", name: "BAJAR Wallet · EVM", icon: ICONS.bajar, chainType: "evm", installed: bajarReady, installUrl: "/wallet", note: bajarReady ? "Ethereum, Base, Arbitrum and more" : "Create or unlock at /wallet" },
+    { id: "bajar", name: "Bajar Wallet · Solana", icon: ICONS.bajar, chainType: "solana", installed: bajarReady, installUrl: "/wallet", note: bajarReady ? "Noncustodial · keys stay in this browser" : "Create or unlock at /wallet" },
+    { id: "bajar.evm", name: "Bajar Wallet · EVM", icon: ICONS.bajar, chainType: "evm", installed: bajarReady, installUrl: "/wallet", note: bajarReady ? "Ethereum, Base, Arbitrum and more" : "Create or unlock at /wallet" },
     ...SOLANA_WALLETS.filter((w) => w.id !== "bajar").map((w) => ({ id: w.id, name: w.name, icon: ICONS[w.id as keyof typeof ICONS], chainType: "solana" as const, installed: !!solInstalled[w.id], installUrl: w.installUrl })),
     { id: "io.metamask", name: "MetaMask", icon: evm.find((w) => w.info.rdns === "io.metamask")?.info.icon ?? ICONS.metamask, chainType: "evm", installed: hasMetaMask, installUrl: "https://metamask.io/download/" },
     ...evm.filter((w) => w.info.rdns !== "io.metamask").map((w) => ({ id: w.info.rdns, name: w.info.name, icon: w.info.icon, chainType: "evm" as const, installed: true })),
@@ -37,7 +40,7 @@ export function WalletModal() {
   return (
     <Modal open={modalOpen} onClose={closeModal} title="Connect a wallet">
       <div className="px-5 pb-5">
-        <p className="text-xs text-muted mb-3">Connect to view balances, sign in and trade. ShareBajar never takes custody of your funds.</p>
+        <p className="text-xs text-muted mb-3">Connect to view balances, sign in and trade. Bajar never takes custody of your funds.</p>
         <ul className="space-y-1.5">
           {rows.map((r) => (
             <li key={r.id}>
@@ -67,7 +70,7 @@ export function WalletModal() {
         {error && <Notice tone="down" className="mt-3">{error}</Notice>}
         <div className="mt-4 flex gap-2 text-[11px] text-muted leading-relaxed">
           <ShieldCheck size={15} className="text-brand shrink-0 mt-0.5" />
-          <span>ShareBajar will <b className="text-fg">never</b> ask for your seed phrase or private key. Every signature and transaction requires your explicit approval inside your wallet.</span>
+          <span>Bajar will <b className="text-fg">never</b> ask for your seed phrase or private key. Every signature and transaction requires your explicit approval inside your wallet.</span>
         </div>
       </div>
     </Modal>

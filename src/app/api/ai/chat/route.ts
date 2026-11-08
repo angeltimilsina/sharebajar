@@ -24,7 +24,7 @@ class TruncatedToolInput extends Error {}
 
 export async function POST(req: Request) {
   if (!aiConfigured()) {
-    return NextResponse.json({ error: "ShareBajar Intelligence is not configured on this deployment (missing ANTHROPIC_API_KEY)." }, { status: 503 });
+    return NextResponse.json({ error: "Bajar Intelligence is not configured on this deployment (missing ANTHROPIC_API_KEY)." }, { status: 503 });
   }
   const rl = rateLimit(`ai:${clientIp(req)}`, 8, 10);
   if (!rl.ok) return NextResponse.json({ error: `Rate limit reached. Try again in ${rl.retryAfter}s.` }, { status: 429 });
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   if (messages[messages.length - 1].role !== "user") return NextResponse.json({ error: "Last message must be from the user" }, { status: 400 });
 
   let contextNote = `Current time: ${new Date().toISOString()}.`;
-  if (context?.kind === "coin") contextNote += ` The user is viewing the coin with ShareBajar slug "${context.id}" (use get_coin with it). Questions like "this token" refer to it.`;
+  if (context?.kind === "coin") contextNote += ` The user is viewing the coin with Bajar slug "${context.id}" (use get_coin with it). Questions like "this token" refer to it.`;
   if (context?.kind === "token" && getChain(context.chain)) contextNote += ` The user is viewing the DEX token ${context.address} on ${context.chain}. Questions like "this token" refer to it.`;
 
   const encoder = new TextEncoder();

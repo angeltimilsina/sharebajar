@@ -28,7 +28,7 @@ export function AlertWatcher() {
         if ((a.condition === "above" && p >= a.price) || (a.condition === "below" && p <= a.price)) {
           markTriggered(a.id);
           const body = `${a.label} is ${a.condition} ${a.price} (now ${p})`;
-          if ("Notification" in window && Notification.permission === "granted") new Notification("ShareBajar price alert", { body });
+          if ("Notification" in window && Notification.permission === "granted") new Notification("Bajar price alert", { body });
           window.dispatchEvent(new CustomEvent("sb-toast", { detail: body }));
         }
       }

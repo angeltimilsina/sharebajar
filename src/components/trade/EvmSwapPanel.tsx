@@ -154,7 +154,7 @@ export function EvmSwapPanel() {
       {quote && (
         <div className="mt-3 space-y-1.5 text-xs">
           <div className="flex justify-between"><span className="text-muted">Minimum received (1%)</span><span className="num">{formatNumber(minOut, 6)} {buy?.symbol}</span></div>
-          <div className="flex justify-between"><span className="text-muted">ShareBajar platform fee</span><span className="num">{feeText}{fee?.applied && fee.isTest && <Badge tone="warn" className="ml-1">TEST</Badge>}</span></div>
+          <div className="flex justify-between"><span className="text-muted">Bajar platform fee</span><span className="num">{feeText}{fee?.applied && fee.isTest && <Badge tone="warn" className="ml-1">TEST</Badge>}</span></div>
           <div className="text-[11px] text-faint">{fee?.applied ? fee.note : fee?.reason}</div>
           {zx !== null && <div className="flex justify-between"><span className="text-muted">0x protocol fee</span><span className="num">{formatNumber(zx, 6)}</span></div>}
           {quote.totalNetworkFee && <div className="flex justify-between"><span className="text-muted">Network fee (est.)</span><span className="num">{formatNumber(Number(quote.totalNetworkFee) / 1e18, 6)} {getChain(chainId)?.nativeSymbol}</span></div>}
@@ -170,7 +170,7 @@ export function EvmSwapPanel() {
           <div className="rounded-xl border border-line bg-surface-2 p-3 space-y-1.5">
             <div className="flex justify-between"><span className="text-muted">Pay</span><span className="num">{amount} {sell?.symbol}</span></div>
             <div className="flex justify-between"><span className="text-muted">Receive (est.)</span><span className="num">{formatNumber(out, 6)} {buy?.symbol}</span></div>
-            <div className="flex justify-between"><span className="text-muted">ShareBajar fee</span><span className="num">{feeText}</span></div>
+            <div className="flex justify-between"><span className="text-muted">Bajar fee</span><span className="num">{feeText}</span></div>
             {zx !== null && <div className="flex justify-between"><span className="text-muted">0x fee</span><span className="num">{formatNumber(zx, 6)}</span></div>}
           </div>
           {simNote && <div className="text-xs text-up flex gap-1.5"><CheckCircle2 size={13} />{simNote}</div>}

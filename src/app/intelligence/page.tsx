@@ -3,7 +3,7 @@ import { Chat } from "@/components/ai/Chat";
 import { SignalsFeed } from "@/components/ai/SignalsFeed";
 import { MarketNews } from "@/components/market/SideFeeds";
 
-export const metadata: Metadata = { title: "ShareBajar Intelligence — AI market analysis", description: "AI-powered crypto market intelligence grounded in live prices, on-chain activity, contract security and news." };
+export const metadata: Metadata = { title: "Bajar Intelligence — AI market analysis", description: "AI-powered crypto market intelligence grounded in live prices, on-chain activity, contract security and news." };
 
 export default function IntelligencePage() {
   return (

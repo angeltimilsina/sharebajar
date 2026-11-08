@@ -54,12 +54,12 @@ export function signInMessage(chainType: ChainType, address: string, nonce: stri
     `${domain} wants you to sign in with your ${chainType === "solana" ? "Solana" : "Ethereum"} account:`,
     address,
     "",
-    "Sign in to ShareBajar. This request will not trigger a blockchain transaction or cost any fees.",
+    "Sign in to Bajar. This request will not trigger a blockchain transaction or cost any fees.",
     "",
     `Nonce: ${nonce}`,
     `Issued At: ${issuedAt}`,
   ];
-  // Hybrid sign-in (BAJAR Wallet): the same message is also signed with ML-DSA-65.
+  // Hybrid sign-in (Bajar Wallet): the same message is also signed with ML-DSA-65.
   if (pqFingerprint) lines.push(`Post-Quantum Key (ML-DSA-65): ${pqFingerprint}`);
   return lines.join("\n");
 }

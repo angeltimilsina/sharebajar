@@ -31,7 +31,7 @@ export function Records() {
       )}
       {tab === "intents" && (
         <Card>
-          <CardHeader title="Swap intents" sub="Fees ShareBajar expected from swaps routed through the app, and what the chain says happened" />
+          <CardHeader title="Swap intents" sub="Fees Bajar expected from swaps routed through the app, and what the chain says happened" />
           {data ? (data.intents.length ? <IntentTable rows={data.intents} /> : <p className="px-4 pb-4 text-xs text-muted">No swaps reported yet.</p>) : <p className="px-4 pb-4 text-xs text-muted">Loading…</p>}
         </Card>
       )}

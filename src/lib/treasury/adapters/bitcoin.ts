@@ -19,7 +19,7 @@ export function btcScriptType(address: string): "p2wpkh" | "p2wsh" | "p2tr" | "p
 /**
  * Bitcoin treasury (native BTC). Receives LI.FI cross-chain fees on BTC-source
  * routes. Multisig (P2WSH / P2SH descriptor wallets, e.g. Sparrow, Nunchuk,
- * Casa) is strongly recommended; ShareBajar only watches the address and
+ * Casa) is strongly recommended; Bajar only watches the address and
  * prepares unsigned PSBTs — it never holds keys.
  */
 export const bitcoinAdapter: TreasuryAdapter = {
@@ -36,7 +36,7 @@ export const bitcoinAdapter: TreasuryAdapter = {
       try { info = await fetchUpstream(`${MEMPOOL}/address/${address}`); } catch (e) { errors.push(`mempool.space lookup failed: ${(e as Error).message}`); }
     }
     if (type === "p2wpkh" || type === "p2pkh") warnings.push("Single-key address. A multisig wallet (P2WSH / P2SH descriptor) is strongly recommended for treasury funds.");
-    if (type === "p2wsh" || type === "p2sh" || type === "p2tr") warnings.push("Script address: ownership proof requires BIP-322 signing, which ShareBajar does not verify yet — use a BIP-137-capable signer key from the same wallet, or keep this treasury in monitor-only mode.");
+    if (type === "p2wsh" || type === "p2sh" || type === "p2tr") warnings.push("Script address: ownership proof requires BIP-322 signing, which Bajar does not verify yet — use a BIP-137-capable signer key from the same wallet, or keep this treasury in monitor-only mode.");
     return {
       ok: errors.length === 0, receivingAddress: address, warnings, errors,
       facts: { scriptType: type, txCount: info?.chain_stats.tx_count ?? null, balanceSats: info ? info.chain_stats.funded_txo_sum - info.chain_stats.spent_txo_sum : null, source: "mempool.space" },

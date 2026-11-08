@@ -46,9 +46,9 @@ async function solanaCore(p: { inputMint: string; outputMint: string; amount: st
       const mi = await mintInfo(order.feeMint).catch(() => null);
       feeAccount = ata(decision.recipient, order.feeMint, mi?.tokenProgram ?? TOKEN_PROGRAM);
       const k = knownToken("solana", order.feeMint);
-      fee = { applied: true, bps: decision.bps, mode: "referral", provider: "Jupiter Swap V2 /order", token: order.feeMint, symbol: k?.symbol ?? null, decimals: mi?.decimals ?? k?.decimals ?? null, estimatedAmount: gross?.toString() ?? null, recipient: feeAccount, providerShareBps: decision.providerShareBps, isTest: decision.isTest, note: `ShareBajar fee ${(decision.bps / 100).toFixed(2)}% (Jupiter keeps ${decision.providerShareBps / 100}% of it; no separate Jupiter fee).` };
+      fee = { applied: true, bps: decision.bps, mode: "referral", provider: "Jupiter Swap V2 /order", token: order.feeMint, symbol: k?.symbol ?? null, decimals: mi?.decimals ?? k?.decimals ?? null, estimatedAmount: gross?.toString() ?? null, recipient: feeAccount, providerShareBps: decision.providerShareBps, isTest: decision.isTest, note: `Bajar fee ${(decision.bps / 100).toFixed(2)}% (Jupiter keeps ${decision.providerShareBps / 100}% of it; no separate Jupiter fee).` };
     } else {
-      fee = { applied: false, reason: `ShareBajar referral fee could not be applied to this route (fee mint ${short(order.feeMint)} has no initialized referral token account). Jupiter's standard fee applies instead.` };
+      fee = { applied: false, reason: `Bajar referral fee could not be applied to this route (fee mint ${short(order.feeMint)} has no initialized referral token account). Jupiter's standard fee applies instead.` };
       void alert("warning", "fee_not_applied", `Jupiter /order did not apply the referral fee (feeMint ${order.feeMint}). Initialize a referral token account for this mint.`);
     }
     const quote: SolanaQuote = {
@@ -70,7 +70,7 @@ async function solanaCore(p: { inputMint: string; outputMint: string; amount: st
       fee = { applied: false, reason: "Platform fee could not be attached to this route, so none is charged." };
     } else {
       expectedNet = platformFeeFromNetOut(BigInt(build.outAmount), decision.bps).toString();
-      fee = { applied: true, bps: decision.bps, mode: "platform", provider: "Jupiter Swap V2 /build", token: decision.token, symbol: decision.symbol, decimals: decision.decimals, estimatedAmount: expectedNet, recipient: decision.recipient, providerShareBps: 0, isTest: decision.isTest, note: `ShareBajar platform fee ${(decision.bps / 100).toFixed(2)}%, taken from the ${decision.symbol} you receive. Jupiter charges no swap fee on this route.` };
+      fee = { applied: true, bps: decision.bps, mode: "platform", provider: "Jupiter Swap V2 /build", token: decision.token, symbol: decision.symbol, decimals: decision.decimals, estimatedAmount: expectedNet, recipient: decision.recipient, providerShareBps: 0, isTest: decision.isTest, note: `Bajar platform fee ${(decision.bps / 100).toFixed(2)}%, taken from the ${decision.symbol} you receive. Jupiter charges no swap fee on this route.` };
     }
   } else fee = { applied: false, reason: decision.applied ? "No platform fee on this swap." : decision.reason };
   const quote: SolanaQuote = {
@@ -116,7 +116,7 @@ export async function evmQuote(p: { chain: string; sellToken: string; buyToken: 
   if (decision.applied) {
     const integ = q.fees.integratorFee;
     if (integ && BigInt(integ.amount) > BigInt(0) && sameToken(integ.token, decision.token!)) {
-      fee = { applied: true, bps: decision.bps, mode: "integrator", provider: "0x Swap API", token: decision.token, symbol: decision.symbol, decimals: decision.decimals, estimatedAmount: integ.amount, recipient: decision.recipient, providerShareBps: 0, isTest: decision.isTest, note: `ShareBajar platform fee ${(decision.bps / 100).toFixed(2)}% in ${decision.symbol}.` };
+      fee = { applied: true, bps: decision.bps, mode: "integrator", provider: "0x Swap API", token: decision.token, symbol: decision.symbol, decimals: decision.decimals, estimatedAmount: integ.amount, recipient: decision.recipient, providerShareBps: 0, isTest: decision.isTest, note: `Bajar platform fee ${(decision.bps / 100).toFixed(2)}% in ${decision.symbol}.` };
     } else {
       void alert("warning", "fee_not_applied", `0x quote on ${p.chain} did not return the requested integrator fee.`);
       fee = { applied: false, reason: "0x did not apply the platform fee to this quote, so none is charged." };

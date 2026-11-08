@@ -9,22 +9,25 @@ import { ApprovalHost } from "@/components/bajar/ApprovalHost";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { AlertWatcher } from "@/components/layout/AlertWatcher";
 import { Toaster } from "@/components/layout/Toaster";
+import { MobileNav } from "@/components/layout/MobileNav";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
-  title: { default: "ShareBajar — The Open Crypto Marketplace", template: "%s · ShareBajar" },
+  title: { default: "Bajar — The Open Crypto Marketplace", template: "%s · Bajar" },
   description: "Discover tokens, analyze real-time markets and trade across Solana, Ethereum, Base, BNB Chain, Polygon and Arbitrum — all in one place.",
-  applicationName: "ShareBajar",
+  applicationName: "Bajar",
   keywords: ["crypto", "marketplace", "token discovery", "solana", "dex", "charts", "swap", "crypto prices"],
-  openGraph: { type: "website", siteName: "ShareBajar", title: "ShareBajar — The Open Crypto Marketplace", description: "Real-time multi-chain crypto market data, pro charts, wallet trading and AI market intelligence." },
+  openGraph: { type: "website", siteName: "Bajar", title: "Bajar — The Open Crypto Marketplace", description: "Real-time multi-chain crypto market data, pro charts, wallet trading and AI market intelligence." },
   twitter: { card: "summary_large_image" },
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  appleWebApp: { capable: true, title: "Bajar", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#040605" }, { media: "(prefers-color-scheme: light)", color: "#f4f6f5" }],
+  themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#050607" }, { media: "(prefers-color-scheme: light)", color: "#f3f4f6" }],
+  viewportFit: "cover",
   width: "device-width",
   initialScale: 1,
 };
@@ -38,11 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen flex flex-col">
         <WalletProvider>
-          <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] bg-brand text-brand-ink px-3 py-2 rounded-lg">Skip to content</a>
+          <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] btn-silver px-3 py-2 rounded-lg">Skip to content</a>
           <Header />
           <TickerBar />
           <main id="main" className="flex-1 w-full mx-auto max-w-[1680px] px-3 sm:px-4 lg:px-6 py-4 lg:py-5">{children}</main>
           <Footer />
+          <MobileNav />
           <WalletModal />
           <AlertWatcher />
           <Toaster />

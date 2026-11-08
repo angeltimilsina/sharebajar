@@ -3,12 +3,12 @@ import { expect, test } from "@playwright/test";
 // Standard BIP-39 test vector. Never fund it.
 const PHRASE = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-test.describe("BAJAR Wallet", () => {
+test.describe("Bajar Wallet", () => {
   test.setTimeout(120_000);
 
   test("import, receive addresses, lock and unlock", async ({ page }) => {
     await page.goto("/wallet");
-    await page.getByRole("tab", { name: "Import phrase" }).click();
+    await page.getByRole("tab", { name: "Import", exact: true }).click();
     await page.getByTestId("bajar-import-phrase").fill(PHRASE);
     await page.getByTestId("bajar-password").fill("correct horse battery");
     await page.getByTestId("bajar-password2").fill("correct horse battery");
@@ -32,7 +32,7 @@ test.describe("BAJAR Wallet", () => {
 
   test("hybrid sign-in requires approval and verifies both signatures", async ({ page }) => {
     await page.goto("/wallet");
-    await page.getByRole("tab", { name: "Import phrase" }).click();
+    await page.getByRole("tab", { name: "Import", exact: true }).click();
     await page.getByTestId("bajar-import-phrase").fill(PHRASE);
     await page.getByTestId("bajar-password").fill("correct horse battery");
     await page.getByTestId("bajar-password2").fill("correct horse battery");

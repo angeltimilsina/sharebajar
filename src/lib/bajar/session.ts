@@ -49,7 +49,7 @@ export const bajar = {
   isUnlocked: () => !!state,
   accounts: (): PublicAccounts | null => state?.pub ?? loadVault()?.accounts ?? null,
   secrets(): SecretKeys {
-    if (!state) throw new Error("BAJAR Wallet is locked. Unlock it to continue.");
+    if (!state) throw new Error("Bajar Wallet is locked. Unlock it to continue.");
     touch();
     return state.secret;
   },
@@ -67,7 +67,7 @@ export async function createAndStore(mnemonic: string, password: string, onProgr
 
 export async function unlock(password: string, onProgress?: (p: number) => void) {
   const v = loadVault();
-  if (!v) throw new Error("No BAJAR Wallet on this device.");
+  if (!v) throw new Error("No Bajar Wallet on this device.");
   const mnemonic = await openVault(v, password, onProgress);
   const { pub, secret } = deriveAll(mnemonic);
   if (pub.evm.address !== v.accounts.evm.address || pub.bitcoin.address !== v.accounts.bitcoin.address || pub.solana.address !== v.accounts.solana.address) {
@@ -109,7 +109,7 @@ export function exportBackup(): string {
 
 export async function importBackup(json: string, password: string) {
   const v = JSON.parse(json) as VaultFile;
-  if (v.format !== "bajar-vault") throw new Error("Not a BAJAR backup file.");
+  if (v.format !== "bajar-vault") throw new Error("Not a Bajar backup file.");
   if (!verifyVaultSignature(v)) throw new Error("Backup signature (ML-DSA-65) is invalid — the file was modified or corrupted.");
   const mnemonic = await openVault(v, password);
   await createAndStore(mnemonic, password);
