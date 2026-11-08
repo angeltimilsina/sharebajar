@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
 import clsx from "clsx";
 import { Logo } from "../ui/Logo";
 import { GlobalSearch, SearchTrigger } from "./CommandSearch";
@@ -28,10 +27,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 glass border-b border-line">
       <div className="mx-auto max-w-[1680px] px-4 lg:px-6 h-14 sm:h-16 flex items-center gap-2 sm:gap-3 xl:gap-6">
-        <button className="xl:hidden -ml-1.5 h-10 w-10 grid place-items-center rounded-full text-muted hover:text-fg hover:bg-surface-2" onClick={() => setOpen((o) => !o)} aria-label="Menu" aria-expanded={open}>
-          {open ? <X size={20} /> : <Menu size={20} />}
-        </button>
-        <Logo />
+        <Logo menuOpen={open} onMenu={() => setOpen((o) => !o)} />
         <nav className="hidden xl:flex items-center gap-0.5 2xl:gap-2" aria-label="Main">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className={clsx("relative px-3 py-1.5 rounded-full text-[14px] font-medium transition-colors", isActive(n.href) ? "bg-surface-2 text-fg" : "text-muted hover:text-fg")}>

@@ -2,7 +2,7 @@
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
-/** Applies a saved theme before first paint. With no saved choice, the device setting is used (CSS media query). */
+/** Applies a saved theme before first paint. Default is dark (set on <html>); a saved choice wins. */
 export const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('sb.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
 const effective = (): "dark" | "light" => {

@@ -8,7 +8,7 @@
  * Bajar design system — calm, warm and typographic.
  * Warm ivory (light) and warm charcoal (dark) surfaces, ink-coloured primary
  * actions, a serif for display text, and green used only as a signal
- * (live data, gains, the logo stripe). Follows the device theme by default.
+ * (live data, gains, the logo stripe). Dark by default; light is one tap away.
  */
 :root {
   --bg: #faf9f5;
