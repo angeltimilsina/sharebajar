@@ -6,19 +6,19 @@
   ],
   "functions": {
     "src/app/api/ai/chat/route.ts": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "src/app/api/treasury/cron/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
     },
     "src/app/api/treasury/index/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/treasury/cron",
-      "schedule": "*/10 * * * *"
+      "schedule": "17 4 * * *"
     }
   ]
 }

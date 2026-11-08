@@ -63,7 +63,7 @@ The 30 bps default is below Jupiter's referral minimum. Solana wallet/Squads tre
 - **Confirmations.** Solana revenue counts at `finalized`. EVM uses per-chain thresholds (12–64 blocks). Pending events are re-checked; vanished or reorged events become `orphaned`.
 - **Pricing.** Stablecoins are valued at the peg. Majors use the Binance 1-minute close at block time. Others use the current price, with the source labelled.
 - **Ledger.** Append-only and hash-chained. Corrections and reclassifications are reversal entries, never edits. CSV exports are available for revenue and ledger.
-- **Scheduling.** Vercel Cron runs `/api/treasury/cron` every 10 minutes (`CRON_SECRET`). Operators can also run reconciliation manually.
+- **Scheduling.** Vercel Cron runs `/api/treasury/cron` once a day (Hobby plan limit; use `*/10 * * * *` on Pro) with `CRON_SECRET`. Operators can also run reconciliation manually.
 
 ## Verification performed
 
