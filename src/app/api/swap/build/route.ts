@@ -3,6 +3,7 @@ import { z } from "zod";
 import { solanaPrepare } from "@/lib/treasury/swaps";
 import { fail } from "@/lib/server/respond";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
+import { crossSiteRejection } from "@/lib/server/guard";
 
 const MINT = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const Body = z.object({ inputMint: MINT, outputMint: MINT, amount: z.string().regex(/^\d{1,30}$/), slippageBps: z.number().int().min(1).max(5000), userPublicKey: MINT });
@@ -12,6 +13,8 @@ const Body = z.object({ inputMint: MINT, outputMint: MINT, amount: z.string().re
  * sealed fee intent. Signing happens only in the user's wallet.
  */
 export async function POST(req: Request) {
+  const blocked = crossSiteRejection(req);
+  if (blocked) return blocked;
   const rl = rateLimit(`build:${clientIp(req)}`, 10, 20);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));

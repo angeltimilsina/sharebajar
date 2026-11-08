@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { btcBroadcast, btcFees, btcSummary, btcTxStatus, btcUtxos, isMainnetBtcAddress } from "@/lib/bajar/server/bitcoin";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
+import { crossSiteRejection } from "@/lib/server/guard";
 
 export async function GET(req: Request) {
   const u = new URL(req.url);
@@ -24,9 +25,15 @@ export async function GET(req: Request) {
 
 /** Broadcast an already-signed transaction (the server never sees keys). */
 export async function POST(req: Request) {
+  const blocked = crossSiteRejection(req);
+  if (blocked) return blocked;
   const rl = rateLimit(`btcb:${clientIp(req)}`, 10, 10);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   const b = (await req.json().catch(() => null)) as { hex?: string } | null;
+  // A signed transaction is plain hex; cap at standard-relay size (400k weight ≈ 100 kvB).
+  if (typeof b?.hex !== "string" || !/^[0-9a-fA-F]+$/.test(b.hex) || b.hex.length < 120 || b.hex.length > 200_000) {
+    return NextResponse.json({ error: "Invalid signed transaction" }, { status: 400 });
+  }
   try {
     const txid = await btcBroadcast(String(b?.hex ?? ""));
     return NextResponse.json({ txid: txid.trim() });

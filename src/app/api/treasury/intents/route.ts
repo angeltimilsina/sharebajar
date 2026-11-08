@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readIntent, recordIntent } from "@/lib/treasury/intents";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
+import { crossSiteRejection } from "@/lib/server/guard";
 
 const Body = z.object({ intentToken: z.string().min(20).max(4000), txHash: z.string().min(40).max(100) });
 
@@ -11,6 +12,8 @@ const Body = z.object({ intentToken: z.string().min(20).max(4000), txHash: z.str
  * the indexer verifies the transaction and the fee transfer on-chain.
  */
 export async function POST(req: Request) {
+  const blocked = crossSiteRejection(req);
+  if (blocked) return blocked;
   const rl = rateLimit(`intent:${clientIp(req)}`, 30, 30);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));

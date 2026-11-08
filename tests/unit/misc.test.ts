@@ -86,10 +86,15 @@ describe("wallet sign-in", () => {
     expect(recoverEvmAddress(msg, hex)).toBe(addr);
   });
   it("seals and rejects tampered or expired sessions", () => {
-    const t = seal({ a: 1, exp: Date.now() + 1000 });
-    expect(unseal<{ a: number }>(t)?.a).toBe(1);
-    expect(unseal(t.slice(0, -2) + "xx")).toBeNull();
-    expect(unseal(seal({ exp: Date.now() - 1 }))).toBeNull();
+    const t = seal({ a: 1, exp: Date.now() + 1000 }, "session");
+    expect(unseal<{ a: number }>(t, "session")?.a).toBe(1);
+    expect(unseal(t.slice(0, -2) + "xx", "session")).toBeNull();
+    expect(unseal(seal({ exp: Date.now() - 1 }, "session"), "session")).toBeNull();
+  });
+  it("never accepts a sign-in challenge token as a session (purpose binding)", () => {
+    const challenge = seal({ address: "victim", chainType: "solana", exp: Date.now() + 60_000 }, "nonce");
+    expect(unseal(challenge, "session")).toBeNull();
+    expect(unseal(challenge, "nonce")).not.toBeNull();
   });
 });
 

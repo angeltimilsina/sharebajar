@@ -44,7 +44,7 @@ describe("ML-DSA-65 signatures", () => {
 
 describe("encrypted vault", () => {
   const { pub, secret } = deriveAll(ABANDON);
-  const kdf = { N: 2 ** 10, r: 8, p: 1 }; // fast params for tests; production uses N = 2^17
+  const kdf = { N: 2 ** 15, r: 8, p: 1 }; // lowest accepted setting (fast for tests); production uses N = 2^17
   it("round-trips and never stores the phrase in plaintext", async () => {
     const v = await createVault(ABANDON, "correct horse battery", pub, secret.pq, kdf);
     expect(JSON.stringify(v)).not.toContain("abandon");

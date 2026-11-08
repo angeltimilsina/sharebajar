@@ -15,7 +15,8 @@ const ReceivePanel = dynamic(() => import("./ReceivePanel").then((m) => m.Receiv
 const BajarSwap = dynamic(() => import("./BajarSwap").then((m) => m.BajarSwap), { loading });
 const ActivityPanel = dynamic(() => import("./ActivityPanel").then((m) => m.ActivityPanel), { loading });
 const SecurityPanel = dynamic(() => import("./SecurityPanel").then((m) => m.SecurityPanel), { loading });
-import { lock, touch } from "@/lib/bajar/session";
+import { lock, settings, touch } from "@/lib/bajar/session";
+import { Notice } from "../ui/primitives";
 
 type Tab = "portfolio" | "send" | "receive" | "swap" | "activity" | "security";
 
@@ -23,6 +24,9 @@ export function WalletApp() {
   const { hasVault, unlocked, accounts } = useBajar();
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<Tab>("portfolio");
+  // Keep the onboarding flow on screen (incl. its "done" step) until the user leaves it.
+  const [onboarding, setOnboarding] = useState(false);
+  useEffect(() => { if (mounted && !hasVault) setOnboarding(true); }, [mounted, hasVault]);
   useEffect(() => { setMounted(true); window.dispatchEvent(new Event("bajar:load")); }, []);
   useEffect(() => {
     if (!unlocked) return;
@@ -35,7 +39,7 @@ export function WalletApp() {
   if (!mounted) return <div className="mx-auto max-w-5xl py-2" />;
   return (
     <div className="mx-auto max-w-5xl py-1 sm:py-2 space-y-4">
-      {!hasVault ? <Onboard /> : !unlocked || !accounts ? <Unlock /> : (
+      {!hasVault || onboarding ? <Onboard onFinish={() => setOnboarding(false)} /> : !unlocked || !accounts ? <Unlock /> : (
         <>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold inline-flex items-center gap-2"><Wallet size={20} className="text-brand" />Bajar Wallet</h1>
@@ -51,6 +55,9 @@ export function WalletApp() {
             { id: "activity", label: <span className="inline-flex items-center gap-1"><History size={14} />Activity</span> },
             { id: "security", label: <span className="inline-flex items-center gap-1"><ShieldCheck size={14} />Security</span> },
           ]} />
+          {!settings().backedUpAt && tab !== "security" && (
+            <Notice tone="warn" title="Back up your wallet">Without a backup, losing this browser means losing your funds. <button className="underline font-semibold" onClick={() => setTab("security")}>Download an encrypted backup</button>.</Notice>
+          )}
           {tab === "portfolio" && <PortfolioPanel onAction={setTab} />}
           {tab === "send" && <SendPanel />}
           {tab === "receive" && <ReceivePanel />}

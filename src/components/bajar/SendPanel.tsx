@@ -3,7 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { Button, Card, Notice } from "../ui/primitives";
 import { usePortfolio, type Holding } from "./PortfolioPanel";
-import { sendBtc, sendEvm, sendSolana, btcFees, previewBtcSend, explorerTx, type BtcFees } from "@/lib/bajar/send";
+import { sendBtc, sendEvm, sendSolana, btcFees, previewBtcSend, explorerTx, checkAddress, knownRecipients, type BtcFees, type ServerRisk } from "@/lib/bajar/send";
+import { localRecipientChecks, type RecipientFlag } from "@/lib/bajar/security";
+import { bajar } from "@/lib/bajar/session";
+import { ShieldAlert, ShieldCheck, Info } from "lucide-react";
 import { toBase } from "@/lib/bajar/util";
 import { formatNumber } from "@/lib/format";
 
@@ -23,6 +26,29 @@ export function SendPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<{ network: string; hash: string } | null>(null);
   const isBtc = h?.network === "bitcoin";
+  const [risk, setRisk] = useState<{ flags: RecipientFlag[]; server: ServerRisk | null; checking: boolean; for: string } | null>(null);
+  const [ack, setAck] = useState(false);
+
+  // Recipient screening: local (poisoning, self, contract, large share) + server (malicious lists, on-chain type).
+  useEffect(() => {
+    setAck(false);
+    const addr = to.trim();
+    if (!h || addr.length < 26) { setRisk(null); return; }
+    const a = bajar.accounts()!;
+    const raw = toBase(amount === "max" ? "0" : amount || "0", h.decimals);
+    const share = amount === "max" ? 1 : raw && BigInt(h.amountRaw) > BigInt(0) ? Number((raw * BigInt(10_000)) / BigInt(h.amountRaw)) / 10_000 : 0;
+    const local = localRecipientChecks(addr, {
+      own: [a.bitcoin.address, a.evm.address, a.solana.address], history: knownRecipients(h.network),
+      tokenAddresses: (p.data?.holdings ?? []).filter((x) => !x.native).map((x) => x.token), amountShareOfBalance: share,
+    });
+    setRisk({ flags: local, server: null, checking: true, for: addr });
+    const t = setTimeout(() => checkAddress(h.network, addr).then((server) => setRisk((r) => (r && r.for === addr ? { ...r, server, checking: false } : r))), 450);
+    return () => clearTimeout(t);
+  }, [to, amount, h?.network, h?.token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allFlags: RecipientFlag[] = [...(risk?.flags ?? []), ...(risk?.server?.flags ?? [])];
+  const danger = allFlags.some((f) => f.severity === "danger");
+  const invalid = risk?.server?.valid === false;
 
   useEffect(() => { if (isBtc) btcFees().then((f) => { setFees(f); setFeeRate((r) => r ?? f.halfHourFee); }).catch(() => {}); }, [isBtc]);
 
@@ -83,11 +109,29 @@ export function SendPanel() {
           ))}
         </div>
       )}
+      {risk && (
+        <div className="rounded-xl border border-line p-3 space-y-1.5 text-xs" data-testid="bajar-recipient-check" aria-live="polite">
+          <div className="flex items-center gap-1.5 font-semibold">
+            {risk.checking ? <Loader2 size={13} className="animate-spin" /> : danger ? <ShieldAlert size={14} className="text-down" /> : allFlags.some((f) => f.severity === "warn") ? <ShieldAlert size={14} className="text-warn" /> : <ShieldCheck size={14} className="text-up" />}
+            Recipient check {risk.checking ? "…" : danger ? "— high risk" : allFlags.length ? "" : "— no issues found"}
+          </div>
+          {allFlags.map((f) => (
+            <p key={f.code + f.message} className={`flex gap-1.5 ${f.severity === "danger" ? "text-down" : f.severity === "warn" ? "text-warn" : "text-muted"}`}>
+              {f.severity === "info" ? <Info size={12} className="shrink-0 mt-0.5" /> : <ShieldAlert size={12} className="shrink-0 mt-0.5" />}{f.message}
+            </p>
+          ))}
+          {!risk.checking && risk.server && <p className="text-faint">Sources: {risk.server.sources.join(", ") || "format checks"}</p>}
+          {!risk.checking && !risk.server && <p className="text-faint">Online screening unavailable — local checks only.</p>}
+          {danger && !invalid && (
+            <label className="flex items-start gap-2 pt-1 text-down"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="bajar-risk-ack" />I understand the risk and still want to send to this address.</label>
+          )}
+        </div>
+      )}
       {preview && <p className="text-xs text-muted">{preview}</p>}
       {!isBtc && <p className="text-[11px] text-faint">Network fee is estimated and the transaction simulated before you approve.</p>}
       {err && <Notice tone="down">{err}</Notice>}
       {done && <Notice tone="info" title="Submitted">Broadcast to {done.network}. <a className="text-brand inline-flex items-center gap-1" href={explorerTx(done.network, done.hash)} target="_blank" rel="noopener noreferrer">View <ExternalLink size={11} /></a> <span className="font-mono text-[11px] break-all block">{done.hash}</span></Notice>}
-      <Button className="w-full" disabled={busy || !to || !amount || (isBtc && !feeRate)} onClick={submit}>{busy ? <Loader2 size={14} className="animate-spin" /> : "Review & send"}</Button>
+      <Button className="w-full" disabled={busy || !to || !amount || (isBtc && !feeRate) || invalid || (danger && !ack) || !!risk?.checking} onClick={submit}>{busy ? <Loader2 size={14} className="animate-spin" /> : "Review & send"}</Button>
     </Card>
   );
 }

@@ -7,7 +7,8 @@ import { bytesToHex } from "@noble/hashes/utils";
  * in localStorage. Nothing secret is ever sent over the network.
  */
 import { deriveAll, normalizeMnemonic, pqSign, type PublicAccounts, type SecretKeys } from "./keys";
-import { createVault, openVault, verifyVaultSignature, type VaultFile } from "./vault";
+import { assertVaultShape, createVault, needsKdfUpgrade, openVault, verifyVaultSignature, type VaultFile } from "./vault";
+import { passwordStrength, recordUnlockFailure, resetUnlockFailures, unlockBlockedFor } from "./security";
 import { canonicalJson } from "./util";
 
 const VAULT_KEY = "bajar.vault.v1";
@@ -21,9 +22,22 @@ const listeners = new Set<() => void>();
 let version = 0;
 const emit = () => { version++; listeners.forEach((l) => l()); };
 
-export interface BajarSettings { autoLockMinutes: number; evmChain: string }
+export interface BajarSettings {
+  autoLockMinutes: number; evmChain: string;
+  /** Set when the user proved they wrote the phrase down (quiz) or downloaded a backup. */
+  backedUpAt?: string | null; backupMethod?: "phrase_quiz" | "file" | "imported" | null;
+  passwordScore?: number; createdAt?: string;
+}
+const DEFAULT_SETTINGS: BajarSettings = { autoLockMinutes: 10, evmChain: "ethereum" };
 export function settings(): BajarSettings {
-  try { return { autoLockMinutes: 10, evmChain: "ethereum", ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") }; } catch { return { autoLockMinutes: 10, evmChain: "ethereum" }; }
+  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") }; } catch { return { ...DEFAULT_SETTINGS }; }
+}
+
+/** Enforce the password policy for every NEW password (create, import, change). */
+export function assertStrongPassword(pw: string, accounts?: PublicAccounts | null) {
+  const r = passwordStrength(pw, accounts ? [accounts.evm.address, accounts.solana.address, accounts.bitcoin.address] : []);
+  if (!r.ok) throw new Error(`Password too weak (${r.label}). ${r.issues[0] ?? ""}`.trim());
+  return r;
 }
 export function saveSettings(s: Partial<BajarSettings>) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings(), ...s }));
@@ -55,28 +69,64 @@ export const bajar = {
   },
 };
 
-export async function createAndStore(mnemonic: string, password: string, onProgress?: (p: number) => void): Promise<PublicAccounts> {
-  const { pub, secret } = deriveAll(normalizeMnemonic(mnemonic));
-  const vault = await createVault(normalizeMnemonic(mnemonic), password, pub, secret.pq, undefined, onProgress);
+function sameAccounts(a: PublicAccounts, b: PublicAccounts) {
+  return a.evm.address === b.evm.address && a.bitcoin.address === b.bitcoin.address && a.solana.address === b.solana.address && a.pq.publicKey === b.pq.publicKey;
+}
+
+/** Encrypt and persist; `enforcePolicy` is false only when re-storing an existing password (restore/upgrade). */
+async function store(mnemonic: string, password: string, opts: { enforcePolicy: boolean; onProgress?: (p: number) => void; backup?: BajarSettings["backupMethod"] }): Promise<PublicAccounts> {
+  const m = normalizeMnemonic(mnemonic);
+  const { pub, secret } = deriveAll(m);
+  const report = opts.enforcePolicy ? assertStrongPassword(password, pub) : null;
+  const vault = await createVault(m, password, pub, secret.pq, undefined, opts.onProgress);
+  // Read back and verify before switching over, so a storage glitch can't leave an unreadable vault.
   localStorage.setItem(VAULT_KEY, JSON.stringify(vault));
+  const check = loadVault();
+  if (!check || check.ciphertext !== vault.ciphertext) throw new Error("Could not save the encrypted wallet in this browser (storage full or blocked).");
   state = { pub, secret };
+  const prev = settings();
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    ...prev,
+    ...(report ? { passwordScore: report.score } : {}),
+    ...(opts.backup ? { backedUpAt: new Date().toISOString(), backupMethod: opts.backup } : {}),
+    createdAt: prev.createdAt ?? new Date().toISOString(),
+  }));
+  resetUnlockFailures();
   scheduleLock();
   emit();
   return pub;
 }
 
+/** New wallet (phrase generated here) or phrase import. `backup` records how the phrase was verified. */
+export function createAndStore(mnemonic: string, password: string, onProgress?: (p: number) => void, backup: BajarSettings["backupMethod"] = null) {
+  // Starting a different wallet resets the backup status.
+  try { const s = settings(); localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...s, backedUpAt: null, backupMethod: null, createdAt: undefined })); } catch { /* ignore */ }
+  return store(mnemonic, password, { enforcePolicy: true, onProgress, backup });
+}
+
 export async function unlock(password: string, onProgress?: (p: number) => void) {
   const v = loadVault();
   if (!v) throw new Error("No Bajar Wallet on this device.");
-  const mnemonic = await openVault(v, password, onProgress);
-  const { pub, secret } = deriveAll(mnemonic);
-  if (pub.evm.address !== v.accounts.evm.address || pub.bitcoin.address !== v.accounts.bitcoin.address || pub.solana.address !== v.accounts.solana.address) {
-    throw new Error("Vault accounts do not match the decrypted phrase — refusing to unlock.");
+  const wait = unlockBlockedFor();
+  if (wait > 0) throw new Error(`Too many wrong passwords. Try again in ${Math.ceil(wait / 1000)}s.`);
+  let mnemonic: string;
+  try {
+    mnemonic = await openVault(v, password, onProgress);
+  } catch (e) {
+    const delay = recordUnlockFailure();
+    throw new Error(`${(e as Error).message}${delay > 0 ? ` Locked for ${Math.ceil(delay / 1000)}s.` : ""}`);
   }
+  const { pub, secret } = deriveAll(mnemonic);
+  if (!sameAccounts(pub, v.accounts)) throw new Error("Vault accounts do not match the decrypted phrase — refusing to unlock.");
+  resetUnlockFailures();
   state = { pub, secret };
+  // Transparent upgrade of older/weaker encryption settings (same password).
+  if (needsKdfUpgrade(v)) await store(mnemonic, password, { enforcePolicy: false }).catch(() => {});
   scheduleLock();
   emit();
 }
+
+export const unlockWait = () => unlockBlockedFor();
 
 export function lock() {
   if (state) {
@@ -92,32 +142,55 @@ export function lock() {
 export async function revealMnemonic(password: string): Promise<string> {
   const v = loadVault();
   if (!v) throw new Error("No wallet");
-  return openVault(v, password);
+  const wait = unlockBlockedFor();
+  if (wait > 0) throw new Error(`Too many wrong passwords. Try again in ${Math.ceil(wait / 1000)}s.`);
+  try { const m = await openVault(v, password); resetUnlockFailures(); return m; } catch (e) { recordUnlockFailure(); throw e; }
 }
 
 export async function changePassword(oldPw: string, newPw: string) {
+  if (oldPw === newPw) throw new Error("The new password must be different.");
   const m = await revealMnemonic(oldPw);
-  await createAndStore(m, newPw);
+  await store(m, newPw, { enforcePolicy: true });
+}
+
+/** Mark the wallet as backed up (phrase quiz passed or encrypted file downloaded). */
+export function markBackedUp(method: NonNullable<BajarSettings["backupMethod"]>) {
+  saveSettings({ backedUpAt: new Date().toISOString(), backupMethod: method });
 }
 
 /** Encrypted, ML-DSA-65-signed backup file (still requires the password to open). */
 export function exportBackup(): string {
   const v = loadVault();
   if (!v) throw new Error("No wallet");
+  markBackedUp("file");
   return JSON.stringify(v, null, 2);
 }
 
-export async function importBackup(json: string, password: string) {
-  const v = JSON.parse(json) as VaultFile;
-  if (v.format !== "bajar-vault") throw new Error("Not a Bajar backup file.");
+/**
+ * Restore from an encrypted backup. Checks, in order: size and JSON shape,
+ * safe KDF parameters, ML-DSA-65 signature, AES-GCM decryption (password),
+ * and that the decrypted phrase derives exactly the addresses and PQ key in
+ * the file (so swapped metadata can't trick you into using other addresses).
+ */
+export async function importBackup(json: string, password: string, onProgress?: (p: number) => void) {
+  if (json.length > 20_000) throw new Error("File too large to be a Bajar backup.");
+  let v: unknown;
+  try { v = JSON.parse(json); } catch { throw new Error("Not valid JSON."); }
+  assertVaultShape(v);
   if (!verifyVaultSignature(v)) throw new Error("Backup signature (ML-DSA-65) is invalid — the file was modified or corrupted.");
-  const mnemonic = await openVault(v, password);
-  await createAndStore(mnemonic, password);
+  const mnemonic = await openVault(v, password, onProgress);
+  const { pub } = deriveAll(mnemonic);
+  if (!sameAccounts(pub, v.accounts)) throw new Error("Backup addresses do not match its encrypted phrase — refusing to restore.");
+  try { const s = settings(); localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...s, createdAt: v.createdAt })); } catch { /* ignore */ }
+  await store(mnemonic, password, { enforcePolicy: false, backup: "file" });
 }
 
 export function removeWallet() {
   lock();
   localStorage.removeItem(VAULT_KEY);
+  localStorage.removeItem(LOG_KEY);
+  try { const s = settings(); localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoLockMinutes: s.autoLockMinutes, evmChain: s.evmChain })); } catch { /* ignore */ }
+  resetUnlockFailures();
   emit();
 }
 

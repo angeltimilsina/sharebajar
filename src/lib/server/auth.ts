@@ -21,16 +21,22 @@ function secret(): string {
 const b64u = (b: Buffer | string) => Buffer.from(b).toString("base64url");
 const sign = (payload: string) => createHmac("sha256", secret()).update(payload).digest("base64url");
 
-export function seal(obj: object): string {
+/**
+ * Signed tokens are bound to a purpose (domain separation): a sign-in
+ * challenge token can never be accepted as a session, and vice versa.
+ */
+export type TokenPurpose = "session" | "nonce";
+
+export function seal(obj: object, purpose: TokenPurpose): string {
   const p = b64u(JSON.stringify(obj));
-  return `${p}.${sign(p)}`;
+  return `${p}.${sign(`${purpose}.${p}`)}`;
 }
 
-export function unseal<T>(token: string | undefined): T | null {
-  if (!token) return null;
-  const [p, s] = token.split(".");
-  if (!p || !s) return null;
-  const expected = Buffer.from(sign(p));
+export function unseal<T>(token: string | undefined, purpose: TokenPurpose): T | null {
+  if (!token || token.length > 8192) return null;
+  const [p, s, extra] = token.split(".");
+  if (!p || !s || extra !== undefined) return null;
+  const expected = Buffer.from(sign(`${purpose}.${p}`));
   const got = Buffer.from(s);
   if (expected.length !== got.length || !timingSafeEqual(expected, got)) return null;
   try {

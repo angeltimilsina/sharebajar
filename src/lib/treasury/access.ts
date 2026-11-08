@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { SESSION_COOKIE, unseal, verifyEvm, verifySolana, type Session } from "../server/auth";
 import { clientIp } from "../server/ratelimit";
 import { q } from "./db";
@@ -32,7 +32,16 @@ export function envOwners(): string[] {
 export const FRESH_MS = Number(process.env.TREASURY_FRESH_AUTH_MINUTES ?? 30) * 60_000;
 
 export async function currentActor(): Promise<Actor | null> {
-  const session = unseal<Session>((await cookies()).get(SESSION_COOKIE)?.value);
+  // CSRF: a request initiated by another site never gets a treasury identity.
+  const h = await headers();
+  if (h.get("sec-fetch-site") === "cross-site") return null;
+  const origin = h.get("origin");
+  if (origin) {
+    let oh: string | null = null;
+    try { oh = new URL(origin).host; } catch { oh = null; }
+    if (oh !== (h.get("x-forwarded-host") ?? h.get("host"))) return null;
+  }
+  const session = unseal<Session>((await cookies()).get(SESSION_COOKIE)?.value, "session");
   if (!session) return null;
   const address = norm(session.address);
   const age = Date.now() - (session.iat ?? 0);

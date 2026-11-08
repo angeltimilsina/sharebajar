@@ -39,6 +39,7 @@ export async function sendBtc(to: string, amountSats: number | "max", feeRate: n
   const signed = signSend(plan, to, from, bajar.secrets().bitcoin);
   const { txid } = await api<{ txid: string }>("/api/wallet/btc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hex: signed.hex }) });
   recordLocal("bitcoin", txid, `Sent ${(plan.amount / 1e8).toFixed(8)} BTC to ${short(to)}`);
+  rememberRecipient("bitcoin", to);
   return txid;
 }
 
@@ -64,9 +65,11 @@ export async function signAndBroadcastPsbt(psbtHex: string, summary: string, ext
 
 export async function sendEvm(chainId: string, token: "native" | string, to: string, amountRaw: bigint, label: string): Promise<string> {
   if (!isAddress(to)) throw new Error("Invalid EVM address.");
-  if (token === "native") return evmSendTransaction(chainId, { to, value: `0x${amountRaw.toString(16)}` }, `Send ${label} to ${short(to)}`);
-  const data = encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as `0x${string}`, amountRaw] });
-  return evmSendTransaction(chainId, { to: token, data }, `Send ${label} to ${short(to)}`);
+  const h = token === "native"
+    ? await evmSendTransaction(chainId, { to, value: `0x${amountRaw.toString(16)}` }, `Send ${label} to ${short(to)}`)
+    : await evmSendTransaction(chainId, { to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as `0x${string}`, amountRaw] }) }, `Send ${label} to ${short(to)}`);
+  rememberRecipient(chainId, to);
+  return h;
 }
 
 /* ------------------------------ Solana ---------------------------- */
@@ -109,6 +112,7 @@ export async function sendSolana(token: "native" | string, to: string, amountRaw
   const p = window.bajar!.solana;
   const res = await p.signAndSendTransaction!(tx) as { signature: string };
   recordLocal("solana", res.signature, `Sent ${label} to ${short(to)}`);
+  rememberRecipient("solana", to);
   return res.signature;
 }
 
@@ -124,6 +128,25 @@ export async function signSolanaB64(base64Tx: string): Promise<string> {
   const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(base64Tx), (c) => c.charCodeAt(0)));
   const signed = await window.bajar!.solana.signTransaction!(tx);
   return b64(signed.serialize());
+}
+
+/* ----------------------------- Recipients ------------------------- */
+
+const RECIP_KEY = "bajar.recipients.v1";
+export function knownRecipients(network?: string): string[] {
+  try { const l = JSON.parse(localStorage.getItem(RECIP_KEY) ?? "[]") as { network: string; address: string }[]; return l.filter((x) => !network || x.network === network || (network !== "bitcoin" && network !== "solana" && x.network === "evm")).map((x) => x.address); } catch { return []; }
+}
+export function rememberRecipient(network: string, address: string) {
+  const net = network === "bitcoin" || network === "solana" ? network : "evm";
+  try {
+    const l = (JSON.parse(localStorage.getItem(RECIP_KEY) ?? "[]") as { network: string; address: string }[]).filter((x) => !(x.network === net && x.address === address));
+    localStorage.setItem(RECIP_KEY, JSON.stringify([{ network: net, address }, ...l].slice(0, 100)));
+  } catch { /* ignore */ }
+}
+
+export interface ServerRisk { valid: boolean; flags: { severity: "info" | "warn" | "danger"; code: string; message: string }[]; sources: string[] }
+export async function checkAddress(network: string, address: string): Promise<ServerRisk | null> {
+  try { const r = await fetch(`/api/wallet/check-address?network=${encodeURIComponent(network)}&address=${encodeURIComponent(address)}`); return r.ok ? await r.json() : null; } catch { return null; }
 }
 
 /* ----------------------------- Activity --------------------------- */
