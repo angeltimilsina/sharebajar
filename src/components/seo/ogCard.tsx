@@ -8,7 +8,7 @@ const pctStr = (v: number | null) => (v === null ? "" : `${v >= 0 ? "+" : ""}${v
 export function ogCard({ eyebrow, title, rows }: { eyebrow: string; title: string; rows: { label: string; value: string; change?: number | null }[] }) {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#1f1e1d", color: "#f5f4ef", padding: 64, fontFamily: "serif" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#000000", color: "#ffffff", padding: 64, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontFamily: "sans-serif", color: "#c9c6bd" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {[44, 30, 38].map((w, i) => <div key={i} style={{ width: w, height: 6, borderRadius: 3, background: "#e8e6dc" }} />)}

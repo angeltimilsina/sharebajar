@@ -111,7 +111,7 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
             <div role="radiogroup" aria-label="Stat" className="flex w-full sm:w-auto rounded-full bg-surface-2 p-0.5 overflow-x-auto no-scrollbar" data-testid="board-stats">
               {statOptions.map((s) => (
                 <button key={s} role="radio" aria-checked={stat === s} onClick={() => set({ stat: s })}
-                  className={clsx("h-8 sm:h-7 flex-1 sm:flex-none px-3 rounded-full text-[12.5px] font-medium whitespace-nowrap", stat === s ? "bg-surface text-fg shadow-[var(--shadow)]" : "text-muted hover:text-fg")}>
+                  className={clsx("h-8 sm:h-7 flex-1 sm:flex-none px-3 rounded-full text-[12.5px] font-medium whitespace-nowrap", stat === s ? "seg-on text-fg" : "text-muted hover:text-fg")}>
                   {STAT_LABEL[s]}
                 </button>
               ))}

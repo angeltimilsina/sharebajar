@@ -37,7 +37,7 @@ export function Header() {
   useEffect(() => setOpen(false), [path]);
   const isActive = (href: string) => NAV.find((n) => n.href === href)?.match.test(path) ?? path === href;
   return (
-    <header className="sticky top-0 z-40 glass border-b border-line">
+    <header className="sticky top-0 z-40 glass border-b-[0.5px] border-line">
       <div className="mx-auto max-w-[1680px] px-4 lg:px-6 h-14 sm:h-16 flex items-center gap-2 sm:gap-3 xl:gap-6">
         <Logo menuOpen={open} onMenu={() => setOpen((o) => !o)} connected={connected} />
         <nav className="hidden lg:flex items-center gap-0.5" aria-label="Main">

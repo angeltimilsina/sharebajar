@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Real-time multi-chain crypto marketplace and noncustodial wallet.",
     start_url: "/",
     display: "standalone",
-    background_color: "#1f1e1d",
-    theme_color: "#1f1e1d",
+    background_color: "#000000",
+    theme_color: "#000000",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
   };
 }

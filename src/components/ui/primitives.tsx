@@ -27,12 +27,12 @@ export function Button({ variant = "primary", size = "md", className, ...rest }:
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-1.5 rounded-xl font-medium transition-colors select-none disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
+        "inline-flex items-center justify-center gap-1.5 rounded-full font-semibold transition-[background-color,transform,opacity] active:scale-[0.97] select-none disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
         size === "sm" && "h-8 px-3.5 text-[13px]",
         size === "md" && "h-10 px-4 text-sm",
-        size === "lg" && "h-12 px-6 text-[15px] rounded-2xl",
+        size === "lg" && "h-[50px] px-6 text-[17px]",
         variant === "primary" && "btn-ink",
-        variant === "outline" && "border border-line-strong bg-surface text-fg hover:bg-surface-2",
+        variant === "outline" && "bg-surface-2 text-fg hover:bg-surface-3",
         variant === "ghost" && "text-muted hover:text-fg hover:bg-surface-2",
         variant === "subtle" && "bg-surface-2 text-fg hover:bg-surface-3",
         variant === "danger" && "bg-down text-white hover:opacity-90",
@@ -109,7 +109,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className, size 
           className={clsx(
             "relative whitespace-nowrap font-medium transition-all",
             size === "md" ? "px-3.5 py-1.5 text-sm rounded-full" : "px-2.5 py-1.5 text-xs rounded-lg",
-            size === "md" && (value === t.id ? "bg-surface text-fg shadow-[var(--shadow)]" : "text-muted hover:text-fg"),
+            size === "md" && (value === t.id ? "seg-on text-fg" : "text-muted hover:text-fg"),
             size === "sm" && (value === t.id ? "bg-surface-3 text-fg" : "text-muted hover:text-fg"),
           )}
         >

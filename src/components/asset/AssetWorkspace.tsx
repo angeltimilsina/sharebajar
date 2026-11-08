@@ -53,7 +53,7 @@ export function AssetWorkspace({ asset, header, chart, overview, rail, market, a
       <div role="tablist" aria-label="Asset view" className="flex items-center gap-1 rounded-full bg-surface-2 p-1 w-fit max-w-full overflow-x-auto no-scrollbar">
         {([["overview", "Overview", LayoutGrid], ["trade", "Trade", CandlestickChart], ["swap", "Swap", ArrowLeftRight]] as const).map(([m, label, Icon]) => (
           <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} data-testid={`mode-${m}`}
-            className={clsx("inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all", mode === m ? "bg-surface text-fg shadow-[var(--shadow)]" : "text-muted hover:text-fg")}>
+            className={clsx("inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all", mode === m ? "seg-on text-fg" : "text-muted hover:text-fg")}>
             <Icon size={14} />{label}
           </button>
         ))}

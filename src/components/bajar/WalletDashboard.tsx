@@ -186,7 +186,7 @@ function Allocation({ holdings, hidden }: { holdings: Holding[]; hidden: boolean
         <h2 className="text-base">Allocation</h2>
         <div className="flex rounded-full bg-surface-2 p-0.5 text-xs">
           {(["asset", "network"] as const).map((k) => (
-            <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={clsx("px-2.5 py-1 rounded-full capitalize", by === k ? "bg-surface text-fg shadow-[var(--shadow)]" : "text-muted")}>{k === "asset" ? "Assets" : "Networks"}</button>
+            <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={clsx("px-2.5 py-1 rounded-full capitalize", by === k ? "seg-on text-fg" : "text-muted")}>{k === "asset" ? "Assets" : "Networks"}</button>
           ))}
         </div>
       </div>
