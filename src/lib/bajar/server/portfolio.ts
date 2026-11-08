@@ -6,6 +6,7 @@ import { erpc, hexToBig, pad32 } from "../../treasury/evm";
 import { ata, srpc, TOKEN_2022_PROGRAM, TOKEN_PROGRAM } from "../../treasury/solana";
 import { priceAt } from "../../treasury/prices";
 import { btcSummary } from "./bitcoin";
+import { get24hTickers } from "../../market/binance";
 
 /**
  * Multi-chain holdings for public addresses (no keys involved). Every number is
@@ -15,6 +16,8 @@ export interface Holding {
   network: string; networkName: string; token: string; symbol: string; name: string; decimals: number;
   amountRaw: string; amount: number; usdPrice: number | null; usdValue: number | null; priceSource: string;
   native: boolean; wrappedBtc?: boolean; custom?: boolean;
+  /** 24h price change in %, from the same Binance market as the price (null when not available). */
+  change24h?: number | null;
 }
 
 export interface CustomToken { network: string; token: string; symbol: string; decimals: number }
@@ -82,6 +85,17 @@ export async function portfolio(addrs: { btc?: string; evm?: string; solana?: st
       h.usdValue = p.price === null ? null : h.amount * p.price;
       h.priceSource = h.wrappedBtc && p.price !== null ? `${p.source} (wrapped BTC tracks BTC; not native BTC)` : p.source;
     }));
+    // 24h change from the Binance market that priced the asset; stablecoins are flat by definition.
+    const pairOf = (h: Holding) => /^Binance ([A-Z0-9]+USDT) /.exec(h.priceSource)?.[1];
+    const pairs = [...new Set(holdings.map(pairOf).filter((x): x is string => !!x))].sort();
+    let changes = new Map<string, number>();
+    if (pairs.length) {
+      try { changes = new Map((await get24hTickers(pairs)).data.map((t) => [t.symbol, t.change24h])); } catch { /* change unavailable */ }
+    }
+    for (const h of holdings) {
+      const pair = pairOf(h);
+      h.change24h = h.priceSource === "stablecoin peg" ? 0 : pair && changes.has(pair) ? changes.get(pair)! : null;
+    }
     holdings.sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
     return { holdings, totalUsd: holdings.reduce((s, h) => s + (h.usdValue ?? 0), 0), errors, networks: ["bitcoin", ...CHAINS.map((c) => c.id)].filter((n) => n === "bitcoin" || getChain(n)) };
   });

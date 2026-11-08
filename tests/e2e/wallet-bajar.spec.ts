@@ -62,10 +62,18 @@ test.describe("Bajar Wallet", () => {
   test("import, receive addresses, wrong-password throttling, unlock", async ({ page }) => {
     await importTestWallet(page, MESSY);
     await page.getByTestId("bajar-open").click();
-    await page.getByRole("tab", { name: /Receive/ }).click();
+    // Dashboard: only the three tabs that matter; Send/Receive/Swap are actions.
+    await expect(page.getByTestId("wallet-dashboard").getByRole("tab")).toHaveText(["Portfolio", "Activity", "Settings"]);
+    await expect(page.getByTestId("wallet-holdings")).toBeVisible();
+    await expect(page.getByTestId("wallet-insights")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("wallet-action-receive").click();
+    await expect(page).toHaveURL(/#receive$/);
     await expect(page.getByTestId("bajar-addr-bitcoin")).toHaveText("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     await expect(page.getByTestId("bajar-addr-ethereum")).toHaveText("0x9858EfFD232B4033E47d90003D41EC34EcaEda94");
     await expect(page.getByTestId("bajar-addr-solana")).toHaveText("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk");
+    // Back (button or phone back) returns to the dashboard.
+    await page.getByTestId("wallet-back").click();
+    await expect(page.getByTestId("wallet-holdings")).toBeVisible();
 
     await page.getByTestId("bajar-lock").click();
     for (let i = 0; i < 3; i++) {
@@ -109,9 +117,10 @@ test.describe("Bajar Wallet", () => {
   test("send screen screens a known-malicious recipient", async ({ page }) => {
     await importTestWallet(page);
     await page.getByTestId("bajar-open").click();
-    await page.getByRole("tab", { name: /Security/ }).click();
+    await page.getByRole("tab", { name: /Settings/ }).click();
     await expect(page.getByTestId("bajar-checkup")).toBeVisible();
-    await page.getByRole("tab", { name: /Send/ }).click();
+    await page.getByRole("tab", { name: /Portfolio/ }).click();
+    await page.getByTestId("wallet-action-send").click();
     await page.locator("select").first().waitFor({ timeout: 30_000 }).catch(() => {});
     const evmAsset = page.locator("select option", { hasText: /Ethereum|Base|Arbitrum|Polygon|BNB|Optimism|Avalanche/ }).first();
     test.skip(!(await evmAsset.count()), "test wallet has no funded EVM asset right now");

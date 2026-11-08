@@ -1,17 +1,13 @@
 "use client";
 import { useState } from "react";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
-import { Button, Card, CardHeader, Notice, Badge, Skeleton } from "../ui/primitives";
-import { DataStatus } from "../ui/DataStatus";
-import { TokenIcon } from "../ui/TokenIcon";
-import { ChainIcon } from "../ui/ChainIcon";
+import { Plus, Trash2 } from "lucide-react";
+import { Button, Card, CardHeader } from "../ui/primitives";
 import { usePoll } from "@/hooks/usePoll";
-import { formatNumber, formatUsd } from "@/lib/format";
 import { bajar } from "@/lib/bajar/session";
 import { CHAINS } from "@/lib/chains";
 import { customTokens, saveCustomTokens, type CustomToken } from "./customTokens";
 
-export interface Holding { network: string; networkName: string; token: string; symbol: string; name: string; decimals: number; amountRaw: string; amount: number; usdPrice: number | null; usdValue: number | null; priceSource: string; native: boolean; wrappedBtc?: boolean; custom?: boolean }
+export interface Holding { network: string; networkName: string; token: string; symbol: string; name: string; decimals: number; amountRaw: string; amount: number; usdPrice: number | null; usdValue: number | null; priceSource: string; native: boolean; wrappedBtc?: boolean; custom?: boolean; change24h?: number | null }
 export interface PortfolioData { holdings: Holding[]; totalUsd: number; errors: string[] }
 
 export function usePortfolio(interval = 20_000) {
@@ -22,57 +18,7 @@ export function usePortfolio(interval = 20_000) {
   return { ...poll, custom, setCustom: (l: CustomToken[]) => { saveCustomTokens(l); setCustom(l); } };
 }
 
-export function PortfolioPanel({ onAction }: { onAction: (t: "send" | "receive" | "swap") => void }) {
-  const p = usePortfolio();
-  const holdings = p.data?.holdings ?? [];
-  const nonZero = holdings.filter((h) => h.amount > 0);
-  return (
-    <div className="space-y-4">
-      <Card className="p-5">
-        <div className="text-xs text-muted">Total value (live)</div>
-        <div className="text-3xl font-bold tabular-nums" data-testid="bajar-total">{p.data ? formatUsd(p.data.totalUsd) : <Skeleton className="h-9 w-40" />}</div>
-        <div className="mt-1 flex items-center gap-2"><DataStatus expectedMs={20_000} fetchedAt={p.fetchedAt} source={p.source} stale={p.stale} error={p.error} /><button onClick={p.refresh} className="text-muted" aria-label="Refresh"><RefreshCw size={13} /></button></div>
-        <div className="mt-4 flex gap-2">
-          <Button onClick={() => onAction("send")}>Send</Button>
-          <Button variant="outline" onClick={() => onAction("receive")}>Receive</Button>
-          <Button variant="outline" onClick={() => onAction("swap")}>Swap</Button>
-        </div>
-      </Card>
-      {p.data?.errors.length ? <Notice tone="warn" title="Some networks did not respond">{p.data.errors.join(" · ")}</Notice> : null}
-      <Card>
-        <CardHeader title="Assets" sub="Balances read directly from each network. Prices from live exchange/on-chain sources." />
-        <ul className="divide-y divide-line">
-          {!p.data && Array.from({ length: 4 }, (_, i) => <li key={i} className="p-3"><Skeleton className="h-6" /></li>)}
-          {p.data && !nonZero.length && <li className="p-4 text-sm text-muted">No balances yet. Use Receive to fund this wallet.</li>}
-          {nonZero.map((h) => (
-            <li key={h.network + h.token} className="flex items-center gap-3 px-4 py-3">
-              <span className="relative shrink-0">
-                <TokenIcon symbol={h.symbol} size={32} canonical={!h.custom} />
-                {h.network !== "bitcoin" && <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1px]"><ChainIcon chain={h.network} size={13} /></span>}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold flex items-center gap-1.5">{h.symbol}
-                  <span className="text-[11px] text-muted font-normal">{h.networkName}</span>
-                  {h.network === "bitcoin" && <Badge tone="brand">native BTC</Badge>}
-                  {h.wrappedBtc && <Badge tone="warn" title="A token on another chain that represents BTC via a custodian or bridge. Not native bitcoin.">wrapped BTC</Badge>}
-                  {h.custom && <Badge>custom</Badge>}
-                </div>
-                <div className="text-[11px] text-faint truncate" title={h.priceSource}>{h.usdPrice !== null ? `${formatUsd(h.usdPrice, h.usdPrice < 1 ? 4 : 2)} · ${h.priceSource}` : "No reliable price — not valued"}</div>
-              </div>
-              <div className="text-right tabular-nums">
-                <div className="text-sm">{formatNumber(h.amount, h.amount < 1 ? 6 : 4)}</div>
-                <div className="text-[11px] text-muted">{h.usdValue !== null ? formatUsd(h.usdValue) : "—"}</div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Card>
-      <CustomTokens list={p.custom} onChange={p.setCustom} />
-    </div>
-  );
-}
-
-function CustomTokens({ list, onChange }: { list: CustomToken[]; onChange: (l: CustomToken[]) => void }) {
+export function CustomTokens({ list, onChange }: { list: CustomToken[]; onChange: (l: CustomToken[]) => void }) {
   const [network, setNetwork] = useState("solana");
   const [token, setToken] = useState("");
   const [err, setErr] = useState<string | null>(null);

@@ -9,7 +9,7 @@ import { getChain } from "@/lib/chains";
 
 interface Item { network: string; hash: string; time: number | null; label: string; status: string; tone: "up" | "down" | "warn" | "neutral" }
 
-export function ActivityPanel() {
+export function ActivityPanel({ limit, compact = false }: { limit?: number; compact?: boolean } = {}) {
   const a = bajar.accounts()!;
   const [items, setItems] = useState<Item[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -26,19 +26,21 @@ export function ActivityPanel() {
       setErrors(errs);
     });
   }, [a.bitcoin.address, a.solana.address]);
+  const shown = limit ? items?.slice(0, limit) : items;
   return (
-    <Card>
-      <CardHeader title="Activity" sub={`Bitcoin and Solana history read from the networks. EVM: transactions sent from this device (full EVM history: open the explorer for ${a.evm.address.slice(0, 8)}…).`} />
+    <Card data-testid={compact ? "wallet-recent" : "wallet-activity"}>
+      {!compact && <CardHeader title="Activity" sub={`Bitcoin and Solana history read from the networks. EVM: transactions sent from this device (full EVM history: open the explorer for ${a.evm.address.slice(0, 8)}…).`} />}
       {errors.length > 0 && <p className="px-4 text-xs text-down">Could not load: {errors.join(", ")}</p>}
       <ul className="divide-y divide-line">
-        {!items && Array.from({ length: 4 }, (_, i) => <li key={i} className="p-3"><Skeleton className="h-6" /></li>)}
+        {!items && Array.from({ length: compact ? 2 : 4 }, (_, i) => <li key={i} className="p-3"><Skeleton className="h-6" /></li>)}
         {items?.length === 0 && <li className="p-4 text-sm text-muted">No transactions yet.</li>}
-        {items?.map((i) => (
+        {shown?.map((i) => (
           <li key={i.network + i.hash} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-            <span className="text-[11px] text-muted w-16 shrink-0">{i.network === "bitcoin" ? "Bitcoin" : getChain(i.network)?.name ?? i.network}</span>
-            <span className="flex-1 min-w-0 truncate">{i.label}</span>
+            <div className="flex-1 min-w-0">
+              <div className="truncate">{i.label}</div>
+              <div className="text-[11px] text-muted">{i.network === "bitcoin" ? "Bitcoin" : getChain(i.network)?.name ?? i.network} · {i.time ? timeAgo(i.time) : "pending"}</div>
+            </div>
             <Badge tone={i.tone}>{i.status}</Badge>
-            <span className="text-[11px] text-faint w-16 text-right">{i.time ? timeAgo(i.time) : "pending"}</span>
             <a href={explorerTx(i.network, i.hash)} target="_blank" rel="noopener noreferrer" aria-label="Explorer"><ExternalLink size={12} className="text-muted" /></a>
           </li>
         ))}

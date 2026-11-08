@@ -95,3 +95,37 @@ describe("AI intro grounding", () => {
   it("accepts text whose numbers are all in the facts", () => expect(groundedIn("Bitcoin trades near $67,234.10, up 2.15% in 24 hours.", facts)).toBe(true));
   it("rejects invented figures", () => expect(groundedIn("Bitcoin could reach $100,000 soon.", facts)).toBe(false));
 });
+
+import { allocation, assetHref, dayChange, walletInsights, type InsightHolding } from "@/lib/bajar/insights";
+
+describe("wallet insights", () => {
+  const h = (o: Partial<InsightHolding>): InsightHolding => ({ network: "solana", networkName: "Solana", token: "t", symbol: "X", amount: 1, usdValue: 10, usdPrice: 10, native: false, change24h: null, ...o });
+  it("asks to back up and to fund an empty wallet", () => {
+    const ids = walletInsights([], { backedUp: false, loaded: true }).map((i) => i.id);
+    expect(ids).toEqual(["backup", "fund"]);
+  });
+  it("flags tokens with no fee token on their network", () => {
+    const ins = walletInsights([h({ network: "base", networkName: "Base", symbol: "USDC", usdValue: 50 })], { backedUp: true, loaded: true });
+    expect(ins.find((i) => i.id === "gas:base")?.title).toBe("No ETH for fees on Base");
+    const ok = walletInsights([h({ network: "base", networkName: "Base", symbol: "USDC", usdValue: 50 }), h({ network: "base", symbol: "ETH", native: true, amount: 0.01 })], { backedUp: true, loaded: true });
+    expect(ok.some((i) => i.id === "gas:base")).toBe(false);
+  });
+  it("reports concentration, mover, wrapped BTC and unpriced tokens", () => {
+    const hs = [h({ symbol: "SOL", native: true, usdValue: 900, change24h: -5 }), h({ symbol: "USDC", usdValue: 100, change24h: 0 }), h({ network: "ethereum", networkName: "Ethereum", symbol: "WBTC", wrappedBtc: true, usdValue: 0, usdPrice: null })];
+    const ids = walletInsights(hs, { backedUp: true, loaded: true }).map((i) => i.id);
+    for (const id of ["mover", "concentration", "stables", "wrapped", "unpriced"]) expect(ids).toContain(id);
+  });
+  it("computes day change and allocation", () => {
+    const d = dayChange([h({ usdValue: 110, change24h: 10 }), h({ usdValue: 100, change24h: null })]);
+    expect(d.usd).toBeCloseTo(10, 6);
+    expect(d.pct).toBeCloseTo(10, 6);
+    expect(d.coverage).toBeCloseTo(110 / 210, 6);
+    const a = allocation([h({ symbol: "ETH", network: "ethereum", usdValue: 30 }), h({ symbol: "ETH", network: "base", usdValue: 30 }), h({ symbol: "SOL", usdValue: 40 })], "asset");
+    expect(a.map((s) => [s.key, Math.round(s.pct)])).toEqual([["ETH", 60], ["SOL", 40]]);
+  });
+  it("links holdings to their asset pages", () => {
+    expect(assetHref({ network: "bitcoin", token: "BTC", symbol: "BTC", native: true })).toBe("/coin/bitcoin");
+    expect(assetHref({ network: "base", token: "0xabc", symbol: "USDC", native: false })).toBe("/token/base/0xabc");
+    expect(assetHref({ network: "bsc", token: "0x0", symbol: "BNB", native: true })).toBeNull();
+  });
+});
