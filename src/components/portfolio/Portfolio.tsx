@@ -11,8 +11,9 @@ import { formatNumber, formatPrice, formatUsd, shortAddress, timeAgo } from "@/l
 import { Badge, Button, Card, CardHeader, Notice } from "../ui/primitives";
 import { TokenIcon } from "../ui/TokenIcon";
 import { DataStatus } from "../ui/DataStatus";
+import { ActivityPanel } from "./ActivityPanel";
 
-interface Holding { mint: string; symbol: string; name: string; icon: string | null; amount: number; price: number | null; value: number | null; verified: boolean }
+interface Holding { mint: string; symbol: string; name: string; icon: string | null; amount: number; price: number | null; value: number | null; verified: boolean; network?: string; token?: string }
 
 export function Portfolio() {
   const { wallet, openModal, session, signIn } = useWallet();
@@ -41,8 +42,12 @@ export function Portfolio() {
         list.sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
         setHoldings(list);
       } else {
+        const r = await fetch(`/api/wallet/portfolio?evm=${wallet.address}`).then((x) => x.json());
+        if (r.error) throw new Error(r.error);
+        const hs = (r.data?.holdings ?? []) as { network: string; networkName: string; token: string; symbol: string; name: string; amount: number; usdPrice: number | null; usdValue: number | null }[];
+        setHoldings(hs.filter((h) => h.amount > 0).map((h) => ({ mint: `${h.network}:${h.token}`, symbol: h.symbol, name: `${h.name} · ${h.networkName}`, icon: null, amount: h.amount, price: h.usdPrice, value: h.usdValue, verified: true, network: h.network, token: h.token })));
         const p = (await import("@/lib/wallet/evm")).getEvmProvider(wallet.walletId);
-        if (p) setNative(await evmNativeBalance(p, wallet.address));
+        if (p) setNative(await evmNativeBalance(p, wallet.address).catch(() => null));
       }
       setAt(Date.now());
     } catch (e) { setErr((e as Error).message); } finally { setLoading(false); }
@@ -55,7 +60,9 @@ export function Portfolio() {
         <Wallet className="mx-auto text-brand" size={36} />
         <h1 className="text-xl font-semibold mt-3">Connect a wallet to view your portfolio</h1>
         <p className="text-sm text-muted mt-1 max-w-md mx-auto">See balances, holdings value and recent transactions. Bajar reads public on-chain data only — it never takes custody of your assets.</p>
-        <Button className="mt-5" onClick={openModal}>Connect Wallet</Button>
+        <Button className="mt-5" onClick={openModal}>Connect wallet</Button>
+        <p className="mt-3 text-xs text-muted">or <Link href="/wallet" className="underline underline-offset-2">create a Bajar Wallet</Link> — self-custody for Bitcoin, Ethereum and Solana.</p>
+        <div className="mt-6 text-left"><ActivityPanel /></div>
         <WatchAndAlerts />
       </Card>
     );
@@ -79,7 +86,7 @@ export function Portfolio() {
       {err && <Notice tone="down" title="Could not load balances">{err}</Notice>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4 min-w-0">
-          {wallet.chainType === "solana" ? (
+          {holdings !== null || wallet.chainType === "solana" ? (
             <Card>
               <CardHeader title="Holdings" sub={total !== null ? <span className="text-fg text-lg font-semibold num">{formatUsd(total)}</span> : undefined} />
               <div className="overflow-x-auto">
@@ -88,7 +95,7 @@ export function Portfolio() {
                   <tbody>
                     {holdings?.map((h) => (
                       <tr key={h.mint} className="border-b border-line/60 last:border-0">
-                        <td className="px-4 py-2.5"><Link href={h.mint === SOL_MINT ? "/coin/solana" : `/token/solana/${h.mint}`} className="flex items-center gap-2.5"><TokenIcon src={h.icon} symbol={h.symbol} size={26} /><span><span className="font-semibold">{h.symbol}</span>{!h.verified && <Badge tone="warn" className="ml-1.5">Unverified</Badge>}<span className="block text-[11px] text-muted">{h.name}</span></span></Link></td>
+                        <td className="px-4 py-2.5"><Link href={h.network ? (h.token?.startsWith("0xEeee") || h.token === "native" ? `/trade?symbol=${h.symbol}USDT` : `/token/${h.network}/${h.token}`) : h.mint === SOL_MINT ? "/coin/solana" : `/token/solana/${h.mint}`} className="flex items-center gap-2.5"><TokenIcon src={h.icon} symbol={h.symbol} size={26} /><span><span className="font-semibold">{h.symbol}</span>{!h.verified && <Badge tone="warn" className="ml-1.5">Unverified</Badge>}<span className="block text-[11px] text-muted">{h.name}</span></span></Link></td>
                         <td className="px-3 text-right num">{formatNumber(h.amount, 4)}</td>
                         <td className="px-3 text-right num">{formatPrice(h.price)}</td>
                         <td className="px-4 text-right num">{formatUsd(h.value)}</td>
@@ -103,7 +110,7 @@ export function Portfolio() {
             <Card className="p-4 space-y-3">
               <div className="text-xs text-muted">Native balance on {chainName}</div>
               <div className="text-3xl font-bold num">{native !== null ? `${formatNumber(native, 5)} ${evmChain?.nativeSymbol ?? "ETH"}` : "—"}</div>
-              <Notice>ERC-20 token balances and EVM transaction history require an indexing provider and are not yet integrated. {evmChain && <a className="text-brand" href={`${evmChain.explorer.address}${wallet.address}`} target="_blank" rel="noopener noreferrer">View on explorer ↗</a>}</Notice>
+              <Notice>Loading token balances… {evmChain && <a className="underline" href={`${evmChain.explorer.address}${wallet.address}`} target="_blank" rel="noopener noreferrer">View on explorer ↗</a>}</Notice>
             </Card>
           )}
           {wallet.chainType === "solana" && (
@@ -124,7 +131,7 @@ export function Portfolio() {
             </Card>
           )}
         </div>
-        <div className="space-y-4"><WatchAndAlerts /></div>
+        <div className="space-y-4"><ActivityPanel wallet={wallet.address} /><WatchAndAlerts /></div>
       </div>
     </div>
   );

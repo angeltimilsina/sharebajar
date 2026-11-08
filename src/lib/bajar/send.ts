@@ -6,6 +6,7 @@ import { walletRpc } from "./rpc";
 import { planSend, signSend, isBtcAddress, signPsbt, describePsbt, type Utxo } from "./btc";
 import { evmSendTransaction } from "./providers";
 import { getChain } from "../chains";
+import { activities, addActivity } from "../activity";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const b64 = (u: Uint8Array) => { let s = ""; u.forEach((b) => (s += String.fromCharCode(b))); return btoa(s); };
@@ -152,14 +153,12 @@ export async function checkAddress(network: string, address: string): Promise<Se
 /* ----------------------------- Activity --------------------------- */
 
 export interface LocalActivity { network: string; hash: string; summary: string; at: number }
+/** Wallet sends/swaps go into the shared activity log (shown in Portfolio with live status). */
 export function recordLocal(network: string, hash: string, summary: string) {
-  try {
-    const list = JSON.parse(localStorage.getItem("bajar.activity.v1") ?? "[]");
-    localStorage.setItem("bajar.activity.v1", JSON.stringify([{ network, hash, summary, at: Date.now() }, ...list].slice(0, 200)));
-  } catch { /* ignore */ }
+  addActivity({ chain: network, hash, summary, kind: /^swap/i.test(summary) ? "swap" : "send", wallet: bajar.accounts()?.[network === "bitcoin" ? "bitcoin" : network === "solana" ? "solana" : "evm"].address });
 }
 export function localActivity(): LocalActivity[] {
-  try { return JSON.parse(localStorage.getItem("bajar.activity.v1") ?? "[]"); } catch { return []; }
+  return activities().map((a) => ({ network: a.chain, hash: a.hash, summary: a.summary, at: a.at }));
 }
 export function explorerTx(network: string, hash: string) {
   if (network === "bitcoin") return `https://mempool.space/tx/${hash}`;

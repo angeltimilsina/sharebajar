@@ -15,9 +15,8 @@ export function LogoMark({ size = 28, open = false }: { size?: number; open?: bo
 }
 
 /**
- * Below the desktop breakpoint the three-bar mark is the menu button (it
- * morphs into a close icon when open); the "Bajar" wordmark links home.
- * On desktop the whole logo links home.
+ * The three-bar mark is the menu button (it morphs into a close icon when
+ * open); the "Bajar" wordmark links home.
  */
 export function Logo({ menuOpen, onMenu }: { menuOpen?: boolean; onMenu?: () => void }) {
   return (
@@ -28,13 +27,13 @@ export function Logo({ menuOpen, onMenu }: { menuOpen?: boolean; onMenu?: () => 
           onClick={onMenu}
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           aria-expanded={menuOpen}
-          className={clsx("xl:hidden -ml-1.5 h-10 w-10 grid place-items-center rounded-full text-fg transition-colors", menuOpen ? "bg-surface-2" : "hover:bg-surface-2")}
+          className={clsx("-ml-1.5 h-10 w-10 grid place-items-center rounded-full text-fg transition-colors", menuOpen ? "bg-surface-2" : "hover:bg-surface-2")}
         >
           <LogoMark open={menuOpen} />
         </button>
       )}
       <Link href="/" className="flex items-center gap-2" aria-label="Bajar home">
-        <span className={clsx("text-fg", onMenu && "hidden xl:inline")}><LogoMark /></span>
+        {!onMenu && <span className="text-fg"><LogoMark /></span>}
         <span className="font-display text-[23px] leading-none tracking-tight text-fg">Bajar</span>
       </Link>
     </div>

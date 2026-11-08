@@ -20,7 +20,7 @@ export function SignalsFeed() {
         {!items.length && <li className="px-3 py-6 text-xs text-muted text-center">{s.loading ? "Scanning pools…" : s.error ?? "No unusual activity detected right now."}</li>}
         {items.map(({ p, sig }) => (
           <li key={p.id}>
-            <Link href={`/token/${p.network}/${p.base.address}`} className="block px-2 py-2.5 rounded-lg hover:bg-surface-2">
+            <Link href={`/token/${p.network}/${p.base.address}?pair=${p.address}`} className="block px-2 py-2.5 rounded-lg hover:bg-surface-2">
               <div className="flex items-center gap-2.5">
                 <TokenIcon src={p.base.image} symbol={p.base.symbol} size={26} />
                 <span className="font-semibold text-sm">{p.base.symbol}</span><ChainLabel chain={p.network} />

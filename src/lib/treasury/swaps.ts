@@ -104,6 +104,42 @@ export async function solanaPrepare(p: { inputMint: string; outputMint: string; 
 
 /* -------------------------------- EVM ---------------------------------- */
 
+const EEEE = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+/** USD price + decimals for an EVM token: natives/WETH via Binance, stables pegged, anything else from its top DEX pool. */
+async function evmTokenUsd(chain: string, token: string): Promise<{ price: number; decimals: number } | null> {
+  const { getChain } = await import("../chains");
+  const { priceAt } = await import("./prices");
+  const c = getChain(chain);
+  if (!c) return null;
+  const t = token.toLowerCase();
+  if (t === EEEE || t === "0x0000000000000000000000000000000000000000") {
+    const p = await priceAt(chain, token, c.nativeSymbol, Date.now()); return p.price ? { price: p.price, decimals: 18 } : null;
+  }
+  const known = knownToken(chain, token);
+  if (known) {
+    const p = await priceAt(chain, token, known.symbol, Date.now());
+    if (p.price) return { price: p.price, decimals: known.decimals };
+  }
+  try {
+    const { getTokenPairs } = await import("../market/dexscreener");
+    const pairs = (await getTokenPairs(c.dexscreener, token)).data.filter((x) => sameToken(x.base.address, token) && x.priceUsd);
+    const top = pairs.sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0))[0];
+    if (!top?.priceUsd) return null;
+    const decimals = known?.decimals ?? (await (await import("./adapters")).adapterFor(chain).tokenInfo(chain, token, "mainnet"))?.decimals;
+    return decimals === undefined ? null : { price: top.priceUsd, decimals };
+  } catch { return null; }
+}
+
+/** Value lost vs. market prices, after fees (null when either price is unknown). */
+async function evmPriceImpact(chain: string, sellToken: string, buyToken: string, sellAmount: string, buyAmount: string): Promise<number | null> {
+  const [s, b] = await Promise.all([evmTokenUsd(chain, sellToken), evmTokenUsd(chain, buyToken)]);
+  if (!s || !b) return null;
+  const inUsd = (Number(sellAmount) / 10 ** s.decimals) * s.price;
+  const outUsd = (Number(buyAmount) / 10 ** b.decimals) * b.price;
+  if (!(inUsd > 0)) return null;
+  return Math.max(0, 1 - outUsd / inUsd);
+}
+
 export async function evmQuote(p: { chain: string; sellToken: string; buyToken: string; sellAmount: string; taker?: string; slippageBps?: number }) {
   const chainId = ZEROX_CHAINS[p.chain];
   if (!chainId) throw new Error(`0x swaps are not supported on ${p.chain}`);
@@ -127,7 +163,9 @@ export async function evmQuote(p: { chain: string; sellToken: string; buyToken: 
     feeToken: fee.applied ? fee.token : null, feeAccount: fee.applied ? fee.recipient : null, feeBps: fee.applied ? fee.bps : 0, providerShareBps: 0,
     expectedFee: fee.applied ? fee.estimatedAmount : null, quoteOut: q.buyAmount, slippageBps: p.slippageBps ?? 100, taker: p.taker, isTest: fee.applied ? fee.isTest : false,
   }) : null;
+  const priceImpact = await evmPriceImpact(p.chain, p.sellToken, p.buyToken, q.sellAmount, q.buyAmount).catch(() => null);
   return {
+    priceImpact,
     liquidityAvailable: true as const, buyAmount: q.buyAmount, minBuyAmount: q.minBuyAmount, sellAmount: q.sellAmount, allowanceTarget: q.allowanceTarget,
     zeroExFee: q.fees.zeroExFee, gasFee: q.fees.gasFee, issues: q.issues, totalNetworkFee: q.totalNetworkFee, transaction: q.transaction ?? null,
     sources: [...new Set((q.route?.fills ?? []).map((f) => f.source))], fee, intentToken, chainId,

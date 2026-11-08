@@ -24,7 +24,7 @@ export function TrendingTokens({ network }: { network: string }) {
         {s.error && !s.data && <li className="px-3 py-4 text-xs text-down">{s.error}</li>}
         {s.data?.slice(0, 5).map((p, i) => (
           <li key={p.id}>
-            <Link href={`/token/${p.network}/${p.base.address}`} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2">
+            <Link href={`/token/${p.network}/${p.base.address}?pair=${p.address}`} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2">
               <span className="w-4 text-xs text-muted num">{i + 1}</span>
               <TokenIcon src={p.base.image} symbol={p.base.symbol} size={26} />
               <span className="flex-1 min-w-0"><span className="font-semibold text-sm truncate block">{p.base.symbol}</span><span className="text-[11px] text-muted">{getChain(p.network)?.name ?? p.network}</span></span>
@@ -49,7 +49,7 @@ export function NewlyLaunched({ network }: { network: string }) {
         {s.error && !s.data && <li className="px-3 py-4 text-xs text-down">{s.error}</li>}
         {s.data?.slice(0, 5).map((p) => (
           <li key={p.id}>
-            <Link href={`/token/${p.network}/${p.base.address}`} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2">
+            <Link href={`/token/${p.network}/${p.base.address}?pair=${p.address}`} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-surface-2">
               <TokenIcon src={p.base.image} symbol={p.base.symbol} size={26} />
               <span className="font-semibold text-sm truncate max-w-[110px]">${p.base.symbol}</span>
               <ChainLabel chain={p.network} className="flex-1" />

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatUsd, age } from "@/lib/format";
 import { useNow } from "@/hooks/useNow";
@@ -37,7 +38,7 @@ export function PoolTable({ pools, loading, emptyText, showSignals = true, error
         </thead>
         <tbody>
           {pools.map((p) => {
-            const href = `/token/${p.network}/${p.base.address}`;
+            const href = `/token/${p.network}/${p.base.address}?pair=${p.address}`;
             const sig = showSignals ? poolSignals(p, now || Date.now()).slice(0, 2) : [];
             return (
               <tr key={p.id} onClick={() => router.push(href)} className="border-b border-line/60 last:border-0 hover:bg-surface-2/70 cursor-pointer">
@@ -49,7 +50,7 @@ export function PoolTable({ pools, loading, emptyText, showSignals = true, error
                       <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1px]"><ChainIcon chain={p.network} size={12} /></span>
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold truncate max-w-[180px]">{p.base.symbol}<span className="text-muted font-normal">/{p.quote.symbol}</span></div>
+                      <Link href={href} onClick={(e) => e.stopPropagation()} className="block font-semibold truncate max-w-[180px] hover:underline underline-offset-2">{p.base.symbol}<span className="text-muted font-normal">/{p.quote.symbol}</span></Link>
                       <div className="text-[11px] text-muted truncate max-w-[180px]">{p.base.name} · {p.dex}</div>
                     </div>
                   </div>

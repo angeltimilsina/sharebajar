@@ -123,7 +123,7 @@ function ProfileTable({ items, loading, error }: { items: (TokenProfile & { pair
     <ul className="divide-y divide-line/60">
       {items.map((t) => (
         <li key={`${t.chain}:${t.address}`}>
-          <Link href={`/token/${t.chain}/${t.address}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2/70">
+          <Link href={`/token/${t.chain}/${t.address}${t.pair?.pairAddress ? `?pair=${t.pair.pairAddress}` : ""}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2/70">
             <TokenIcon src={t.icon ?? t.pair?.imageUrl} symbol={t.pair?.base.symbol ?? "?"} size={32} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2"><span className="font-semibold">{t.pair?.base.symbol ?? t.address.slice(0, 6)}</span><span className="text-xs text-muted truncate">{t.pair?.base.name}</span><ChainLabel chain={t.chain} />{t.boostAmount ? <Badge tone="warn">Boost {t.boostAmount}</Badge> : null}</div>

@@ -64,11 +64,7 @@ export function TokenHeader({ chain, address, initial, image, verified, socials 
         {p.priceNative !== null && <div className="text-[11px] text-faint num mt-0.5">{formatPrice(p.priceNative, { currency: false })} {p.quote.symbol}</div>}
       </div>
       <div className="flex-1" />
-      <TokenActions
-        watch={{ kind: "token", id: address, chain, address, label: p.base.symbol }}
-        swapHref={chain === "solana" ? `/trade?output=${address}` : undefined}
-        swapDisabledReason={`In-app swaps for ${c.name} are not yet available — Solana only for now.`}
-      />
+      <TokenActions watch={{ kind: "token", id: address, chain, address, label: p.base.symbol }} />
     </div>
   );
 }

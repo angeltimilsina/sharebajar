@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { TradeView } from "@/components/trade/TradeView";
 
-export const metadata: Metadata = { title: "Trade — swap tokens with live charts & order books", description: "Swap Solana tokens with best-route quotes, live charts, order books and transaction simulation. Non-custodial." };
+export const metadata: Metadata = { title: "Trade — buy, sell and swap with live charts", description: "One trading workspace: live charts, order books and liquidity, with market buys, sells and best-route swaps on Solana and EVM networks from your own wallet." };
 
 export default function TradePage() {
   return <Suspense><TradeView /></Suspense>;

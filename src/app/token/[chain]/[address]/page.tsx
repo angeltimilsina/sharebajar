@@ -16,10 +16,13 @@ import { MarketNews } from "@/components/market/SideFeeds";
 import { TokenHeader } from "@/components/token/TokenHeader";
 import { BuySellActivity, PairsTable, TokenStats } from "@/components/token/TokenStats";
 import { HolderPanel, RiskPanel } from "@/components/token/RiskPanel";
+import { AssetWorkspace } from "@/components/asset/AssetWorkspace";
+import type { ExecAsset } from "@/components/asset/AssetExecution";
+import { ZEROX_CHAINS } from "@/lib/treasury/tokens";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ chain: string; address: string }> };
+type Params = { params: Promise<{ chain: string; address: string }>; searchParams?: Promise<{ pair?: string }> };
 
 async function loadPairs(chainId: string, address: string) {
   const chain = getChain(chainId);
@@ -43,7 +46,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 }
 
-export default async function TokenPage({ params }: Params) {
+export default async function TokenPage({ params, searchParams }: Params) {
+  const pairParam = (await searchParams)?.pair;
   const { chain: chainId, address } = await params;
   let r: Awaited<ReturnType<typeof loadPairs>>;
   try {
@@ -53,7 +57,8 @@ export default async function TokenPage({ params }: Params) {
   }
   if (!r) notFound();
   const { chain, env } = r;
-  const top = env.data[0];
+  // Keep the pool the user tapped (Discover, search, feeds) — fall back to the deepest pool.
+  const top = (pairParam && env.data.find((x) => x.pairAddress.toLowerCase() === pairParam.toLowerCase())) || env.data[0];
   if (!top) {
     return (
       <Notice title="No trading pairs found" className="my-10">
@@ -78,26 +83,44 @@ export default async function TokenPage({ params }: Params) {
   ].filter((x) => /^https?:\/\//.test(x.url));
   const top10 = info?.holders?.top10 ?? security?.top10Pct ?? null;
 
+  const execAsset: ExecAsset = {
+    symbol: top.base.symbol, name: top.base.name, href: `/token/${chain.id}/${address}?pair=${top.pairAddress}`,
+    chain: chain.id === "solana" || chain.id in ZEROX_CHAINS ? chain.id : null, token: address,
+    unavailableReason: `In-app execution isn't available on ${chain.name} yet.`,
+  };
+  const ammNote = (
+    <Card>
+      <CardHeader title="Liquidity" sub={`${top.dex} · ${top.base.symbol}/${top.quote.symbol}`} />
+      <div className="px-4 pb-4 space-y-2 text-[13px]">
+        <div className="flex justify-between"><span className="text-muted">Pool liquidity</span><span className="num font-medium">{formatUsd(top.liquidityUsd)}</span></div>
+        <div className="flex justify-between"><span className="text-muted">24h volume</span><span className="num">{formatUsd(top.volume.h24)}</span></div>
+        <p className="text-xs text-muted leading-relaxed pt-1">This pair trades on an automated market maker, which prices trades from pool reserves instead of an order book. Larger orders move the price more — check price impact before confirming.</p>
+      </div>
+    </Card>
+  );
+
   return (
-    <div className="space-y-4">
-      <TokenHeader chain={chain.id} address={address} initial={env} image={info?.image ?? null} verified={verified} socials={socials} />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4 min-w-0">
-          <ProChart feed={{ kind: "dex", chain: chain.id, pool: top.pairAddress }} label={`${top.base.symbol}/${top.quote.symbol} · ${top.dex}`} height={460} />
+    <AssetWorkspace
+      asset={execAsset}
+      header={<TokenHeader chain={chain.id} address={address} initial={env} image={info?.image ?? null} verified={verified} socials={socials} />}
+      chart={<ProChart feed={{ kind: "dex", chain: chain.id, pool: top.pairAddress }} label={`${top.base.symbol}/${top.quote.symbol} · ${top.dex}`} height={460} />}
+      market={ammNote}
+      activity={<TradeFeed source={{ kind: "dex", chain: chain.id, pool: top.pairAddress, base: top.base.symbol }} height={360} />}
+      overview={
+        <>
           <TokenStats chain={chain.id} address={address} initial={env} />
           <div className="grid gap-4 lg:grid-cols-2">
             <TradeFeed source={{ kind: "dex", chain: chain.id, pool: top.pairAddress, base: top.base.symbol }} height={380} />
             <div className="space-y-4">
               <BuySellActivity chain={chain.id} address={address} initial={env} />
-              <Card>
-                <CardHeader title="Order Book" />
-                <p className="px-4 pb-4 text-xs text-muted leading-relaxed">This token trades on automated market makers (AMMs) like {top.dex}, which price trades from pool reserves rather than an order book. Depth is reflected by pool liquidity: <b className="text-fg">{formatUsd(top.liquidityUsd)}</b> in the main pool.</p>
-              </Card>
+              {ammNote}
             </div>
           </div>
           <PairsTable chain={chain.id} address={address} initial={env} />
-        </div>
-        <div className="space-y-4 min-w-0">
+        </>
+      }
+      rail={
+        <>
           <RiskPanel report={security} error={secError} info={info} />
           <HolderPanel report={security} info={info} />
           <AiSummary context={{ kind: "token", chain: chain.id, address }} name={`${top.base.name} (${top.base.symbol}) on ${chain.name}`} insights={tokenInsights(top, { top10Pct: top10, riskLevel: security?.level, pairCount: env.data.length })} />
@@ -105,8 +128,8 @@ export default async function TokenPage({ params }: Params) {
             <Card><CardHeader title={`About ${top.base.symbol}`} /><p className="px-4 pb-4 text-[13px] text-muted leading-relaxed line-clamp-[8]">{info.description}</p></Card>
           )}
           <MarketNews limit={3} query={`${top.base.name},${top.base.symbol}`} />
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

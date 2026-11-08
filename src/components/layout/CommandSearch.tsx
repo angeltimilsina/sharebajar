@@ -66,7 +66,7 @@ function CommandSearch({ open, onClose }: { open: boolean; onClose: () => void }
     render: (<><TokenIcon src={c.thumb} symbol={c.symbol} size={26} /><span className="flex-1 min-w-0"><span className="font-medium">{c.name}</span> <span className="text-muted text-xs">{c.symbol}</span></span>{c.rank && <Badge>#{c.rank}</Badge>}</>),
   }));
   res?.pairs.forEach((p) => items.push({
-    key: `p:${p.chain}:${p.base.address}`, href: `/token/${p.chain}/${p.base.address}`,
+    key: `p:${p.chain}:${p.base.address}`, href: `/token/${p.chain}/${p.base.address}${p.pairAddress ? `?pair=${p.pairAddress}` : ""}`,
     render: (<><TokenIcon src={p.imageUrl} symbol={p.base.symbol} size={26} /><span className="flex-1 min-w-0"><span className="font-medium">{p.base.symbol}</span> <span className="text-muted text-xs truncate">{p.base.name}</span><span className="block"><ChainLabel chain={p.chain} /> <span className="text-[11px] text-faint">· {shortAddress(p.base.address)}</span></span></span><span className="text-right num text-xs"><span className="block">{formatPrice(p.priceUsd)}</span><span className="text-muted">Liq {formatUsd(p.liquidityUsd)}</span></span></>),
   }));
 

@@ -10,6 +10,8 @@ import { COMMON, TokenPicker, type SwapToken } from "./TokenPicker";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { getSolBalance, getSplHoldings, getSignatureStatus, simulateBase64, SOLANA_RPC, SOL_MINT, type SimResult } from "@/lib/wallet/rpc";
 import { solanaSignAndSend, solanaSignOnly } from "@/lib/wallet/solana";
+import { addActivity } from "@/lib/activity";
+import Link from "next/link";
 
 type FeeDisclosure =
   | { applied: true; bps: number; mode: string; provider: string; token: string | null; symbol: string | null; decimals: number | null; estimatedAmount: string | null; recipient: string; providerShareBps: number; isTest: boolean; note: string }
@@ -34,7 +36,15 @@ const QUOTE_REFRESH = 15;
 
 type Step = "idle" | "building" | "simulating" | "ready" | "signing" | "submitted" | "confirmed" | "failed";
 
-export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; side?: "buy" | "sell" }) {
+/**
+ * Solana execution panel (Jupiter). Used for both execution modes:
+ *  - variant "swap":  any token → the asset (destination prefilled, optionally locked)
+ *  - variant "trade": buy or sell the asset against a quote token (market order)
+ * Quotes work without a wallet; the wallet is requested only to execute.
+ */
+export function SwapPanel({ defaultOutput, side, variant = "swap", lockAsset = false, embedded = false, assetHref }: {
+  defaultOutput?: string; side?: "buy" | "sell"; variant?: "swap" | "trade"; lockAsset?: boolean; embedded?: boolean; assetHref?: string;
+}) {
   const { wallet, openModal, solana } = useWallet();
   const [mode, setMode] = useState<"swap" | "limit">("swap");
   const [input, setInput] = useState<SwapToken>(COMMON[0]);
@@ -63,9 +73,16 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
 
   // Preset output token from the URL (?output=<mint>&side=sell)
   useEffect(() => {
-    if (!defaultOutput || defaultOutput === input.address) return;
+    if (!defaultOutput) return;
     const known = COMMON.find((t) => t.address === defaultOutput);
-    const apply = (t: SwapToken) => { if (side === "sell") { setInput(t); setOutput(COMMON[0]); } else { setOutput(t); setInput(COMMON[0]); } };
+    const quoteTok = COMMON.find((x) => x.symbol === "USDC") ?? COMMON[0];
+    // Trade quotes against USDC; Swap starts from SOL. Never pair a token with itself.
+    const payWith = (t: SwapToken) => {
+      const pref = variant === "trade" ? quoteTok : COMMON[0];
+      const alt = variant === "trade" ? COMMON[0] : quoteTok;
+      return t.address === pref.address ? alt : pref;
+    };
+    const apply = (t: SwapToken) => { if (side === "sell") { setInput(t); setOutput(payWith(t)); } else { setOutput(t); setInput(payWith(t)); } setQuote(null); };
     if (known) { apply(known); return; }
     fetch(`/api/swap/tokens?q=${defaultOutput}`).then((r) => r.json()).then((b) => {
       const t = b.data?.find((x: SwapToken) => x.address === defaultOutput);
@@ -187,6 +204,7 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
       }
       setSig(signature);
       setStep("submitted");
+      addActivity({ chain: "solana", hash: signature, kind: variant === "trade" ? "trade" : "swap", summary: variant === "trade" ? `${side === "sell" ? "Sold" : "Bought"} ${side === "sell" ? input.symbol : output.symbol} · ${amount} ${input.symbol}` : `Swapped ${amount} ${input.symbol} → ${output.symbol}`, wallet: wallet?.address, assetHref });
       const started = Date.now();
       while (Date.now() - started < 90_000) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -206,20 +224,22 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
 
   const slipOptions = [10, 50, 100, 300];
   const cta = (() => {
+    const verb = variant === "trade" ? (side === "sell" ? `Sell ${input.symbol}` : `Buy ${output.symbol}`) : "swap";
     if (mode === "limit") return <Button size="lg" className="w-full" disabled>Limit orders coming soon</Button>;
-    if (!wallet) return <Button size="lg" className="w-full" onClick={openModal}>Connect wallet</Button>;
-    if (wallet.chainType !== "solana") return <Button size="lg" className="w-full" disabled>Connect a Solana wallet to swap</Button>;
+    // Quote first; the wallet is only needed to execute.
     if (!baseAmount) return <Button size="lg" className="w-full" disabled>Enter an amount</Button>;
-    if (insufficient) return <Button size="lg" className="w-full" disabled>Insufficient {input.symbol} balance</Button>;
     if (quoting && !quote) return <Button size="lg" className="w-full" disabled><Loader2 size={16} className="animate-spin" /> Fetching best route…</Button>;
     if (!quote) return <Button size="lg" className="w-full" disabled>{quoteErr ? "No route" : "Get quote"}</Button>;
-    return <Button size="lg" className={clsx("w-full", highImpact && "bg-warn hover:bg-warn")} onClick={startReview}>{highImpact ? "Review swap (high impact)" : "Review swap"}</Button>;
+    if (!wallet) return <Button size="lg" className="w-full" onClick={openModal}>Connect wallet to {variant === "trade" ? verb.replace(/^(Buy|Sell)/, (m) => m.toLowerCase()) : "swap"}</Button>;
+    if (wallet.chainType !== "solana") return <Button size="lg" className="w-full" onClick={openModal}>Connect a Solana wallet to {variant === "trade" ? verb.replace(/^(Buy|Sell)/, (m) => m.toLowerCase()) : "swap"}</Button>;
+    if (insufficient) return <Button size="lg" className="w-full" disabled>Insufficient {input.symbol} balance</Button>;
+    return <Button size="lg" className={clsx("w-full", highImpact && "bg-warn hover:bg-warn")} onClick={startReview}>{highImpact ? `Review ${variant === "trade" ? "order" : "swap"} (high impact)` : variant === "trade" ? `Review · ${verb}` : "Review swap"}</Button>;
   })();
 
   return (
-    <Card className="p-4">
+    <Card className={clsx("p-4", embedded && "!border-0 !shadow-none !bg-transparent p-0")}>
       <div className="flex items-center justify-between mb-3">
-        <Tabs size="sm" tabs={[{ id: "swap", label: "Swap" }, { id: "limit", label: <span>Limit <span className="text-[9px] text-ai">SOON</span></span> }]} value={mode} onChange={setMode} />
+        {embedded ? <span className="text-xs text-muted">{variant === "trade" ? "Market order" : "Best route"}</span> : <Tabs size="sm" tabs={[{ id: "swap", label: "Swap" }, { id: "limit", label: <span>Limit <span className="text-[9px] text-ai">SOON</span></span> }]} value={mode} onChange={setMode} />}
         <div className="flex items-center gap-2">
           <Badge tone="brand">Solana · Jupiter</Badge>
           <button onClick={() => setShowSettings((s) => !s)} aria-label="Slippage settings" className="h-8 px-2 rounded-lg text-xs text-muted hover:text-fg hover:bg-surface-2 inline-flex items-center gap-1"><Settings2 size={14} /> {(slippageBps / 100).toFixed(slippageBps < 100 ? 2 : 1)}%</button>
@@ -249,19 +269,19 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
             </div>
             <div className="flex items-center gap-2">
               <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(",", ".").replace(/[^0-9.]/g, ""))} placeholder="0.00" className="flex-1 min-w-0 bg-transparent text-2xl font-semibold outline-none num" aria-label="Amount to pay" />
-              <button onClick={() => setPicker("in")} className="h-10 shrink-0 rounded-xl bg-surface-3 border border-line px-2.5 inline-flex items-center gap-1.5 font-semibold text-sm"><TokenIcon src={input.icon} symbol={input.symbol} size={22} />{input.symbol}<ChevronDown size={14} /></button>
+              <button onClick={() => setPicker("in")} disabled={lockAsset && (variant === "trade" ? side === "sell" : false)} className="disabled:opacity-100 disabled:cursor-default h-10 shrink-0 rounded-xl bg-surface-3 border border-line px-2.5 inline-flex items-center gap-1.5 font-semibold text-sm"><TokenIcon src={input.icon} symbol={input.symbol} size={22} />{input.symbol}<ChevronDown size={14} /></button>
             </div>
             <div className="text-xs text-muted num mt-1 h-4">{inUsd !== null ? formatUsd(inUsd) : ""}</div>
           </div>
           <div className="flex justify-center -my-2.5 relative z-10">
-            <button onClick={flip} aria-label="Flip tokens" className="h-9 w-9 rounded-xl border border-line bg-surface grid place-items-center hover:bg-surface-2"><ArrowDownUp size={15} /></button>
+            <button onClick={flip} disabled={lockAsset} aria-label="Flip tokens" className="disabled:opacity-40 h-9 w-9 rounded-xl border border-line bg-surface grid place-items-center hover:bg-surface-2"><ArrowDownUp size={15} /></button>
           </div>
           {/* output */}
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="flex justify-between text-xs text-muted mb-1.5"><span>You receive (estimated)</span>{balances?.[output.address] !== undefined && <span className="num">Balance {formatNumber(balances[output.address], 4)}</span>}</div>
             <div className="flex items-center gap-2">
               <div className="flex-1 min-w-0 text-2xl font-semibold num truncate">{quoting && !quote ? <span className="text-faint">…</span> : out !== null ? formatNumber(out, 6) : <span className="text-faint">0.00</span>}</div>
-              <button onClick={() => setPicker("out")} className="h-10 shrink-0 rounded-xl bg-surface-3 border border-line px-2.5 inline-flex items-center gap-1.5 font-semibold text-sm"><TokenIcon src={output.icon} symbol={output.symbol} size={22} />{output.symbol}<ChevronDown size={14} /></button>
+              <button onClick={() => setPicker("out")} disabled={lockAsset && (variant === "trade" ? side !== "sell" : true)} className="disabled:opacity-100 disabled:cursor-default h-10 shrink-0 rounded-xl bg-surface-3 border border-line px-2.5 inline-flex items-center gap-1.5 font-semibold text-sm"><TokenIcon src={output.icon} symbol={output.symbol} size={22} />{output.symbol}<ChevronDown size={14} /></button>
             </div>
             <div className="text-xs text-muted num mt-1 h-4">{outUsd !== null ? formatUsd(outUsd) : ""}{inUsd && outUsd ? <span className={outUsd / inUsd < 0.97 ? "text-warn" : ""}> ({(((outUsd - inUsd) / inUsd) * 100).toFixed(2)}%)</span> : null}</div>
           </div>
@@ -306,7 +326,7 @@ export function SwapPanel({ defaultOutput, side }: { defaultOutput?: string; sid
             <label className="flex gap-2 text-xs text-warn"><input type="checkbox" checked={ackImpact} onChange={(e) => setAckImpact(e.target.checked)} className="accent-[var(--warn)]" /> I understand the price impact is {impact.toFixed(2)}% and I may receive much less value.</label>
           )}
           {execErr && <Notice tone={step === "failed" ? "down" : "warn"}>{execErr}</Notice>}
-          {sig && <a href={`https://solscan.io/tx/${sig}`} target="_blank" rel="noopener noreferrer" className="text-xs text-brand inline-flex items-center gap-1">View on Solscan <ExternalLink size={11} /></a>}
+          {sig && <div className="flex flex-wrap gap-3 text-xs"><a href={`https://solscan.io/tx/${sig}`} target="_blank" rel="noopener noreferrer" className="text-fg underline underline-offset-2 inline-flex items-center gap-1">View on Solscan <ExternalLink size={11} /></a><Link href="/portfolio" className="text-fg underline underline-offset-2">Track in Portfolio →</Link></div>}
           {step === "ready" && <Button size="lg" className="w-full" disabled={highImpact && !ackImpact} onClick={confirm}>Confirm in wallet</Button>}
           {step === "signing" && <Button size="lg" className="w-full" disabled><Loader2 size={16} className="animate-spin" /> Waiting for wallet approval…</Button>}
           {step === "confirmed" && <Button size="lg" className="w-full" onClick={() => setReview(false)}><CheckCircle2 size={16} /> Swap confirmed — Done</Button>}

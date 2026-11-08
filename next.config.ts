@@ -38,6 +38,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   images: { unoptimized: true },
+  // Charts live inside the Trade workspace now; query (symbol/chain/token) is preserved.
+  async redirects() {
+    return [{ source: "/charts", destination: "/trade", permanent: false }];
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },
