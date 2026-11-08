@@ -6,9 +6,13 @@
  */
 import { scryptAsync } from "@noble/hashes/scrypt";
 import { canonicalJson } from "./util";
-import { PQ_DERIVATION, pqSign, pqVerify, type PublicAccounts } from "./keys";
+import { PQ_DERIVATION, pqSign, pqVerify, type PublicAccounts, type SolanaPathId } from "./keys";
 
-export const VAULT_VERSION = 1;
+/** v1: plaintext = phrase. v2: plaintext = JSON { mnemonic, passphrase?, solanaPath? }. */
+export const VAULT_VERSION = 2;
+
+/** Everything needed to re-derive the wallet. Encrypted as one unit. */
+export interface VaultSecret { mnemonic: string; passphrase?: string; solanaPath?: SolanaPathId }
 
 export interface VaultFile {
   format: "bajar-vault";
@@ -36,7 +40,7 @@ export function assertVaultShape(v: unknown): asserts v is VaultFile {
   if (!f || typeof f !== "object" || f.format !== "bajar-vault") throw new Error("Not a Bajar vault or backup file.");
   if (!Number.isInteger(f.version) || f.version < 1 || f.version > VAULT_VERSION) throw new Error("Unsupported vault version.");
   if (f.kdf?.name !== "scrypt" || !Number.isInteger(f.kdf.N) || (f.kdf.N & (f.kdf.N - 1)) !== 0 || f.kdf.N < KDF_MIN_N || f.kdf.N > KDF_MAX_N || f.kdf.r !== 8 || ![1, 2, 3, 4].includes(f.kdf.p)) throw new Error("Vault key-derivation settings are outside the safe range.");
-  if (!isB64(f.kdf.salt, 16) || f.cipher?.name !== "AES-256-GCM" || !isB64(f.cipher.iv, 12) || !isB64(f.ciphertext) || f.ciphertext.length > 2000) throw new Error("Vault encryption fields are malformed.");
+  if (!isB64(f.kdf.salt, 16) || f.cipher?.name !== "AES-256-GCM" || !isB64(f.cipher.iv, 12) || !isB64(f.ciphertext) || f.ciphertext.length > 4000) throw new Error("Vault encryption fields are malformed.");
   if (!f.accounts?.bitcoin?.address || !f.accounts?.evm?.address || !f.accounts?.solana?.address || !f.accounts?.pq?.publicKey) throw new Error("Vault account metadata is missing.");
 }
 
@@ -48,7 +52,7 @@ async function deriveKey(password: string, salt: Uint8Array, kdf: { N: number; r
   return crypto.subtle.importKey("raw", raw as BufferSource, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-export async function createVault(mnemonic: string, password: string, accounts: PublicAccounts, pqSecret: Uint8Array, kdfParams = DEFAULT_KDF, onProgress?: (p: number) => void): Promise<VaultFile> {
+export async function createVault(secretIn: string | VaultSecret, password: string, accounts: PublicAccounts, pqSecret: Uint8Array, kdfParams = DEFAULT_KDF, onProgress?: (p: number) => void): Promise<VaultFile> {
   // Hard floor; the stronger policy for NEW passwords is enforced in session.ts.
   if (password.length < 10) throw new Error("Use a password of at least 10 characters.");
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -64,22 +68,29 @@ export async function createVault(mnemonic: string, password: string, accounts: 
   };
   // Bind the public metadata as additional authenticated data.
   const aad = new TextEncoder().encode(canonicalJson({ ...vault, ciphertext: undefined, pqSignature: undefined }));
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad }, key, new TextEncoder().encode(mnemonic));
+  const sec: VaultSecret = typeof secretIn === "string" ? { mnemonic: secretIn } : secretIn;
+  const plaintext = JSON.stringify({ mnemonic: sec.mnemonic, ...(sec.passphrase ? { passphrase: sec.passphrase } : {}), ...(sec.solanaPath && sec.solanaPath !== "standard" ? { solanaPath: sec.solanaPath } : {}) });
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad }, key, new TextEncoder().encode(plaintext));
   vault.ciphertext = b64(new Uint8Array(ct));
   vault.pqSignature = pqSign(pqSecret, canonicalJson({ ...vault, pqSignature: undefined }), "backup");
   return vault;
 }
 
-export async function openVault(v: VaultFile, password: string, onProgress?: (p: number) => void): Promise<string> {
+export async function openVault(v: VaultFile, password: string, onProgress?: (p: number) => void): Promise<VaultSecret> {
   assertVaultShape(v);
   const key = await deriveKey(password, unb64(v.kdf.salt), v.kdf, onProgress);
   const aad = new TextEncoder().encode(canonicalJson({ ...v, ciphertext: undefined, pqSignature: undefined }));
+  let plain: string;
   try {
     const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(v.cipher.iv), additionalData: aad }, key, unb64(v.ciphertext));
-    return new TextDecoder().decode(pt);
+    plain = new TextDecoder().decode(pt);
   } catch {
     throw new Error("Wrong password or corrupted vault.");
   }
+  if (v.version === 1 || !plain.startsWith("{")) return { mnemonic: plain };
+  const o = JSON.parse(plain) as VaultSecret;
+  if (typeof o.mnemonic !== "string") throw new Error("Vault contents are malformed.");
+  return { mnemonic: o.mnemonic, passphrase: o.passphrase || undefined, solanaPath: o.solanaPath === "bip44" ? "bip44" : "standard" };
 }
 
 /** Verify a backup file's ML-DSA-65 signature against its embedded PQ public key. */

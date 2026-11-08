@@ -8,7 +8,7 @@ Bajar Wallet is Bajar's built-in noncustodial wallet for **Bitcoin, Ethereum/EVM
 
 | Area | Details |
 |---|---|
-| Accounts | One BIP-39 phrase (12 or 24 words). Bitcoin native SegWit `m/84'/0'/0'/0/0` (P2WPKH), EVM `m/44'/60'/0'/0/0` (same address on Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche), Solana `m/44'/501'/0'/0'` (SLIP-10). Compatible with other standard wallets. |
+| Accounts | One BIP-39 phrase (12–24 words, optional passphrase). Bitcoin native SegWit `m/84'/0'/0'/0/0` (P2WPKH), EVM `m/44'/60'/0'/0/0` (same address on Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche), Solana `m/44'/501'/0'/0'` (SLIP-10). Compatible with other standard wallets. |
 | Create / import | Create with confirmation of 3 random words, import a phrase, or restore an encrypted backup file. |
 | Storage | The phrase is encrypted in the browser: scrypt (N=2^17, r=8, p=1) → AES-256-GCM, with authenticated metadata. Stored in `localStorage` (`bajar.vault.v1`). Decrypted keys live in memory only while unlocked, and are wiped on lock. Auto-lock after inactivity (default 10 min). |
 | Balances | Live on-chain: mempool.space (BTC), public RPC for every EVM chain and Solana. USDC, USDT, WBTC/cbBTC and any custom token you add after on-chain validation. Prices come from live exchange/on-chain sources, and assets without a reliable price are shown as "not valued". |
@@ -30,7 +30,7 @@ Bajar Wallet is Bajar's built-in noncustodial wallet for **Bitcoin, Ethereum/EVM
 | Flow | Steps | Safeguards |
 |---|---|---|
 | **Create** | Before you start → password → recovery phrase → verify → done | Password policy (≥12 chars, strength ≥ "Strong", no common/crypto words, no address reuse). Phrase is blurred until tapped, hidden again when the tab loses focus, and can't be copied. Backup quiz picks 3 random positions (crypto RNG) with decoy words. |
-| **Import** | Recovery phrase → password → done | Per-word BIP-39 check with typo suggestions, checksum check, masked input, best-effort clipboard clearing after paste, warning and opt-in for publicly known test phrases, warning for low-diversity phrases. |
+| **Import** | Recovery phrase → accounts → password → done | One box per word (12/15/18/21/24) with autocomplete and typo suggestions. Pasting anywhere fills all boxes. A robust parser ignores numbering, commas, line breaks, capitals, smart punctuation and **invisible zero-width characters** (the cause of "12 words detected as 11"). Checksum validation, masked input, clipboard clearing, public test-phrase warning. Optional **BIP-39 passphrase** ("25th word"). **Account discovery** shows the BTC/EVM addresses and checks on-chain which Solana scheme your previous wallet used (Phantom/Solflare `m/44'/501'/0'/0'` vs Trust/Exodus `m/44'/501'/0'`). |
 | **Restore** | Backup file → preview → password → done | Size limit, strict schema, scrypt parameters within a safe range (blocks freeze/downgrade files), ML-DSA-65 signature, AES-GCM decryption, then the decrypted phrase must derive exactly the addresses and PQ key in the file. |
 | **Unlock** | Password | 3 free attempts, then a timed lock (30 s doubling to 1 h) that persists across reloads. Older vaults are re-encrypted with current settings on unlock. "Forgot password" explains recovery and requires typing REMOVE. |
 | **Done** | Checklist + optional sign-in | Shows the device and backup checks, then offers hybrid sign-in. |
@@ -104,6 +104,7 @@ BAJAR derives an **ML-DSA-65** (NIST FIPS 204) key pair from your phrase (`HMAC-
 - `tests/unit/bajar-keys.test.ts`: BIP-84/BIP-44/SLIP-10 known-answer vectors, ML-DSA sizes, vault round-trip and tamper detection.
 - `tests/unit/bajar-wallet.test.ts`: BTC coin selection and signing, PSBT signing and refusal, BIP-137, PQ context binding, amount parsing, USDC fee preference, BTC revenue classification.
 - `tests/integration/btc-treasury.mjs`: Bitcoin treasury registration, BIP-137 ownership, fee config, indexing and ledger integrity (against a running server).
+- `tests/unit/bajar-import.test.ts`: 13 real-world paste formats (zero-width characters, numbering, commas, NBSP, full-width), all BIP-39 lengths, passphrase and Solana schemes, vault v2 round-trip.
 - `tests/unit/bajar-security.test.ts`: password policy, phrase analysis and typo suggestions, quiz generation, throttle schedule, recipient checks (poisoning, self, token contract, large share), vault schema/KDF bounds.
 - `tests/integration/auth-security.mjs`: attack-style checks against a running server (challenge-as-session forgery, replay, cross-origin, wrong/missing PQ signature, RPC allowlist and size caps, malformed broadcast, malicious-address screening).
 - `tests/e2e/wallet-bajar.spec.ts`: create (weak password refused, reveal, quiz), import (test-phrase warning), receive addresses, wrong-password throttling, unlock, hybrid sign-in with approval, malicious recipient warning.

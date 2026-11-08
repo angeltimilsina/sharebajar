@@ -48,7 +48,7 @@ describe("encrypted vault", () => {
   it("round-trips and never stores the phrase in plaintext", async () => {
     const v = await createVault(ABANDON, "correct horse battery", pub, secret.pq, kdf);
     expect(JSON.stringify(v)).not.toContain("abandon");
-    expect(await openVault(v, "correct horse battery")).toBe(ABANDON);
+    expect((await openVault(v, "correct horse battery")).mnemonic).toBe(ABANDON);
     await expect(openVault(v, "wrong password!!")).rejects.toThrow(/Wrong password/);
   });
   it("detects tampering with public metadata and verifies the ML-DSA-65 backup signature", async () => {

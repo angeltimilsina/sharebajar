@@ -4,14 +4,21 @@ import { expect, test, type Page } from "@playwright/test";
 const PHRASE = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const PASSWORD = "orbit-lantern-quiet-maple-29";
 
-async function importTestWallet(page: Page) {
+// How phrases arrive from notes apps: numbered lines, an invisible zero-width space, stray capitals.
+const MESSY = PHRASE.split(" ").map((w, i) => `${i + 1}. ${i === 0 ? "Abandon" : w}`).join("\n").replace("\n5.", "\u200B\n5.");
+
+async function importTestWallet(page: Page, text = PHRASE) {
   await page.goto("/wallet");
   await page.getByRole("tab", { name: "Import", exact: true }).click();
-  await page.getByTestId("bajar-import-phrase").fill(PHRASE);
+  await page.getByTestId("bajar-import-phrase").fill(text);
+  await expect(page.getByText("12 / 12 words")).toBeVisible();
+  await expect(page.getByText("Checksum OK")).toBeVisible();
   await expect(page.getByText("publicly known test phrase")).toBeVisible();
   await expect(page.getByTestId("bajar-import-next")).toBeDisabled();
   await page.getByTestId("bajar-ack-public").check();
   await page.getByTestId("bajar-import-next").click();
+  await expect(page.getByText("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk")).toBeVisible();
+  await page.getByTestId("bajar-accounts-next").click();
   await page.getByTestId("bajar-password").fill(PASSWORD);
   await page.getByTestId("bajar-password2").fill(PASSWORD);
   await page.getByTestId("bajar-pw-ack").check();
@@ -53,7 +60,7 @@ test.describe("Bajar Wallet", () => {
   });
 
   test("import, receive addresses, wrong-password throttling, unlock", async ({ page }) => {
-    await importTestWallet(page);
+    await importTestWallet(page, MESSY);
     await page.getByTestId("bajar-open").click();
     await page.getByRole("tab", { name: /Receive/ }).click();
     await expect(page.getByTestId("bajar-addr-bitcoin")).toHaveText("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
@@ -74,6 +81,21 @@ test.describe("Bajar Wallet", () => {
     await page.getByTestId("bajar-password").fill(PASSWORD);
     await page.getByTestId("bajar-unlock").click();
     await expect(page.getByTestId("bajar-lock")).toBeVisible({ timeout: 60_000 });
+  });
+
+  test("import grid: word-by-word typing, typo flag, suggestions, 24-word switch", async ({ page }) => {
+    await page.goto("/wallet");
+    await page.getByRole("tab", { name: "Import", exact: true }).click();
+    const first = page.getByTestId("bajar-import-phrase");
+    await first.pressSequentially("abandn ");
+    await expect(page.getByText(/not in the BIP-39 list/)).toBeVisible();
+    await first.fill("");
+    await first.pressSequentially("aband");
+    await page.getByRole("button", { name: "abandon", exact: true }).click();
+    await expect(page.getByTestId("bajar-word-1")).toBeFocused();
+    await page.getByTestId("bajar-len-24").click();
+    await expect(page.getByTestId("bajar-word-23")).toBeVisible();
+    await expect(page.getByText("1 / 24 words")).toBeVisible();
   });
 
   test("hybrid sign-in requires approval and verifies both signatures", async ({ page }) => {

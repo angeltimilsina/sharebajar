@@ -76,6 +76,6 @@ describe("vault validation", () => {
   });
   it("detects weaker-than-default vaults for transparent upgrade", async () => {
     expect(needsKdfUpgrade(vault)).toBe(DEFAULT_KDF.N > 2 ** 15);
-    expect(await openVault(vault, "correct horse battery")).toBe(M);
+    expect((await openVault(vault, "correct horse battery")).mnemonic).toBe(M);
   });
 });

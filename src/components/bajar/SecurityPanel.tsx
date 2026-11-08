@@ -108,10 +108,10 @@ function BackupCard() {
         <p className="text-[11px] text-muted">The backup is encrypted with your password and signed with ML-DSA-65 so tampering is detected on restore.</p>
         <div className="flex gap-2">
           <input type="password" className={input} placeholder="Password to reveal phrase" value={pw} onChange={(e) => setPw(e.target.value)} />
-          <Button size="sm" variant="outline" disabled={!pw} onClick={async () => { setErr(null); try { setPhrase(await revealMnemonic(pw)); setPw(""); setTimeout(() => setPhrase(null), 60_000); } catch (e) { setErr((e as Error).message); } }}><Eye size={13} /></Button>
+          <Button size="sm" variant="outline" disabled={!pw} onClick={async () => { setErr(null); try { const r = await revealMnemonic(pw); setPhrase(r.mnemonic + (r.passphrase ? "\n\nBIP-39 passphrase: set (required to restore — not shown)" : "") + (r.solanaPath === "bip44" ? "\nSolana account scheme: m/44'/501'/0' (Trust/Exodus)" : "")); setPw(""); setTimeout(() => setPhrase(null), 60_000); } catch (e) { setErr((e as Error).message); } }}><Eye size={13} /></Button>
         </div>
         {err && <p className="text-xs text-down">{err}</p>}
-        {phrase && <Notice tone="warn" title="Recovery phrase (hidden again in 60s)"><span className="font-mono text-xs">{phrase}</span></Notice>}
+        {phrase && <Notice tone="warn" title="Recovery phrase (hidden again in 60s)"><span className="font-mono text-xs whitespace-pre-wrap">{phrase}</span></Notice>}
       </div>
     </Card>
   );

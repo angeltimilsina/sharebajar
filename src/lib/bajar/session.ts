@@ -7,7 +7,7 @@ import { bytesToHex } from "@noble/hashes/utils";
  * in localStorage. Nothing secret is ever sent over the network.
  */
 import { deriveAll, normalizeMnemonic, pqSign, type PublicAccounts, type SecretKeys } from "./keys";
-import { assertVaultShape, createVault, needsKdfUpgrade, openVault, verifyVaultSignature, type VaultFile } from "./vault";
+import { assertVaultShape, createVault, needsKdfUpgrade, openVault, verifyVaultSignature, type VaultFile, type VaultSecret } from "./vault";
 import { passwordStrength, recordUnlockFailure, resetUnlockFailures, unlockBlockedFor } from "./security";
 import { canonicalJson } from "./util";
 
@@ -74,11 +74,13 @@ function sameAccounts(a: PublicAccounts, b: PublicAccounts) {
 }
 
 /** Encrypt and persist; `enforcePolicy` is false only when re-storing an existing password (restore/upgrade). */
-async function store(mnemonic: string, password: string, opts: { enforcePolicy: boolean; onProgress?: (p: number) => void; backup?: BajarSettings["backupMethod"] }): Promise<PublicAccounts> {
-  const m = normalizeMnemonic(mnemonic);
-  const { pub, secret } = deriveAll(m);
+const deriveFrom = (s: VaultSecret) => deriveAll(s.mnemonic, { passphrase: s.passphrase, solanaPath: s.solanaPath });
+
+async function store(sec: VaultSecret, password: string, opts: { enforcePolicy: boolean; onProgress?: (p: number) => void; backup?: BajarSettings["backupMethod"] }): Promise<PublicAccounts> {
+  const s: VaultSecret = { ...sec, mnemonic: normalizeMnemonic(sec.mnemonic) };
+  const { pub, secret } = deriveFrom(s);
   const report = opts.enforcePolicy ? assertStrongPassword(password, pub) : null;
-  const vault = await createVault(m, password, pub, secret.pq, undefined, opts.onProgress);
+  const vault = await createVault(s, password, pub, secret.pq, undefined, opts.onProgress);
   // Read back and verify before switching over, so a storage glitch can't leave an unreadable vault.
   localStorage.setItem(VAULT_KEY, JSON.stringify(vault));
   const check = loadVault();
@@ -98,10 +100,10 @@ async function store(mnemonic: string, password: string, opts: { enforcePolicy: 
 }
 
 /** New wallet (phrase generated here) or phrase import. `backup` records how the phrase was verified. */
-export function createAndStore(mnemonic: string, password: string, onProgress?: (p: number) => void, backup: BajarSettings["backupMethod"] = null) {
+export function createAndStore(mnemonic: string | VaultSecret, password: string, onProgress?: (p: number) => void, backup: BajarSettings["backupMethod"] = null) {
   // Starting a different wallet resets the backup status.
   try { const s = settings(); localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...s, backedUpAt: null, backupMethod: null, createdAt: undefined })); } catch { /* ignore */ }
-  return store(mnemonic, password, { enforcePolicy: true, onProgress, backup });
+  return store(typeof mnemonic === "string" ? { mnemonic } : mnemonic, password, { enforcePolicy: true, onProgress, backup });
 }
 
 export async function unlock(password: string, onProgress?: (p: number) => void) {
@@ -109,19 +111,19 @@ export async function unlock(password: string, onProgress?: (p: number) => void)
   if (!v) throw new Error("No Bajar Wallet on this device.");
   const wait = unlockBlockedFor();
   if (wait > 0) throw new Error(`Too many wrong passwords. Try again in ${Math.ceil(wait / 1000)}s.`);
-  let mnemonic: string;
+  let sec: VaultSecret;
   try {
-    mnemonic = await openVault(v, password, onProgress);
+    sec = await openVault(v, password, onProgress);
   } catch (e) {
     const delay = recordUnlockFailure();
     throw new Error(`${(e as Error).message}${delay > 0 ? ` Locked for ${Math.ceil(delay / 1000)}s.` : ""}`);
   }
-  const { pub, secret } = deriveAll(mnemonic);
+  const { pub, secret } = deriveFrom(sec);
   if (!sameAccounts(pub, v.accounts)) throw new Error("Vault accounts do not match the decrypted phrase — refusing to unlock.");
   resetUnlockFailures();
   state = { pub, secret };
   // Transparent upgrade of older/weaker encryption settings (same password).
-  if (needsKdfUpgrade(v)) await store(mnemonic, password, { enforcePolicy: false }).catch(() => {});
+  if (needsKdfUpgrade(v)) await store(sec, password, { enforcePolicy: false }).catch(() => {});
   scheduleLock();
   emit();
 }
@@ -138,8 +140,8 @@ export function lock() {
   emit();
 }
 
-/** Re-decrypt to show the phrase (requires the password again). */
-export async function revealMnemonic(password: string): Promise<string> {
+/** Re-decrypt to show the phrase (+ passphrase if any). Requires the password again. */
+export async function revealMnemonic(password: string): Promise<VaultSecret> {
   const v = loadVault();
   if (!v) throw new Error("No wallet");
   const wait = unlockBlockedFor();
@@ -178,11 +180,11 @@ export async function importBackup(json: string, password: string, onProgress?: 
   try { v = JSON.parse(json); } catch { throw new Error("Not valid JSON."); }
   assertVaultShape(v);
   if (!verifyVaultSignature(v)) throw new Error("Backup signature (ML-DSA-65) is invalid — the file was modified or corrupted.");
-  const mnemonic = await openVault(v, password, onProgress);
-  const { pub } = deriveAll(mnemonic);
+  const sec = await openVault(v, password, onProgress);
+  const { pub } = deriveFrom(sec);
   if (!sameAccounts(pub, v.accounts)) throw new Error("Backup addresses do not match its encrypted phrase — refusing to restore.");
   try { const s = settings(); localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...s, createdAt: v.createdAt })); } catch { /* ignore */ }
-  await store(mnemonic, password, { enforcePolicy: false, backup: "file" });
+  await store(sec, password, { enforcePolicy: false, backup: "file" });
 }
 
 export function removeWallet() {

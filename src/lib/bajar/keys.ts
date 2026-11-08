@@ -34,15 +34,59 @@ export const PATHS = {
   solana: (i = 0) => `m/44'/501'/${i}'/0'`,
 };
 
+/**
+ * Solana derivation schemes used by other wallets, so imported phrases find
+ * their existing funds. (Bitcoin BIP-84 and EVM m/44'/60'/0'/0/0 are the same
+ * across MetaMask, Ledger, Trust, Electrum/Sparrow native SegWit, etc.)
+ */
+export const SOLANA_PATHS = {
+  standard: { label: "Phantom, Solflare, Backpack, Ledger", path: (i = 0) => `m/44'/501'/${i}'/0'` },
+  bip44: { label: "Trust Wallet, Exodus, Solflare (legacy)", path: (i = 0) => `m/44'/501'/${i}'` },
+} as const;
+export type SolanaPathId = keyof typeof SOLANA_PATHS;
+
+export interface DeriveOptions { index?: number; passphrase?: string; solanaPath?: SolanaPathId }
+
+/** Valid BIP-39 lengths. */
+export const PHRASE_LENGTHS = [12, 15, 18, 21, 24] as const;
+
+/**
+ * Extract recovery-phrase words from anything a user might paste: strips
+ * invisible characters (zero-width spaces/joiners, BOM), numbering ("1." /
+ * "1)"), commas, line breaks, smart punctuation and capitals. English BIP-39
+ * words are lowercase a–z only, so anything else is a separator.
+ */
+export function phraseWords(input: string): string[] {
+  const ZW = "\u0001";
+  const tokens = input
+    .normalize("NFKD")
+    .toLowerCase()
+    // Invisible characters are ambiguous: sometimes they replace a space, sometimes they sit inside a word.
+    .replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, ZW)
+    .split(/[^a-z\u0001]+/)
+    .filter((t) => t.replace(/\u0001/g, ""));
+  const out: string[] = [];
+  for (const t of tokens) {
+    if (!t.includes(ZW)) { out.push(t); continue; }
+    const parts = t.split(ZW).filter(Boolean);
+    const joined = parts.join("");
+    // Keep a word whole if joining the pieces gives a real BIP-39 word; otherwise each piece is its own word.
+    if (wordlist.includes(joined) || parts.length === 1) out.push(joined);
+    else out.push(...parts);
+  }
+  return out;
+}
+
 export function newMnemonic(strength: 128 | 256 = 128): string {
   return generateMnemonic(wordlist, strength);
 }
 
 export function isValidMnemonic(m: string): boolean {
-  return validateMnemonic(normalizeMnemonic(m), wordlist);
+  const words = phraseWords(m);
+  return (PHRASE_LENGTHS as readonly number[]).includes(words.length) && validateMnemonic(words.join(" "), wordlist);
 }
 
-export const normalizeMnemonic = (m: string) => m.trim().toLowerCase().split(/\s+/).join(" ");
+export const normalizeMnemonic = (m: string) => phraseWords(m).join(" ");
 
 /** SLIP-10 Ed25519 derivation (hardened only). */
 export function slip10Ed25519(seed: Uint8Array, path: string): Uint8Array {
@@ -84,10 +128,19 @@ export function pqFingerprint(publicKey: Uint8Array): string {
   return `${PQ_ALG}:${h.slice(0, 8)}-${h.slice(8, 16)}-${h.slice(16, 24)}`;
 }
 
-export function deriveAll(mnemonic: string, index = 0): { pub: PublicAccounts; secret: SecretKeys } {
+/** Solana address for a given scheme (for account discovery during import). */
+export function solanaAddressFor(mnemonic: string, scheme: SolanaPathId, passphrase = "", index = 0): string {
+  const seed = mnemonicToSeedSync(normalizeMnemonic(mnemonic), passphrase);
+  return bs58.encode(ed25519.getPublicKey(slip10Ed25519(seed, SOLANA_PATHS[scheme].path(index))));
+}
+
+export function deriveAll(mnemonic: string, opts: number | DeriveOptions = {}): { pub: PublicAccounts; secret: SecretKeys } {
+  const o: DeriveOptions = typeof opts === "number" ? { index: opts } : opts;
+  const index = o.index ?? 0;
   const m = normalizeMnemonic(mnemonic);
-  if (!validateMnemonic(m, wordlist)) throw new Error("Invalid recovery phrase (checksum failed).");
-  const seed = mnemonicToSeedSync(m);
+  if (!isValidMnemonic(m)) throw new Error("Invalid recovery phrase (checksum failed).");
+  // BIP-39 passphrase ("25th word"): NFKD-normalized by the library; empty = none.
+  const seed = mnemonicToSeedSync(m, o.passphrase ?? "");
   const root = HDKey.fromMasterSeed(seed);
 
   const bnode = root.derive(PATHS.bitcoin(index));
@@ -97,7 +150,8 @@ export function deriveAll(mnemonic: string, index = 0): { pub: PublicAccounts; s
   const evmPriv = `0x${hex(enode.privateKey!)}` as `0x${string}`;
   const evmAddress = privateKeyToAccount(evmPriv).address;
 
-  const solSeed = slip10Ed25519(seed, PATHS.solana(index));
+  const solPath = SOLANA_PATHS[o.solanaPath ?? "standard"].path(index);
+  const solSeed = slip10Ed25519(seed, solPath);
   const solAddress = bs58.encode(ed25519.getPublicKey(solSeed));
 
   const pqSeed = hmac(sha512, new TextEncoder().encode("BAJAR/ML-DSA-65/v1"), seed).slice(0, 32);
@@ -107,7 +161,7 @@ export function deriveAll(mnemonic: string, index = 0): { pub: PublicAccounts; s
     pub: {
       bitcoin: { address: bitcoinAddress, path: PATHS.bitcoin(index), publicKey: hex(bnode.publicKey!) },
       evm: { address: evmAddress, path: PATHS.evm(index) },
-      solana: { address: solAddress, path: PATHS.solana(index) },
+      solana: { address: solAddress, path: solPath },
       pq: { alg: PQ_ALG, derivation: PQ_DERIVATION, publicKey: b64(pq.publicKey), fingerprint: pqFingerprint(pq.publicKey) },
     },
     secret: { bitcoin: bnode.privateKey!, evm: evmPriv, solana: solSeed, pq: pq.secretKey },

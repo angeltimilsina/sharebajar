@@ -3,6 +3,7 @@
  * Everything here runs locally; nothing secret is sent anywhere.
  */
 import { wordlist } from "@scure/bip39/wordlists/english.js";
+import { phraseWords, PHRASE_LENGTHS } from "./keys";
 
 /* ---------------------------- Passwords ---------------------------- */
 
@@ -71,12 +72,12 @@ export interface PhraseReport { words: string[]; invalidWords: number[]; validCo
 export const isBip39Word = (w: string) => wordlist.includes(w);
 
 export function analyzePhrase(input: string, checksumOk: boolean): PhraseReport {
-  const words = input.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const words = phraseWords(input);
   const invalidWords = words.map((w, i) => (isBip39Word(w) ? -1 : i)).filter((i) => i >= 0);
   const joined = words.join(" ");
   return {
     words, invalidWords,
-    validCount: words.length === 12 || words.length === 24,
+    validCount: (PHRASE_LENGTHS as readonly number[]).includes(words.length),
     checksumOk,
     publicPhrase: PUBLIC_PHRASES.has(joined),
     lowDiversity: words.length >= 12 && new Set(words).size <= words.length / 2,

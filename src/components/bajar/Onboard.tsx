@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckCircle2, Download, Eye, EyeOff, FileKey2, KeyRound, Loader2, LogIn, ShieldAlert, ShieldCheck, Upload, XCircle } from "lucide-react";
 import clsx from "clsx";
 import { Badge, Button, Card, Notice, Tabs } from "../ui/primitives";
-import { newMnemonic, isValidMnemonic, normalizeMnemonic } from "@/lib/bajar/keys";
+import { newMnemonic, isValidMnemonic, normalizeMnemonic, phraseWords, PHRASE_LENGTHS, SOLANA_PATHS, solanaAddressFor, deriveAll, type SolanaPathId } from "@/lib/bajar/keys";
 import { createAndStore, importBackup, unlock, removeWallet, unlockWait, bajar, settings } from "@/lib/bajar/session";
-import { analyzePhrase, environmentChecks, MIN_PASSWORD, passwordStrength, quizChoices, quizPositions, suggestWords, unlockFailures } from "@/lib/bajar/security";
+import { analyzePhrase, environmentChecks, isBip39Word, MIN_PASSWORD, passwordStrength, quizChoices, quizPositions, suggestWords, unlockFailures } from "@/lib/bajar/security";
 import { assertVaultShape, verifyVaultSignature, type VaultFile } from "@/lib/bajar/vault";
 import { hybridSignIn } from "@/lib/bajar/auth";
 
@@ -200,53 +200,123 @@ function Create({ onStart, onFinish }: { onStart: () => void; onFinish: () => vo
 
 function ImportPhrase({ onStart, onFinish }: { onStart: () => void; onFinish: () => void }) {
   const [step, setStep] = useState(0);
-  const [phrase, setPhrase] = useState("");
+  const [count, setCount] = useState<number>(12);
+  const [words, setWords] = useState<string[]>(() => Array(24).fill(""));
+  const [focus, setFocus] = useState<number | null>(null);
   const [show, setShow] = useState(false);
   const [ackPublic, setAckPublic] = useState(false);
   const [pasted, setPasted] = useState(false);
+  const [usePass, setUsePass] = useState(false);
+  const [pass, setPass] = useState(""), [pass2, setPass2] = useState("");
+  const [solanaPath, setSolanaPath] = useState<SolanaPathId>("standard");
   const [progress, setProgress] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const checksum = isValidMnemonic(phrase);
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const active = words.slice(0, count);
+  const phrase = active.join(" ").trim();
+  const filled = active.filter(Boolean).length;
+  const checksum = filled === count && isValidMnemonic(phrase);
   const rep = analyzePhrase(phrase, checksum);
-  const canContinue = rep.validCount && rep.invalidWords.length === 0 && checksum && (!rep.publicPhrase || ackPublic);
-  const STEPS = ["Recovery phrase", "Password", "Done"];
+  const badIdx = new Set(active.map((w, i) => (w && !isBip39Word(w) && (focus !== i || !wordlistHasPrefix(w)) ? i : -1)).filter((i) => i >= 0));
+  const passOk = !usePass || (pass.length > 0 && pass === pass2);
+  const canContinue = filled === count && badIdx.size === 0 && checksum && (!rep.publicPhrase || ackPublic) && passOk;
+  const STEPS = ["Recovery phrase", "Accounts", "Password", "Done"];
+
+  // Wipe phrase from memory/state when leaving the screen.
+  useEffect(() => () => { setWords(Array(24).fill("")); setPass(""); setPass2(""); }, []);
+
+  /** Put words starting at index `at`; a pasted/typed phrase fills the following boxes. */
+  const putWords = (at: number, raw: string) => {
+    const incoming = phraseWords(raw);
+    onStart();
+    if (incoming.length > 1) {
+      const total = at + incoming.length;
+      const fit = (PHRASE_LENGTHS as readonly number[]).find((n) => n >= total) ?? 24;
+      if (at === 0 && (PHRASE_LENGTHS as readonly number[]).includes(incoming.length)) setCount(incoming.length);
+      else if (fit > count) setCount(fit);
+      setWords((w) => { const n = [...w]; incoming.slice(0, 24 - at).forEach((x, i) => (n[at + i] = x)); return n; });
+      // Phrase complete → close the keyboard; otherwise jump to the next empty box.
+      const newCount = at === 0 && (PHRASE_LENGTHS as readonly number[]).includes(incoming.length) ? incoming.length : Math.max(fit, count);
+      const next = at + incoming.length;
+      setTimeout(() => { if (next >= newCount) (document.activeElement as HTMLElement | null)?.blur(); else refs.current[next]?.focus(); }, 0);
+      return;
+    }
+    // Single word typed. A trailing separator (space/enter) moves to the next box.
+    const endsWithSep = /[^a-zA-Z]$/.test(raw) && raw.trim().length > 0;
+    setWords((w) => { const n = [...w]; n[at] = incoming[0] ?? ""; return n; });
+    if (endsWithSep && incoming[0] && at < count - 1) setTimeout(() => refs.current[at + 1]?.focus(), 0);
+  };
+
+  const pick = (i: number, w: string) => {
+    setWords((ws) => { const n = [...ws]; n[i] = w; return n; });
+    if (i < count - 1) setTimeout(() => refs.current[i + 1]?.focus(), 0);
+  };
 
   const finish = async (pw: string) => {
     setErr(null); setProgress(0);
-    try { await createAndStore(normalizeMnemonic(phrase), pw, setProgress, "imported"); setPhrase(""); setStep(2); }
-    catch (e) { setErr((e as Error).message); setStep(1); }
+    try {
+      await createAndStore({ mnemonic: normalizeMnemonic(phrase), passphrase: usePass ? pass : undefined, solanaPath }, pw, setProgress, "imported");
+      setWords(Array(24).fill("")); setPass(""); setPass2("");
+      setStep(3);
+    } catch (e) { setErr((e as Error).message); setStep(2); }
     finally { setProgress(null); }
   };
 
   if (progress !== null) return <Encrypting p={progress} />;
+  const suggestions = focus !== null && words[focus] && !isBip39Word(words[focus]) ? suggestWords(words[focus], 4) : [];
   return (
     <div>
       <Steps steps={STEPS} at={step} />
       {step === 0 && (
         <div className="space-y-3">
-          <Notice tone="warn">Only type your phrase here, on your own device, at this exact site. It is encrypted locally and never uploaded.</Notice>
-          <div className="relative">
-            <textarea data-testid="bajar-import-phrase" className={clsx(input, "h-28 font-mono pr-9", !show && "[-webkit-text-security:disc]")} placeholder="Enter your 12 or 24 words, separated by spaces"
-              value={phrase} onChange={(e) => { setPhrase(e.target.value); onStart(); }}
-              onPaste={() => { setPasted(true); setTimeout(() => navigator.clipboard?.writeText?.("").catch(() => {}), 300); }}
-              autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
-            <button type="button" className="absolute right-2.5 top-2.5 text-muted" onClick={() => setShow(!show)} aria-label={show ? "Hide phrase" : "Show phrase"}>{show ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+          <Notice tone="warn">Only enter your phrase on your own device, at this exact site. It is encrypted on this device and never uploaded.</Notice>
+          <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Number of words">
+            {PHRASE_LENGTHS.map((n) => (
+              <button key={n} type="button" role="radio" aria-checked={count === n} onClick={() => setCount(n)} data-testid={`bajar-len-${n}`}
+                className={clsx("h-8 px-3 rounded-lg border text-xs font-semibold", count === n ? "btn-silver border-transparent" : "border-line text-muted hover:text-fg")}>{n} words</button>
+            ))}
+            <button type="button" className="ml-auto h-8 px-2 text-muted inline-flex items-center gap-1 text-xs" onClick={() => setShow(!show)} aria-label={show ? "Hide words" : "Show words"}>{show ? <EyeOff size={15} /> : <Eye size={15} />}{show ? "Hide" : "Show"}</button>
           </div>
-          {rep.words.length > 0 && (
-            <div className="text-xs space-y-1.5">
-              <div className="flex flex-wrap gap-1.5">
-                <Badge tone={rep.validCount ? "up" : "neutral"}>{rep.words.length} / {rep.words.length > 12 ? 24 : 12} words</Badge>
-                <Badge tone={rep.invalidWords.length ? "down" : "up"}>{rep.invalidWords.length ? `${rep.invalidWords.length} unknown word(s)` : "All words valid"}</Badge>
-                {rep.validCount && !rep.invalidWords.length && <Badge tone={checksum ? "up" : "down"}>{checksum ? "Checksum OK" : "Checksum fails"}</Badge>}
-              </div>
-              {rep.invalidWords.slice(0, 3).map((i) => {
-                const s = suggestWords(rep.words[i]);
-                return <p key={i} className="text-down">Word #{i + 1} &quot;{show ? rep.words[i] : "•••"}&quot; isn&apos;t in the BIP-39 list.{s.length ? ` Did you mean: ${s.join(", ")}?` : ""}</p>;
-              })}
-              {rep.validCount && !rep.invalidWords.length && !checksum && <p className="text-down">The words are valid but the checksum fails — a word is wrong or out of order.</p>}
-              {pasted && <p className="text-muted">Pasted — Bajar tried to clear your clipboard. Clear it manually if your device keeps clipboard history.</p>}
+          <p className="text-[11px] text-muted">Tip: paste the whole phrase into the first box — numbers, commas and line breaks are ignored.</p>
+          <ol className="grid grid-cols-2 sm:grid-cols-3 gap-1.5" data-testid="bajar-import-grid">
+            {active.map((w, i) => (
+              <li key={i} className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-faint tabular-nums select-none">{i + 1}.</span>
+                <input
+                  ref={(el) => { refs.current[i] = el; }}
+                  data-testid={i === 0 ? "bajar-import-phrase" : `bajar-word-${i}`}
+                  aria-label={`Word ${i + 1}`}
+                  aria-invalid={badIdx.has(i)}
+                  type={show ? "text" : "password"}
+                  value={w}
+                  onChange={(e) => putWords(i, e.target.value)}
+                  onPaste={(e) => { e.preventDefault(); putWords(i, e.clipboardData.getData("text")); setPasted(true); setTimeout(() => navigator.clipboard?.writeText?.("").catch(() => {}), 300); }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === "Tab") && suggestions.length === 1 && focus === i) { e.preventDefault(); pick(i, suggestions[0]); }
+                    else if (e.key === "Enter") { e.preventDefault(); refs.current[Math.min(i + 1, count - 1)]?.focus(); }
+                    else if (e.key === "Backspace" && !w && i > 0) { e.preventDefault(); refs.current[i - 1]?.focus(); }
+                  }}
+                  onFocus={() => setFocus(i)}
+                  onBlur={() => setFocus((f) => (f === i ? null : f))}
+                  autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} enterKeyHint={i === count - 1 ? "done" : "next"}
+                  className={clsx("w-full rounded-lg border bg-surface-2 pl-7 pr-2 py-2.5 text-[15px] sm:text-sm font-mono outline-none", badIdx.has(i) ? "border-down/70" : w && isBip39Word(w) ? "border-line-strong" : "border-line", "focus:border-line-strong focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand)_25%,transparent)]")}
+                />
+              </li>
+            ))}
+          </ol>
+          {suggestions.length > 0 && focus !== null && (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs" aria-live="polite">
+              <span className="text-muted">Word {focus + 1}:</span>
+              {suggestions.map((s) => <button key={s} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(focus, s)} className="rounded-md border border-line px-2 py-1 font-mono hover:bg-surface-2">{s}</button>)}
             </div>
           )}
+          <div className="flex flex-wrap gap-1.5 text-xs" aria-live="polite">
+            <Badge tone={filled === count ? "up" : "neutral"}>{filled} / {count} words</Badge>
+            {badIdx.size > 0 && <Badge tone="down">{badIdx.size} not in the BIP-39 list (#{[...badIdx].map((i) => i + 1).join(", #")})</Badge>}
+            {filled === count && badIdx.size === 0 && <Badge tone={checksum ? "up" : "down"}>{checksum ? "Checksum OK" : "Checksum fails — a word is wrong or out of order"}</Badge>}
+            {filled > 0 && <button type="button" className="text-muted underline" onClick={() => { setWords(Array(24).fill("")); setAckPublic(false); refs.current[0]?.focus(); }}>Clear</button>}
+          </div>
+          {pasted && <p className="text-[11px] text-muted">Pasted — Bajar tried to clear your clipboard. Clear it manually if your device keeps clipboard history.</p>}
           {rep.publicPhrase && (
             <Notice tone="down" title="This is a publicly known test phrase">
               Anyone can control these addresses. Bots steal funds sent to them within seconds. Only use it for testing.
@@ -254,17 +324,96 @@ function ImportPhrase({ onStart, onFinish }: { onStart: () => void; onFinish: ()
             </Notice>
           )}
           {rep.lowDiversity && !rep.publicPhrase && <Notice tone="warn">This phrase repeats many words. Randomly generated phrases rarely do — make sure it wasn&apos;t hand-picked.</Notice>}
+          <details className="rounded-xl border border-line px-3 py-2 text-sm" open={usePass}>
+            <summary className="cursor-pointer text-muted text-xs">Advanced: BIP-39 passphrase (&quot;25th word&quot;)</summary>
+            <div className="mt-2 space-y-2">
+              <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={usePass} onChange={(e) => setUsePass(e.target.checked)} data-testid="bajar-use-passphrase" />My wallet uses an extra passphrase (Ledger/Trezor/Electrum &quot;seed extension&quot;). Different passphrase = different wallet.</label>
+              {usePass && (
+                <>
+                  <input type="password" className={input} placeholder="Passphrase (case-sensitive)" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="off" />
+                  <input type="password" className={input} placeholder="Repeat passphrase" value={pass2} onChange={(e) => setPass2(e.target.value)} autoComplete="off" />
+                  {pass2 && pass !== pass2 && <p className="text-xs text-down">Passphrases don&apos;t match.</p>}
+                </>
+              )}
+            </div>
+          </details>
           <Button className="w-full h-11" data-testid="bajar-import-next" disabled={!canContinue} onClick={() => setStep(1)}>Continue</Button>
         </div>
       )}
-      {step === 1 && (
+      {step === 1 && <AccountDiscovery phrase={phrase} passphrase={usePass ? pass : ""} value={solanaPath} onChange={setSolanaPath} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
+      {step === 2 && (
         <div className="space-y-3">
           {err && <Notice tone="down">{err}</Notice>}
           <PasswordStep cta="Import wallet" onNext={finish} />
-          <Button variant="ghost" size="sm" onClick={() => setStep(0)}>Back</Button>
+          <Button variant="ghost" size="sm" onClick={() => setStep(1)}>Back</Button>
         </div>
       )}
-      {step === 2 && <Done onFinish={onFinish} />}
+      {step === 3 && <Done onFinish={onFinish} />}
+    </div>
+  );
+}
+
+const wordlistHasPrefix = (w: string) => suggestWords(w, 1).some((s) => s.startsWith(w));
+
+/** Shows the addresses this phrase controls and finds which Solana scheme holds funds. */
+function AccountDiscovery({ phrase, passphrase, value, onChange, onBack, onNext }: { phrase: string; passphrase: string; value: SolanaPathId; onChange: (v: SolanaPathId) => void; onBack: () => void; onNext: () => void }) {
+  const accounts = useMemo(() => {
+    const base = deriveAll(phrase, { passphrase });
+    const sol = (Object.keys(SOLANA_PATHS) as SolanaPathId[]).map((id) => ({ id, address: solanaAddressFor(phrase, id, passphrase), label: SOLANA_PATHS[id].label, path: SOLANA_PATHS[id].path(0) }));
+    return { btc: base.pub.bitcoin.address, evm: base.pub.evm.address, sol };
+  }, [phrase, passphrase]);
+  const [activity, setActivity] = useState<Record<string, { sol: number; used: boolean } | null>>({});
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { walletRpc } = await import("@/lib/bajar/rpc");
+      const res: Record<string, { sol: number; used: boolean } | null> = {};
+      await Promise.all(accounts.sol.map(async (a) => {
+        try {
+          const [bal, sigs] = await Promise.all([
+            walletRpc<{ value: number }>("solana", "getBalance", [a.address]),
+            walletRpc<unknown[]>("solana", "getSignaturesForAddress", [a.address, { limit: 1 }]),
+          ]);
+          res[a.id] = { sol: bal.value / 1e9, used: bal.value > 0 || sigs.length > 0 };
+        } catch { res[a.id] = null; }
+      }));
+      if (!alive) return;
+      setActivity(res);
+      // Prefer the standard scheme unless only the legacy one has history.
+      if (!res.standard?.used && res.bip44?.used) onChange("bip44");
+    })();
+    return () => { alive = false; };
+  }, [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loading = Object.keys(activity).length === 0;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted">These are the accounts your phrase controls. Bitcoin and EVM use the same standard paths as MetaMask, Ledger, Trust, Electrum and Sparrow.</p>
+      <div className="rounded-xl border border-line divide-y divide-line text-xs">
+        <div className="px-3 py-2"><div className="text-muted">Bitcoin · native SegWit (m/84&apos;/0&apos;/0&apos;/0/0)</div><div className="font-mono break-all">{accounts.btc}</div></div>
+        <div className="px-3 py-2"><div className="text-muted">Ethereum & EVM (m/44&apos;/60&apos;/0&apos;/0/0)</div><div className="font-mono break-all">{accounts.evm}</div></div>
+      </div>
+      <fieldset className="space-y-1.5">
+        <legend className="text-xs text-muted mb-1">Solana account — pick the one your previous wallet used</legend>
+        {accounts.sol.map((a) => {
+          const act = activity[a.id];
+          return (
+            <label key={a.id} className={clsx("flex items-start gap-2 rounded-xl border p-3 cursor-pointer", value === a.id ? "border-line-strong bg-surface-2" : "border-line")}>
+              <input type="radio" name="solpath" className="mt-1" checked={value === a.id} onChange={() => onChange(a.id)} data-testid={`bajar-solpath-${a.id}`} />
+              <span className="min-w-0 text-xs">
+                <span className="block font-semibold text-sm">{a.label}</span>
+                <span className="block text-muted">{a.path}</span>
+                <span className="block font-mono break-all">{a.address}</span>
+                <span className="block mt-1">{loading ? <span className="text-muted inline-flex items-center gap-1"><Loader2 size={11} className="animate-spin" />Checking activity…</span> : act === null ? <span className="text-muted">Couldn&apos;t check</span> : act?.used ? <span className="text-up">Has history · {act.sol.toFixed(4)} SOL</span> : <span className="text-muted">No activity</span>}</span>
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
+      {passphrase && <Notice tone="info">Using your BIP-39 passphrase. If these addresses look unfamiliar, the passphrase may be different from the one you used before.</Notice>}
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onBack}>Back</Button>
+        <Button className="flex-1 h-11" onClick={onNext} data-testid="bajar-accounts-next">Continue</Button>
+      </div>
     </div>
   );
 }
