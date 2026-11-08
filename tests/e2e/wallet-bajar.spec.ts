@@ -65,6 +65,7 @@ test.describe("Bajar Wallet", () => {
     // Dashboard: only the three tabs that matter; Send/Receive/Swap are actions.
     await expect(page.getByTestId("wallet-dashboard").getByRole("tab")).toHaveText(["Portfolio", "Activity", "Settings"]);
     await expect(page.getByTestId("wallet-holdings")).toBeVisible();
+    await expect(page.locator(".site-footer")).toBeHidden(); // app view: no footer
     await expect(page.getByTestId("wallet-insights")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("wallet-action-receive").click();
     await expect(page).toHaveURL(/#receive$/);
@@ -76,6 +77,7 @@ test.describe("Bajar Wallet", () => {
     await expect(page.getByTestId("wallet-holdings")).toBeVisible();
 
     await page.getByTestId("bajar-lock").click();
+    await expect(page.locator(".site-footer")).toBeVisible(); // locked: footer returns
     for (let i = 0; i < 3; i++) {
       await page.getByTestId("bajar-password").fill(`wrong password ${i}`);
       await page.getByTestId("bajar-unlock").click();

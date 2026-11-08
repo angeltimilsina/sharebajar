@@ -209,3 +209,6 @@ h1 { line-height: 1.15; }
 @media (prefers-reduced-motion: reduce) {
   .marquee, .pulse-dot, .flash-up, .flash-down, .rise { animation: none; }
 }
+
+/* Logged-in wallet is an app view: no marketing footer. */
+html[data-app-view] .site-footer { display: none; }

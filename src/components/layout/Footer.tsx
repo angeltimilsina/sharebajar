@@ -3,7 +3,7 @@ import { LogoMark } from "../ui/Logo";
 
 export function Footer() {
   return (
-    <footer className="border-t border-line mt-10">
+    <footer className="site-footer border-t border-line mt-10">
       <div className="mx-auto max-w-[1680px] px-4 lg:px-6 py-8 grid gap-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] text-sm">
         <div>
           <div className="flex items-center gap-2 font-bold"><LogoMark size={24} /> Bajar</div>
