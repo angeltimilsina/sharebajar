@@ -35,7 +35,7 @@ export function WalletApp() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold inline-flex items-center gap-2"><Wallet size={20} className="text-brand" />BAJAR Wallet</h1>
             <Badge tone="up">Unlocked</Badge>
-            <Badge tone="ai" title="ML-DSA-65 protects sign-in, backups and authorization records. Blockchain transactions use each network's own signature scheme.">PQ identity {accounts.pq.fingerprint.slice(0, 8)}</Badge>
+            <Badge tone="ai" title="ML-DSA-65 protects sign-in, backups and authorization records. Blockchain transactions use each network's own signature scheme.">PQ identity {accounts.pq.fingerprint.split(":").pop()?.slice(0, 8)}</Badge>
             <Button size="sm" variant="outline" className="ml-auto" onClick={() => lock()} data-testid="bajar-lock"><Lock size={14} className="mr-1" />Lock</Button>
           </div>
           <Tabs<Tab> value={tab} onChange={setTab} className="overflow-x-auto" tabs={[

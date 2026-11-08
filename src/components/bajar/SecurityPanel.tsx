@@ -57,7 +57,7 @@ function HybridSignIn() {
       const r = await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature: solanaSign(s.solana, n.message), pqSignature: pqSign(s.pq, n.message, "auth"), pqPublicKey: a.pq.publicKey }) });
       const b = await r.json();
       if (!r.ok) throw new Error(b.error);
-      setMsg(`Signed in · both signatures verified by the server (PQ ${b.session.pq?.fingerprint?.slice(0, 8)}).`);
+      setMsg(`Signed in · both signatures verified by the server (PQ ${String(b.session.pq?.fingerprint ?? "").split(":").pop()?.slice(0, 8)}).`);
     } catch (e) { setMsg((e as Error).message); }
   };
   return (
