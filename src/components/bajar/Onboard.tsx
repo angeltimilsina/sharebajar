@@ -36,6 +36,8 @@ export function Onboard({ onFinish }: { onFinish: () => void }) {
 }
 
 function Steps({ steps, at }: { steps: string[]; at: number }) {
+  // Each step starts at the top (important on phones).
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [at]);
   return (
     <ol className="flex items-center gap-1.5 mb-4 text-[11px]" aria-label="Progress">
       {steps.map((s, i) => (

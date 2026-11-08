@@ -24,7 +24,7 @@ export function WalletModal() {
     // Unlocked state lives in memory, so it can only be true once the wallet modules are loaded.
     let vault = false;
     try { vault = !!localStorage.getItem("bajar.vault.v1"); } catch { /* ignore */ }
-    if (vault) { window.dispatchEvent(new Event("bajar:load")); import("@/lib/bajar/session").then((m) => setBajarReady(m.bajar.isUnlocked())).catch(() => {}); }
+    if (vault) { (window as Window & { __bajarLoad?: boolean }).__bajarLoad = true; window.dispatchEvent(new Event("bajar:load")); import("@/lib/bajar/session").then((m) => setBajarReady(m.bajar.isUnlocked())).catch(() => {}); }
   }, [modalOpen]);
 
   const hasMetaMask = evm.some((w) => w.info.rdns === "io.metamask") || (legacyEth && Boolean(window.ethereum?.isMetaMask));

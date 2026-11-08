@@ -27,7 +27,7 @@ export function WalletApp() {
   // Keep the onboarding flow on screen (incl. its "done" step) until the user leaves it.
   const [onboarding, setOnboarding] = useState(false);
   useEffect(() => { if (mounted && !hasVault) setOnboarding(true); }, [mounted, hasVault]);
-  useEffect(() => { setMounted(true); window.dispatchEvent(new Event("bajar:load")); }, []);
+  useEffect(() => { setMounted(true); (window as Window & { __bajarLoad?: boolean }).__bajarLoad = true; window.dispatchEvent(new Event("bajar:load")); }, []);
   useEffect(() => {
     if (!unlocked) return;
     const onAct = () => touch();

@@ -90,6 +90,7 @@ test.describe("Bajar Wallet", () => {
     await page.getByRole("tab", { name: /Security/ }).click();
     await expect(page.getByTestId("bajar-checkup")).toBeVisible();
     await page.getByRole("tab", { name: /Send/ }).click();
+    await page.locator("select").first().waitFor({ timeout: 30_000 }).catch(() => {});
     const evmAsset = page.locator("select option", { hasText: /Ethereum|Base|Arbitrum|Polygon|BNB|Optimism|Avalanche/ }).first();
     test.skip(!(await evmAsset.count()), "test wallet has no funded EVM asset right now");
     await page.locator("select").first().selectOption({ label: (await evmAsset.textContent())! });

@@ -35,6 +35,8 @@ export function requestApproval(req: Omit<ApprovalRequest, "id">, payload: unkno
     } };
     queue = [...queue, item];
     subs.forEach((s) => s());
+    // Make sure the approval dialog is loaded (it loads lazily); it shows the queued request on mount.
+    if (typeof window !== "undefined") { (window as Window & { __bajarLoad?: boolean }).__bajarLoad = true; window.dispatchEvent(new Event("bajar:load")); }
   });
 }
 

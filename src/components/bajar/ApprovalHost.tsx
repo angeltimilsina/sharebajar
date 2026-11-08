@@ -31,7 +31,9 @@ export function ApprovalHost() {
     let hasVault = false;
     try { hasVault = !!localStorage.getItem("bajar.vault.v1"); } catch { /* storage blocked */ }
     const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
-    if (hasVault) { if (w.requestIdleCallback) w.requestIdleCallback(start, { timeout: 2500 }); else setTimeout(start, 800); }
+    // Already requested before this component mounted (e.g. the wallet page or an approval fired first)?
+    if ((window as Window & { __bajarLoad?: boolean }).__bajarLoad) start();
+    else if (hasVault) { if (w.requestIdleCallback) w.requestIdleCallback(start, { timeout: 2500 }); else setTimeout(start, 800); }
     window.addEventListener("bajar:load", start);
     return () => { unsub?.(); window.removeEventListener("bajar:load", start); };
   }, []);
