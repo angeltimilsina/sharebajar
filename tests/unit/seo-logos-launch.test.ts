@@ -156,3 +156,39 @@ describe("market board", () => {
     expect(coinSignals(mk("a", {}))).toEqual([]);
   });
 });
+
+import { ribbon } from "@/lib/market/board";
+
+describe("market ribbon", () => {
+  const c = (id: string, sym: string, o: Partial<CoinMarket>) => ({ ...coin(id, sym, 5e9, 5e7, 0), ...o } as CoinMarket);
+  it("orders Gainers/Losers by breadth and previews the leader", () => {
+    const rows = [c("a", "AAA", { change24h: -3 }), c("b", "BBB", { change24h: -6 }), c("d", "DDD", { change24h: 2 })].map((x) => coinRow(x));
+    const ids = ribbon(rows, "change24h", { coins: true }).map((i) => i.id);
+    expect(ids.slice(0, 3)).toEqual(["top", "losers", "gainers"]);
+    const losers = ribbon(rows, "change24h", { coins: true }).find((i) => i.id === "losers")!;
+    expect(losers.preview).toEqual({ text: "BBB -6.0%", tone: "down" });
+  });
+  it("suggests views only when they have something to show", () => {
+    const quiet = [c("a", "AAA", { change24h: 1, change1h: 0.2 }), c("b", "BBB", { change24h: -1, change1h: 0.1 })].map((x) => coinRow(x));
+    expect(ribbon(quiet, "change24h", { coins: true }).some((i) => i.smart)).toBe(false);
+    const busy = [
+      c("a", "AAA", { change24h: 6, change7d: -15, change1h: 3 }), c("b", "BBB", { change1h: -2.5 }),
+      c("s", "SOL", { change24h: 8 }), c("e", "ETH", { change24h: 7 }), c("x", "AVAX", { change24h: 9 }),
+    ].map((x) => coinRow(x));
+    const smart = ribbon(busy, "change24h", { coins: true }).filter((i) => i.smart).map((i) => i.id);
+    expect(smart).toContain("moving");
+    expect(smart).toContain("rebounding");
+    expect(smart).toContain("sector:layer-1");
+    expect(applyLens(busy, "moving", "change24h").map((r) => r.symbol)).toEqual(["AAA", "BBB"]);
+  });
+  it("network view gets the plain ribbon", () => {
+    expect(ribbon([], "change24h", { coins: false }).every((i) => !i.smart)).toBe(true);
+  });
+});
+
+import { coinTags } from "@/lib/market/board";
+describe("coin tags", () => {
+  it("ignores stablecoins", () => {
+    expect(coinTags({ ...coin("tether", "USDT", 1e11, 5e10, 0.1), change1h: 3, price: 1, high24h: 1, low24h: 0.99 } as CoinMarket)).toEqual([]);
+  });
+});

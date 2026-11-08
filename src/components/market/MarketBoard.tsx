@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { usePoll } from "@/hooks/usePoll";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useLiveTickers } from "@/hooks/useBinance";
@@ -11,7 +11,7 @@ import { getChain } from "@/lib/chains";
 import { formatPct, formatUsd } from "@/lib/format";
 import type { CoinMarket, Envelope, Pool } from "@/lib/types";
 import {
-  COIN_STATS, LENSES, POOL_STATS, STAT_LABEL, applyLens, coinRow, isChange, lensSource, poolRow, statFor,
+  COIN_STATS, POOL_STATS, STAT_LABEL, applyLens, coinRow, isChange, isSmart, lensSource, poolRow, ribbon, statFor,
   type BoardRow, type Lens, type Stat,
 } from "@/lib/market/board";
 import { Card, Skeleton } from "../ui/primitives";
@@ -48,7 +48,8 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
   const chain = getChain(network);
   const source = lensSource(lens, network);
 
-  const coins = usePoll<CoinMarket[]>(source.kind === "coins" ? "/api/market/coins" : null, 30_000, initialCoins ?? undefined);
+  // Listed coins power both the "all networks" list and the ribbon's suggestions.
+  const coins = usePoll<CoinMarket[]>(source.kind === "coins" || network === "all" ? "/api/market/coins" : null, 30_000, initialCoins ?? undefined);
   const pools = usePoll<Pool[]>(source.kind === "pools" ? `/api/dex/pools?feed=${source.feed}&duration=1h${chain ? `&network=${chain.id}` : ""}` : null, source.kind === "pools" && source.feed === "new" ? 20_000 : 45_000);
   const watch = useWatchlist();
   const watchedIds = watch.items.filter((i) => i.kind === "coin").map((i) => i.id);
@@ -68,6 +69,16 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
 
   const stat = statFor(baseRows.length ? baseRows : source.kind === "pools" ? [poolRowStub] : [], prefs.stat);
   const rows = useMemo(() => applyLens(baseRows, lens, stat), [baseRows, lens, stat]);
+
+  // The ribbon: core views with live previews, plus suggestions for what's happening now.
+  const coinRows = useMemo(() => (coins.data ?? []).map((c) => coinRow(c, symbols[c.symbol])), [coins.data, symbols]);
+  const items = useMemo(() => ribbon(coinRows, stat, { coins: network === "all" }), [coinRows, stat, network]);
+  // A remembered suggestion that no longer applies (or a network was picked) falls back to Top.
+  useEffect(() => {
+    if (!isSmart(lens)) return;
+    if (network !== "all" || (coins.data && !items.some((i) => i.id === lens))) set({ lens: "top" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lens, network, coins.data, items]);
   const statOptions = source.kind === "pools" ? POOL_STATS : COIN_STATS;
 
   // Live Binance overlay for the visible coins (agreement-checked like the rest of the site).
@@ -81,7 +92,7 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
   const env = source.kind === "coins" ? coins : source.kind === "pools" ? pools : watchCoins;
   const loading = source.kind === "watchlist" ? watchCoins.loading && !!watchedIds.length : env.loading && !env.data;
   const cycleStat = () => set({ stat: statOptions[(statOptions.indexOf(stat) + 1) % statOptions.length] });
-  const lensInfo = LENSES.find((l) => l.id === lens)!;
+  const lensInfo = items.find((l) => l.id === lens) ?? { id: lens, label: "Top", hint: "" };
   const timeframe = isChange(stat) ? STAT_LABEL[stat] : "24h";
 
   return (
@@ -89,12 +100,20 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
       <section className="min-w-0 space-y-3" aria-label="Market list">
         {/* Lenses */}
         <div role="tablist" aria-label="Market view" className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 px-3 sm:mx-0 sm:px-0" data-testid="board-lenses">
-          {LENSES.map((l) => (
-            <button key={l.id} role="tab" aria-selected={lens === l.id} title={l.hint} onClick={() => set({ lens: l.id })}
-              className={clsx("h-9 shrink-0 px-4 rounded-full text-[14px] font-medium transition-colors", lens === l.id ? "btn-ink" : "bg-surface-2 text-muted hover:text-fg")}>
-              {l.label}
-            </button>
-          ))}
+          {items.map((l) => {
+            const on = lens === l.id;
+            return (
+              <button key={l.id} role="tab" aria-selected={on} title={l.hint} onClick={() => set({ lens: l.id })} data-testid={`lens-${l.id.replace(":", "-")}`}
+                className={clsx("h-9 shrink-0 pl-3.5 pr-3.5 rounded-full text-[14px] font-medium transition-colors inline-flex items-center gap-1.5", on ? "btn-ink" : "bg-surface-2 text-fg/85 hover:text-fg")}>
+                {l.smart && <Sparkles size={13} className={on ? "" : "text-brand"} aria-hidden />}
+                {l.label}
+                {l.preview && (
+                  <span className={clsx("text-[12px] num font-semibold", on ? "opacity-85" : l.preview.tone === "up" ? "text-up" : l.preview.tone === "down" ? "text-down" : "text-muted")}>{l.preview.text}</span>
+                )}
+                {l.smart && l.count !== undefined && <span className={clsx("text-[11px] num rounded-full px-1.5 min-w-[20px] text-center", on ? "bg-white/20" : "bg-surface-3 text-muted")}>{l.count}</span>}
+              </button>
+            );
+          })}
         </div>
         <NetworkFilter value={network} onChange={(n) => set({ network: n })} />
 
@@ -104,7 +123,7 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
             <div className="min-w-0 w-full sm:w-auto sm:flex-1">
               <div className="text-[15px] font-semibold" data-testid="board-caption">
                 {lens === "gainers" || lens === "losers" ? `${lensInfo.label} · ${timeframe}` : lensInfo.label}
-                <span className="text-muted font-normal"> · {chain ? chain.name : lens === "trending" || lens === "new" ? "all networks" : source.kind === "watchlist" ? "your list" : "all coins"}</span>
+                <span className="text-muted font-normal"> · {chain ? chain.name : lens === "trending" || lens === "new" ? "all networks" : source.kind === "watchlist" ? "your list" : isSmart(lens) ? `${rows.length} coin${rows.length === 1 ? "" : "s"}` : "all coins"}</span>
               </div>
               <div className="mt-0.5"><DataStatus fetchedAt={env.fetchedAt} expectedMs={30_000} stale={env.stale} error={env.error} source={env.source ?? undefined} /></div>
             </div>
@@ -181,6 +200,7 @@ export function MarketBoard({ initialCoins }: { initialCoins: Envelope<CoinMarke
               );
             })}
           </ul>
+          {isSmart(lens) && lensInfo.hint && <p className="px-4 py-2.5 text-[11px] text-faint border-t border-line">Suggested from live data: {lensInfo.hint.charAt(0).toLowerCase() + lensInfo.hint.slice(1)}.</p>}
           {(lens === "gainers" || lens === "losers") && source.kind === "coins" && <p className="px-4 py-2.5 text-[11px] text-faint border-t border-line">Coins with at least $1M daily volume, ranked by {timeframe} change.</p>}
         </Card>
       </section>

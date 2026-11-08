@@ -27,8 +27,16 @@ test.describe("public marketplace", () => {
     await expect(page.getByTestId("board-row").first()).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("board-stats").getByRole("radio", { name: "7d" }).click();
     await expect(page.getByTestId("board-stats").getByRole("radio", { name: "7d" })).toHaveAttribute("aria-checked", "true");
-    await page.getByRole("tab", { name: "Gainers", exact: true }).click();
+    await page.getByTestId("lens-gainers").click();
     await expect(page.getByTestId("board-caption")).toContainText("Gainers · 7d");
+    // Ribbon chips carry live previews; suggestions open a filtered list.
+    await expect(page.getByTestId("lens-gainers")).toContainText(/[+-]\d/);
+    const suggestion = page.locator('[data-testid^="lens-"]').filter({ has: page.locator("svg.lucide-sparkles") }).first();
+    if (await suggestion.count()) {
+      await suggestion.click();
+      await expect(page.getByTestId("board-caption")).toContainText(/coins?/);
+      await page.getByTestId("lens-gainers").click();
+    }
     // Preference is remembered.
     await page.reload();
     await expect(page.getByTestId("board-caption")).toContainText("Gainers · 7d");
