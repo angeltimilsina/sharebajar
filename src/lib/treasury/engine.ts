@@ -10,6 +10,7 @@ import { erpc, hexToBig, pad32, topicToAddress, TRANSFER_TOPIC } from "./evm";
 import { CONFIRMATIONS, KNOWN_TOKENS, knownToken, WSOL } from "./tokens";
 import { getChain } from "../chains";
 import { log } from "../server/log";
+import { fetchUpstream } from "../server/http";
 
 /**
  * Revenue tracking engine.
@@ -23,6 +24,9 @@ import { log } from "../server/log";
 export interface IndexSummary { treasuries: number; scanned: number; newEvents: number; confirmed: number; orphaned: number; intentsChecked: number; errors: string[]; startedAt: string; finishedAt: string }
 
 const ZEROX_ALLOWANCE_HOLDER = "0x0000000000001ff3684f28c67538d4d072c22734";
+/** LI.FI diamond (same address on major EVM chains) — cross-chain swaps that forward our fee. */
+const LIFI_DIAMOND = "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae";
+const EVM_SWAP_ROUTERS = new Set([ZEROX_ALLOWANCE_HOLDER, LIFI_DIAMOND]);
 const SOL_BACKFILL = Number(process.env.TREASURY_SOLANA_BACKFILL ?? 50);
 const EVM_BACKFILL = Number(process.env.TREASURY_EVM_BACKFILL_BLOCKS ?? 2000);
 const EVM_CHUNK = 2000;
@@ -40,6 +44,7 @@ export async function runIndexer(opts: { treasuryId?: string; actor?: string; re
     for (const t of all) {
       try {
         if (t.chainType === "solana") await indexSolana(t, s);
+        else if (t.chainType === "bitcoin") await indexBitcoin(t, s);
         else await indexEvm(t, s);
       } catch (e) {
         s.errors.push(`${t.label}: ${e instanceof Error ? e.message : String(e)}`);
@@ -74,6 +79,9 @@ async function intentFor(chain: string, txHash: string) {
   return r ?? null;
 }
 
+/** Revenue provider: from the swap intent when known, else by chain (Jupiter on Solana, 0x on EVM, LI.FI on Bitcoin). */
+const providerOf = (chain: string, intentProvider?: string | null) => intentProvider ?? (chain === "solana" ? "jupiter" : chain === "bitcoin" ? "lifi" : "0x");
+
 async function upsertEvent(e: EventInput): Promise<"new" | "updated"> {
   const intent = await intentFor(e.chain, e.txHash);
   const relevantIntent = intent && (!intent.fee_account || intent.fee_account === e.feeRecipient) ? intent : null;
@@ -105,7 +113,7 @@ async function upsertEvent(e: EventInput): Promise<"new" | "updated"> {
       `update revenue_events set status=$2, confirmations=$3, block_number=coalesce($4, block_number), block_hash=coalesce($5, block_hash), intent_id=coalesce(intent_id,$6), reconciliation=$7, source=$8, is_revenue=$9,
          gross_amount=$10, provider_share=$11, provider=$12, updated_at=now() where id=$1`,
       [existing[0].id, status, e.confirmations, e.blockNumber, e.blockHash, relevantIntent?.id ?? null, recon, c.source, c.isRevenue,
-        toDecimal(gross, e.decimals), toDecimal(share, e.decimals), c.isRevenue ? (e.chain === "solana" ? "jupiter" : "0x") : null],
+        toDecimal(gross, e.decimals), toDecimal(share, e.decimals), c.isRevenue ? providerOf(e.chain, relevantIntent?.provider) : null],
     );
     return "updated";
   }
@@ -113,7 +121,7 @@ async function upsertEvent(e: EventInput): Promise<"new" | "updated"> {
     `insert into revenue_events (id, chain, tx_hash, log_index, treasury_id, fee_recipient, token, token_symbol, decimals, amount_raw, amount, gross_amount, provider_share, direction, source, provider, is_revenue, status, confirmations, block_number, block_hash, block_time, usd_price, usd_value, price_source, intent_id, expected_amount, reconciliation, environment, is_test)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
     [newId("rev"), e.chain, e.txHash, e.logIndex, e.treasury?.id ?? null, e.feeRecipient, e.token, e.symbol, e.decimals, e.amountRaw.toString(), amount,
-      toDecimal(gross, e.decimals), toDecimal(share, e.decimals), e.direction, c.source, c.isRevenue ? (e.chain === "solana" ? "jupiter" : "0x") : null, c.isRevenue, status, e.confirmations,
+      toDecimal(gross, e.decimals), toDecimal(share, e.decimals), e.direction, c.source, c.isRevenue ? providerOf(e.chain, relevantIntent?.provider) : null, c.isRevenue, status, e.confirmations,
       e.blockNumber, e.blockHash, new Date(when).toISOString(), price.price, usd, price.source, relevantIntent?.id ?? null, expected === null ? null : toDecimal(expected, e.decimals), recon,
       // Fees reaching a treasury before it is active are test / pre-activation revenue, never production revenue.
       e.treasury?.environment ?? "mainnet", relevantIntent?.is_test ?? (e.treasury?.status !== "active")],
@@ -270,7 +278,7 @@ async function indexEvm(t: Treasury, s: IndexSummary) {
         const tok = watch.get(l.address.toLowerCase())!;
         const bn = Number(hexToBig(l.blockNumber));
         const tx = await erpc<{ to: string | null }>(t.chain, "eth_getTransactionByHash", [l.transactionHash], t.environment);
-        const viaZeroX = (tx?.to ?? "").toLowerCase() === ZEROX_ALLOWANCE_HOLDER;
+        const viaZeroX = EVM_SWAP_ROUTERS.has((tx?.to ?? "").toLowerCase());
         const conf = latest - bn + 1;
         const r = await upsertEvent({
           chain: t.chain, txHash: l.transactionHash, logIndex: Number(hexToBig(l.logIndex)), treasury: t, feeRecipient: t.address.toLowerCase(), token: tok.token, symbol: tok.symbol, decimals: tok.decimals,
@@ -284,6 +292,44 @@ async function indexEvm(t: Treasury, s: IndexSummary) {
     await setCursor(t.id, t.address, String(to));
     from = to + 1;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Bitcoin (native BTC treasuries — LI.FI cross-chain fees)           */
+/* ------------------------------------------------------------------ */
+
+const MEMPOOL = process.env.MEMPOOL_API_URL || "https://mempool.space/api";
+interface MTx { txid: string; status: { confirmed: boolean; block_height?: number; block_hash?: string; block_time?: number }; vin: { prevout?: { scriptpubkey_address?: string; value: number } }[]; vout: { scriptpubkey_address?: string; value: number }[]; fee: number }
+const btcGet = <T,>(path: string) => fetchUpstream<T>(`${MEMPOOL}${path}`, { retries: 1, timeoutMs: 15_000 });
+export function btcDelta(tx: MTx, address: string): bigint {
+  const inn = tx.vout.filter((o) => o.scriptpubkey_address === address).reduce((a, o) => a + o.value, 0);
+  const out = tx.vin.filter((i) => i.prevout?.scriptpubkey_address === address).reduce((a, i) => a + (i.prevout?.value ?? 0), 0);
+  return BigInt(inn - out);
+}
+
+async function indexBitcoin(t: Treasury, s: IndexSummary) {
+  const cursor = await getCursor(t.id, t.address);
+  const [txs, tip] = await Promise.all([btcGet<MTx[]>(`/address/${t.address}/txs`), btcGet<number>("/blocks/tip/height")]);
+  let newest: string | null = null;
+  for (const tx of txs) {
+    if (tx.txid === cursor) break;
+    s.scanned++;
+    if (tx.status.confirmed) newest ??= tx.txid;
+    const delta = btcDelta(tx, t.address);
+    if (delta === BigInt(0)) continue;
+    const conf = tx.status.confirmed && tx.status.block_height ? tip - tx.status.block_height + 1 : 0;
+    const r = await upsertEvent({
+      chain: "bitcoin", txHash: tx.txid, logIndex: 0, treasury: t, feeRecipient: t.address, token: "bitcoin", symbol: "BTC", decimals: 8,
+      amountRaw: delta > BigInt(0) ? delta : -delta, direction: delta > BigInt(0) ? "in" : "out",
+      // The whole address is the fee wallet, but a BTC payment can't be told apart from a deposit
+      // on-chain — only a matching cross-chain swap intent makes it revenue.
+      isFeeAccount: true, swapProgramInvoked: false, txFailed: false,
+      status: conf >= (CONFIRMATIONS.bitcoin ?? 3) ? "confirmed" : "pending", confirmations: conf, blockNumber: tx.status.block_height ?? null, blockHash: tx.status.block_hash ?? null,
+      blockTime: tx.status.block_time ? tx.status.block_time * 1000 : null,
+    });
+    if (r === "new") s.newEvents++;
+  }
+  if (newest) await setCursor(t.id, t.address, newest);
 }
 
 /* ------------------------------------------------------------------ */
@@ -301,6 +347,28 @@ async function verifyIntents(s: IndexSummary) {
     const set = (status: string, detail: string) => q("update swap_intents set status=$2, status_detail=$3, updated_at=now() where id=$1", [it.id, status, detail.slice(0, 300)]);
     const t = it.treasury_id ? treasuries.get(it.treasury_id) ?? null : null;
     try {
+      if (it.chain === "bitcoin") {
+        const tx = await btcGet<MTx>(`/tx/${it.tx_hash}`).catch(() => null);
+        if (!tx) { if (age > 3 * 3600_000) await set("dropped", "Bitcoin transaction not found (never broadcast or evicted from mempool)."); continue; }
+        if (!it.fee_account || it.mode === "none") { await set("no_fee", "Swap broadcast; no platform fee was applicable."); continue; }
+        const paid = tx.vout.filter((o) => o.scriptpubkey_address === it.fee_account).reduce((a, o) => a + o.value, 0);
+        if (paid <= 0) {
+          await set("fee_missing", "Bitcoin swap transaction has no output to the treasury fee address (check the LI.FI Partner Portal fee wallet).");
+          await alert("critical", "fee_missing", `BTC swap ${it.tx_hash.slice(0, 12)}… paid no fee to ${it.fee_account}.`);
+          continue;
+        }
+        const tip = await btcGet<number>("/blocks/tip/height");
+        const conf = tx.status.confirmed && tx.status.block_height ? tip - tx.status.block_height + 1 : 0;
+        const ok = conf >= (CONFIRMATIONS.bitcoin ?? 3);
+        const r = await upsertEvent({
+          chain: "bitcoin", txHash: it.tx_hash, logIndex: 0, treasury: t, feeRecipient: it.fee_account, token: "bitcoin", symbol: "BTC", decimals: 8,
+          amountRaw: BigInt(paid), direction: "in", isFeeAccount: true, swapProgramInvoked: true, txFailed: false,
+          status: ok ? "confirmed" : "pending", confirmations: conf, blockNumber: tx.status.block_height ?? null, blockHash: tx.status.block_hash ?? null, blockTime: tx.status.block_time ? tx.status.block_time * 1000 : null,
+        });
+        if (r === "new") s.newEvents++;
+        await set(ok ? "fee_received" : "pending", ok ? "Cross-chain fee received and confirmed." : "Fee output found; awaiting confirmations.");
+        continue;
+      }
       if (it.chain === "solana") {
         const tx = await getSolTx(it.tx_hash);
         if (!tx) { if (age > 5 * 60_000) await set("dropped", "Transaction not found on-chain (expired or never landed)."); continue; }
@@ -363,6 +431,16 @@ async function recheckPending(s: IndexSummary) {
   for (const r of rows) {
     const age = Date.now() - new Date(r.created_at).getTime();
     try {
+      if (r.chain === "bitcoin") {
+        const st = await btcGet<{ confirmed: boolean; block_height?: number; block_hash?: string }>(`/tx/${r.tx_hash}/status`).catch(() => null);
+        if (!st) { if (age > 6 * 3600_000) { await q("update revenue_events set status='orphaned', updated_at=now() where id=$1", [r.id]); s.orphaned++; } continue; }
+        if (!st.confirmed) continue;
+        const conf = (await btcGet<number>("/blocks/tip/height")) - (st.block_height ?? 0) + 1;
+        const ok = conf >= (CONFIRMATIONS.bitcoin ?? 3);
+        await q("update revenue_events set confirmations=$2, block_hash=$3, block_number=$4, status=$5, updated_at=now() where id=$1", [r.id, conf, st.block_hash ?? null, st.block_height ?? null, ok ? "confirmed" : "pending"]);
+        if (ok) s.confirmed++;
+        continue;
+      }
       if (r.chain === "solana") {
         const st = await srpc<{ value: ({ confirmationStatus: string; err: unknown } | null)[] }>("getSignatureStatuses", [[r.tx_hash], { searchTransactionHistory: true }], r.environment);
         const v = st.value[0];

@@ -9,8 +9,8 @@ import { seal, verifySeal } from "./crypto";
  * figures therefore always come from the server, never from the client.
  */
 export interface IntentClaims {
-  provider: "jupiter" | "0x";
-  route: string;           // jupiter: build | order; 0x: allowance-holder
+  provider: "jupiter" | "0x" | "lifi";
+  route: string;           // jupiter: build | order; 0x: allowance-holder; lifi:<tool>
   chain: string;
   mode: string;
   treasuryId: string | null;

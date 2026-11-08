@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, XCircle, ExternalLink, Loader2, ShieldAlert, AlertTriangle, MinusCircle } from "lucide-react";
-import { getChain } from "@/lib/chains";
+import { treasuryChain as getChain } from "@/lib/treasury/chainInfo";
 import { KNOWN_TOKENS } from "@/lib/treasury/tokens";
 import { shortAddress } from "@/lib/format";
 import { useWallet } from "../wallet/WalletProvider";
@@ -15,7 +15,7 @@ import { api, can, fmtUsd, STATUS_TONE, usePropose, useSigner, type Me } from ".
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface T {
   id: string; chain: string; chainType: string; environment: string; label: string; address: string; kind: string; status: string; integrityOk: boolean;
-  ownership: { method: string; signer: string; verifiedAt: string; detail: string } | null; inspection: any; feeConfig: { provider: string; mode: string; feeBps: number; referralAccount?: string; tokens: { token: string; symbol: string; decimals: number; tokenAccount?: string }[] } | null;
+  ownership: { method: string; signer: string; verifiedAt: string; detail: string } | null; inspection: any; feeConfig: { provider: string; mode: string; feeBps: number; referralAccount?: string; crossChainFeeBps?: number; preferUsdc?: boolean; tokens: { token: string; symbol: string; decimals: number; tokenAccount?: string }[] } | null;
 }
 const PIPE = ["registered", "verified", "validated", "testing", "active"];
 const KIND_LABEL: Record<string, string> = { wallet: "Wallet", safe: "Safe smart account", squads: "Squads multisig vault", jupiter_referral: "Jupiter referral account" };
@@ -103,7 +103,8 @@ export function TreasuryDetail({ id, me, onChange }: { id: string; me: Me; onCha
       <Card className="p-4 space-y-3">
         <div className="text-sm font-semibold">Step 4 · Verify ownership</div>
         <Check ok={!!t.ownership}>{t.ownership ? <>Verified by <span className="num">{shortAddress(t.ownership.signer, 6, 4)}</span> ({t.ownership.method}) — {t.ownership.detail} <span className="text-faint">{new Date(t.ownership.verifiedAt).toLocaleString()}</span></> : <>Sign a message with {signerHint}. In your wallet, switch to that account first. This is a text signature — no transaction, no fees, no key export.</>}</Check>
-        {can(me, "admin") && !t.ownership && (
+        {can(me, "admin") && !t.ownership && t.chainType === "bitcoin" && <BtcOwnership id={id} address={t.address} run={run} busy={busy} />}
+        {can(me, "admin") && !t.ownership && t.chainType !== "bitcoin" && (
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted">Connected: {wallet ? <span className="num">{shortAddress(wallet.address, 6, 4)}</span> : "none"}</span>
             <Button size="sm" disabled={!!busy || !wallet} onClick={() => run("own", async () => {
@@ -181,12 +182,31 @@ export function TreasuryDetail({ id, me, onChange }: { id: string; me: Me; onCha
   );
 }
 
+function BtcOwnership({ id, address, run, busy }: { id: string; address: string; run: (k: string, f: () => Promise<string>) => void; busy: string | null }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [sig, setSig] = useState("");
+  return (
+    <div className="space-y-2 text-xs">
+      {!message ? <Button size="sm" onClick={() => run("msg", async () => { const m = await api<{ message: string }>(`/api/treasury/treasuries/${id}`, { body: { op: "ownership-message" } }); setMessage(m.message); return "Sign this message in your Bitcoin wallet (Sign/Verify Message)."; })}>Get ownership message</Button> : (
+        <>
+          <p className="text-muted">In Sparrow / Electrum / your hardware wallet app, use <b>Sign Message</b> with address <span className="num">{address}</span> and this exact text:</p>
+          <pre className="rounded-lg bg-surface-2 p-2 whitespace-pre-wrap break-all text-[11px]">{message}</pre>
+          <textarea value={sig} onChange={(e) => setSig(e.target.value.trim())} placeholder="Paste the base64 signature (BIP-137)" className="w-full h-16 rounded-lg bg-surface-2 border border-line px-2 py-1 num" />
+          <Button size="sm" disabled={!sig || !!busy} onClick={() => run("own", async () => { await api(`/api/treasury/treasuries/${id}`, { body: { op: "verify-ownership", signer: address, message, signature: sig } }); return "Ownership verified."; })}>Verify signature</Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function FeeConfigCard({ t, me, propose, onDone }: { t: T; me: Me; propose: ReturnType<typeof usePropose>; onDone: (m: string) => void }) {
-  const mode = t.kind === "jupiter_referral" ? "referral" : t.chainType === "solana" ? "platform" : "integrator";
-  const rule = me.config.rules[`${t.chainType === "solana" ? "jupiter" : "0x"}:${mode}`];
-  const [bps, setBps] = useState(String(t.feeConfig?.feeBps ?? (mode === "referral" ? Math.max(50, me.config.defaultFeeBps) : me.config.defaultFeeBps)));
+  const mode = t.chainType === "bitcoin" ? "cross_chain" : t.kind === "jupiter_referral" ? "referral" : t.chainType === "solana" ? "platform" : "integrator";
+  const rule = me.config.rules[t.chainType === "bitcoin" ? "lifi:cross_chain" : `${t.chainType === "solana" ? "jupiter" : "0x"}:${mode}`];
+  const [xbps, setXbps] = useState(String(t.feeConfig?.crossChainFeeBps ?? me.config.crossChainFeeBps ?? 50));
+  const [preferUsdc, setPreferUsdc] = useState(t.feeConfig?.preferUsdc ?? true);
+  const [bps, setBps] = useState(String(t.feeConfig?.feeBps ?? (mode === "referral" ? Math.max(50, me.config.defaultFeeBps) : mode === "cross_chain" ? (me.config.crossChainFeeBps ?? 50) : me.config.defaultFeeBps)));
   const known = KNOWN_TOKENS[t.chain] ?? [];
-  const [picked, setPicked] = useState<string[]>(t.feeConfig?.tokens.map((x) => x.token) ?? known.filter((k) => k.stable || k.symbol === "SOL").map((k) => k.token));
+  const [picked, setPicked] = useState<string[]>(mode === "cross_chain" ? ["bitcoin"] : t.feeConfig?.tokens.map((x) => x.token) ?? known.filter((k) => k.stable || k.symbol === "SOL").map((k) => k.token));
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -202,16 +222,19 @@ function FeeConfigCard({ t, me, propose, onDone }: { t: T; me: Me; propose: Retu
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs text-muted">Fee (bps) <input value={bps} onChange={(e) => setBps(e.target.value.replace(/\D/g, ""))} className="ml-1 w-20 h-8 rounded-lg bg-surface-2 border border-line px-2 text-sm num" /></label>
             <span className="text-xs text-muted">= {(n / 100).toFixed(2)}%</span>
+            {mode !== "cross_chain" && <label className="text-xs text-muted" title="LI.FI cross-chain routes starting on this network. Replaces the standard swap fee for those routes.">Cross-chain fee (bps) <input value={xbps} onChange={(e) => setXbps(e.target.value.replace(/\D/g, ""))} className="ml-1 w-16 h-8 rounded-lg bg-surface-2 border border-line px-2 text-sm num" /></label>}
+            {mode === "integrator" && <label className="text-xs text-muted inline-flex items-center gap-1"><input type="checkbox" checked={preferUsdc} onChange={(e) => setPreferUsdc(e.target.checked)} />Prefer USDC as fee token</label>}
           </div>
+          {mode === "cross_chain" && <p className="text-[11px] text-muted">Native BTC is the only fee asset here. LI.FI pays the integrator fee directly to the Bitcoin fee wallet set in its Partner Portal; it is counted as revenue only when it matches a disclosed cross-chain swap.</p>}
           <div className="flex flex-wrap gap-2">
-            {known.map((k) => <label key={k.token} className={`text-xs rounded-lg border px-2.5 py-1.5 cursor-pointer ${picked.includes(k.token) ? "border-brand/50 bg-brand-soft" : "border-line"}`}><input type="checkbox" className="hidden" checked={picked.includes(k.token)} onChange={() => setPicked((p) => (p.includes(k.token) ? p.filter((x) => x !== k.token) : [...p, k.token]))} />{k.symbol}</label>)}
+            {mode !== "cross_chain" && known.map((k) => <label key={k.token} className={`text-xs rounded-lg border px-2.5 py-1.5 cursor-pointer ${picked.includes(k.token) ? "border-brand/50 bg-brand-soft" : "border-line"}`}><input type="checkbox" className="hidden" checked={picked.includes(k.token)} onChange={() => setPicked((p) => (p.includes(k.token) ? p.filter((x) => x !== k.token) : [...p, k.token]))} />{k.symbol}</label>)}
             {picked.filter((p) => !known.some((k) => k.token === p)).map((p) => <Badge key={p}>{shortAddress(p)}</Badge>)}
           </div>
           <div className="flex gap-2"><input value={custom} onChange={(e) => setCustom(e.target.value.trim())} placeholder="Add token mint / contract address" className="flex-1 h-8 rounded-lg bg-surface-2 border border-line px-2 text-xs num" /><Button size="sm" variant="subtle" disabled={!custom} onClick={() => { setPicked((p) => [...new Set([...p, custom])]); setCustom(""); }}>Add</Button></div>
           {err && <div className="text-xs text-down">{err}</div>}
           <Button size="sm" disabled={busy || invalid || !picked.length} onClick={async () => {
             setBusy(true); setErr(null);
-            try { const r = await propose("update_fees", { treasuryId: t.id, feeConfig: { feeBps: n, tokens: picked } }); onDone(r.change.status === "applied" ? "Fee configuration applied. Re-run validation." : `Fee change requested (${r.change.id}); awaiting a second approval.`); }
+            try { const r = await propose("update_fees", { treasuryId: t.id, feeConfig: { feeBps: n, tokens: picked, ...(mode !== "cross_chain" ? { crossChainFeeBps: Number(xbps) } : {}), ...(mode === "integrator" ? { preferUsdc } : {}) } }); onDone(r.change.status === "applied" ? "Fee configuration applied. Re-run validation." : `Fee change requested (${r.change.id}); awaiting a second approval.`); }
             catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
           }}>Propose fee configuration</Button>
           <p className="text-[11px] text-faint">Changing fees returns the treasury to “verified”; it must be validated and activated again.</p>

@@ -25,6 +25,7 @@ declare global {
 }
 
 export const SOLANA_WALLETS = [
+  { id: "bajar", name: "BAJAR Wallet", installUrl: "/wallet", get: () => window.bajar?.solana as InjectedSolana | undefined },
   { id: "phantom", name: "Phantom", installUrl: "https://phantom.com/download", get: () => window.phantom?.solana ?? (window.solana?.isPhantom ? window.solana : undefined) },
   { id: "solflare", name: "Solflare", installUrl: "https://solflare.com/download", get: () => (window.solflare?.isSolflare ? window.solflare : undefined) },
   { id: "backpack", name: "Backpack", installUrl: "https://backpack.app/download", get: () => window.backpack },

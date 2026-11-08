@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   const claims = readIntent(parsed.data.intentToken);
   if (!claims) return NextResponse.json({ error: "Invalid or expired intent" }, { status: 400 });
   const tx = parsed.data.txHash;
-  const okFormat = claims.chain === "solana" ? /^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(tx) : /^0x[0-9a-fA-F]{64}$/.test(tx);
+  const okFormat = claims.chain === "solana" ? /^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(tx) : claims.chain === "bitcoin" ? /^[0-9a-f]{64}$/.test(tx) : /^0x[0-9a-fA-F]{64}$/.test(tx);
   if (!okFormat) return NextResponse.json({ error: "Invalid transaction hash" }, { status: 400 });
   try {
     const r = await recordIntent(claims, claims.chain === "solana" ? tx : tx.toLowerCase());

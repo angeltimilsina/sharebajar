@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Download, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
-import { getChain } from "@/lib/chains";
+import { treasuryChain as getChain } from "@/lib/treasury/chainInfo";
 import { shortAddress } from "@/lib/format";
 import { useWallet } from "../wallet/WalletProvider";
 import { getSolanaProvider, solanaSignAndSend } from "@/lib/wallet/solana";

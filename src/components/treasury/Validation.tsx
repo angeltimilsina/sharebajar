@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
-import { getChain } from "@/lib/chains";
+import { treasuryChain as getChain } from "@/lib/treasury/chainInfo";
 import { Badge, Card, Notice } from "../ui/primitives";
 import { api, type Me } from "./client";
 import { useTreasuries } from "./Treasuries";

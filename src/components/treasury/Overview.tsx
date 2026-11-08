@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ExternalLink } from "lucide-react";
-import { getChain } from "@/lib/chains";
+import { treasuryChain as getChain } from "@/lib/treasury/chainInfo";
 import { formatTime, shortAddress, timeAgo } from "@/lib/format";
 import { Badge, Button, Card, CardHeader, Notice, Stat } from "../ui/primitives";
 import { DataStatus } from "../ui/DataStatus";

@@ -49,8 +49,8 @@ export function newNonce() {
   return randomBytes(16).toString("hex");
 }
 
-export function signInMessage(chainType: ChainType, address: string, nonce: string, issuedAt: string, domain: string) {
-  return [
+export function signInMessage(chainType: ChainType, address: string, nonce: string, issuedAt: string, domain: string, pqFingerprint?: string) {
+  const lines = [
     `${domain} wants you to sign in with your ${chainType === "solana" ? "Solana" : "Ethereum"} account:`,
     address,
     "",
@@ -58,7 +58,10 @@ export function signInMessage(chainType: ChainType, address: string, nonce: stri
     "",
     `Nonce: ${nonce}`,
     `Issued At: ${issuedAt}`,
-  ].join("\n");
+  ];
+  // Hybrid sign-in (BAJAR Wallet): the same message is also signed with ML-DSA-65.
+  if (pqFingerprint) lines.push(`Post-Quantum Key (ML-DSA-65): ${pqFingerprint}`);
+  return lines.join("\n");
 }
 
 export function verifySolana(message: string, signatureB58: string, address: string): boolean {
@@ -94,4 +97,4 @@ export function verifyEvm(message: string, signatureHex: string, address: string
   return !!rec && rec.toLowerCase() === address.toLowerCase();
 }
 
-export interface Session { address: string; chainType: ChainType; exp: number; /** issued-at (ms) — admin actions require a recent sign-in */ iat?: number }
+export interface Session { address: string; chainType: ChainType; exp: number; /** set when the sign-in was also verified with an ML-DSA-65 signature */ pq?: { alg: "ML-DSA-65"; fingerprint: string }; /** issued-at (ms) — admin actions require a recent sign-in */ iat?: number }

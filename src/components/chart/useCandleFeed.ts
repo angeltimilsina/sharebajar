@@ -72,6 +72,27 @@ export function useCandleFeed(feed: Feed, res: string, opts: { trades?: boolean 
         if (alive()) setState((s) => ({ ...s, candles: series, lastUpdate: Date.now(), error: null }));
       });
       cleanups.push(unsubK);
+      // After a WebSocket reconnect, refetch history so bars missed while offline
+      // come from the exchange (never interpolated) and merge with live bars.
+      let wasDown = false;
+      const unsubStatus = binanceStream().onStatus(() => {
+        const st = binanceStream().status;
+        if (st === "reconnecting") wasDown = true;
+        if (st === "open" && wasDown && ready) {
+          wasDown = false;
+          getJson<Candle[]>(histUrl).then((env) => {
+            if (!alive()) return;
+            const hist = env.data;
+            const lastHist = hist.length ? hist[hist.length - 1].time : 0;
+            if (subSecond) {
+              fine = [...hist, ...fine.filter((c) => c.time > lastHist)].slice(-4000);
+              series = res === "1s" ? fine : aggregateCandles(fine, sec);
+            } else series = [...hist, ...series.filter((c) => c.time > lastHist)];
+            setState((s) => ({ ...s, candles: series, lastUpdate: Date.now(), error: null }));
+          }).catch(() => {});
+        }
+      });
+      cleanups.push(unsubStatus);
       getJson<Candle[]>(histUrl)
         .then((env) => {
           if (!alive()) return;

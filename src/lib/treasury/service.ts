@@ -1,5 +1,6 @@
 import "server-only";
-import { getChain } from "../chains";
+import { treasuryChain } from "./chainInfo";
+import { CROSS_CHAIN_FEE_BPS } from "../trading/lifi";
 import { q } from "./db";
 import { adapterFor } from "./adapters";
 import { audit } from "./audit";
@@ -13,28 +14,32 @@ import { TreasuryError } from "./http";
 /* Fee configuration                                                   */
 /* ------------------------------------------------------------------ */
 
-export interface FeeConfigInput { feeBps?: number; tokens: string[] }
+export interface FeeConfigInput { feeBps?: number; tokens: string[]; crossChainFeeBps?: number; preferUsdc?: boolean }
 
 /** Validate a fee configuration against provider rules and on-chain token data. */
 export async function buildFeeConfig(t: Treasury, input: FeeConfigInput): Promise<FeeConfig> {
   const adapter = adapterFor(t.chain);
-  const provider = t.chainType === "solana" ? "jupiter" : "0x";
-  const mode = t.kind === "jupiter_referral" ? "referral" : t.chainType === "solana" ? "platform" : "integrator";
+  const provider = t.chainType === "bitcoin" ? "lifi" : t.chainType === "solana" ? "jupiter" : "0x";
+  const mode = t.chainType === "bitcoin" ? "cross_chain" : t.kind === "jupiter_referral" ? "referral" : t.chainType === "solana" ? "platform" : "integrator";
   const key = `${provider}:${mode}` as RuleKey;
-  const feeBps = input.feeBps ?? (mode === "referral" ? Math.max(50, DEFAULT_FEE_BPS) : DEFAULT_FEE_BPS);
+  const feeBps = input.feeBps ?? (mode === "referral" ? Math.max(50, DEFAULT_FEE_BPS) : mode === "cross_chain" ? CROSS_CHAIN_FEE_BPS : DEFAULT_FEE_BPS);
   const err = checkFeeBps(key, feeBps);
   if (err) throw new TreasuryError(400, err);
+  const crossChainFeeBps = mode === "cross_chain" ? feeBps : (input.crossChainFeeBps ?? CROSS_CHAIN_FEE_BPS);
+  const xerr = checkFeeBps("lifi:cross_chain", crossChainFeeBps);
+  if (xerr) throw new TreasuryError(400, xerr);
+  if (mode === "cross_chain") input = { ...input, tokens: ["bitcoin"] };
   const unique = [...new Set(input.tokens.map((s) => s.trim()).filter(Boolean))];
   if (!unique.length) throw new TreasuryError(400, "Select at least one fee token.");
   if (unique.length > 12) throw new TreasuryError(400, "At most 12 fee tokens.");
   const tokens: FeeToken[] = [];
   for (const token of unique) {
-    if (!adapter.validAddress(token)) throw new TreasuryError(400, `Invalid token address ${token}`);
+    if (!adapter.validAddress(token) && !(t.chainType === "bitcoin" && token === "bitcoin")) throw new TreasuryError(400, `Invalid token address ${token}`);
     const info = await adapter.tokenInfo(t.chain, token, t.environment);
-    if (!info) throw new TreasuryError(400, `${token} is not a valid ${t.chainType === "evm" ? "ERC-20 contract (native coins can't be used as fee tokens)" : "SPL token mint"} on ${getChain(t.chain)?.name}.`);
+    if (!info) throw new TreasuryError(400, `${token} is not a valid ${t.chainType === "evm" ? "ERC-20 contract (native coins can't be used as fee tokens)" : "SPL token mint"} on ${treasuryChain(t.chain)?.name}.`);
     tokens.push({ token, symbol: info.symbol, decimals: info.decimals, tokenProgram: info.tokenProgram });
   }
-  const cfg: FeeConfig = { provider, mode, feeBps, tokens, referralAccount: mode === "referral" ? t.address : undefined };
+  const cfg: FeeConfig = { provider, mode, feeBps, tokens, referralAccount: mode === "referral" ? t.address : undefined, crossChainFeeBps, preferUsdc: input.preferUsdc ?? true };
   cfg.tokens = cfg.tokens.map((tok) => ({ ...tok, tokenAccount: adapter.feeAccount(t, tok, mode) }));
   return cfg;
 }
@@ -48,7 +53,7 @@ export async function applyChange(c: ChangeRequest, actor: Actor) {
   switch (c.action) {
     case "register_treasury": {
       const chain = String(p.chain);
-      const c0 = getChain(chain);
+      const c0 = treasuryChain(chain);
       if (!c0) throw new TreasuryError(400, "Unsupported network");
       const adapter = adapterFor(chain);
       const kind = String(p.kind) as TreasuryKind;
@@ -109,9 +114,11 @@ export async function feeCandidates(chain: string): Promise<FeeCandidate[]> {
     const byChain = new Map<string, FeeCandidate[]>();
     for (const t of await listTreasuries()) {
       if (!t.integrityOk || !t.feeConfig || t.environment !== "mainnet" || !["active", "testing"].includes(t.status)) continue;
+      if (t.feeConfig.mode === "cross_chain") continue; // LI.FI fees are selected in the cross-chain route
+
       const accounts = (t.inspection?.feeAccounts as { token: string; initialized: boolean }[] | undefined) ?? [];
       const cand: FeeCandidate = {
-        treasuryId: t.id, status: t.status, mode: t.feeConfig.mode, bps: t.feeConfig.feeBps, referralAccount: t.feeConfig.referralAccount,
+        treasuryId: t.id, status: t.status, mode: t.feeConfig.mode, preferUsdc: t.feeConfig.preferUsdc, bps: t.feeConfig.feeBps, referralAccount: t.feeConfig.referralAccount,
         tokens: t.feeConfig.tokens.map((x) => ({ token: x.token, symbol: x.symbol, decimals: x.decimals, account: x.tokenAccount ?? t.address, initialized: accounts.find((a) => a.token === x.token)?.initialized ?? false })),
       };
       byChain.set(t.chain, [...(byChain.get(t.chain) ?? []), cand]);
@@ -177,7 +184,12 @@ export async function runValidation(t: Treasury, actor: Actor, liveQuoteCheck: (
       add("live_quote", "Live quote includes the platform fee", "fail", String(e));
     }
   } else add("live_quote", "Live quote includes the platform fee", "skip", "Runs once fee accounts are ready.");
-  const keyOk = t.chainType === "solana" ? !!process.env.JUPITER_API_KEY : !!process.env.ZEROX_API_KEY;
+  if (t.chainType === "bitcoin") {
+    const ok = !!process.env.LIFI_INTEGRATOR;
+    add("api_key", "LI.FI integrator", ok ? "pass" : "fail", ok ? `Integrator "${process.env.LIFI_INTEGRATOR}" configured. Its fee wallet for Bitcoin in the LI.FI Partner Portal must be exactly ${t.address}.` : "LIFI_INTEGRATOR is required: cross-chain fees are only paid to integrators registered at portal.li.fi.");
+  }
+  const keyOk = t.chainType === "bitcoin" ? true : t.chainType === "solana" ? !!process.env.JUPITER_API_KEY : !!process.env.ZEROX_API_KEY;
+  if (t.chainType !== "bitcoin")
   add("api_key", t.chainType === "solana" ? "Jupiter API key" : "0x API key", keyOk ? "pass" : t.chainType === "solana" ? "warn" : "fail", keyOk ? "Configured (server-side environment variable)." : t.chainType === "solana" ? "JUPITER_API_KEY not set — keyless access is limited to 0.5 req/s." : "ZEROX_API_KEY is required for EVM swaps.", t.chainType !== "solana");
   if (t.environment !== "mainnet") add("environment", "Network environment", "warn", "Testnet treasury: fee collection only runs on mainnet; this record is for indexer testing.", false);
 

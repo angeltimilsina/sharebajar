@@ -15,7 +15,7 @@ export interface Balance { token: string; symbol: string; decimals: number; amou
 
 /** Extensible treasury adapter — add a network by implementing this. */
 export interface TreasuryAdapter {
-  chainType: "solana" | "evm";
+  chainType: "solana" | "evm" | "bitcoin";
   kinds: TreasuryKind[];
   validAddress(address: string): boolean;
   inspect(input: { chain: string; environment: string; kind: TreasuryKind; address: string; vaultIndex?: number }): Promise<Inspection>;

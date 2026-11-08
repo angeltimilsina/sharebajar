@@ -13,7 +13,7 @@ export async function api<T = unknown>(path: string, init?: { method?: string; b
 
 export interface Me {
   actor: { address: string; role: "viewer" | "operator" | "admin" | "owner"; chainType: string; fresh: boolean; source: string } | null;
-  config: { requiredApprovals: number; ownersConfigured: number; database: string; devEncryptionKey: boolean; defaultFeeBps: number; maxFeeBps: number; rules: Record<string, { min: number; max: number; providerShareBps: number; label: string }>; jupiterApiKey: boolean; zeroXApiKey: boolean; alertWebhook: boolean; cron: boolean; freshMinutes: number };
+  config: { requiredApprovals: number; ownersConfigured: number; database: string; devEncryptionKey: boolean; defaultFeeBps: number; maxFeeBps: number; crossChainFeeBps?: number; launchFee?: { enabled: boolean; amountUsdc: number; note: string }; rules: Record<string, { min: number; max: number; providerShareBps: number; label: string }>; jupiterApiKey: boolean; zeroXApiKey: boolean; alertWebhook: boolean; cron: boolean; freshMinutes: number };
 }
 
 export function useMe() {

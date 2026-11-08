@@ -12,10 +12,25 @@ import { sameToken } from "./tokens";
 export const DEFAULT_FEE_BPS = Number(process.env.PLATFORM_FEE_BPS ?? 30);
 export const MAX_FEE_BPS = Number(process.env.TREASURY_MAX_FEE_BPS ?? 100);
 
+/**
+ * Token launch fee (USDC). Configurable via TOKEN_LAUNCH_FEE_USDC; it is only
+ * disclosed and charged by a launch flow that actually creates tokens on
+ * ShareBajar. The current Launchpad lists external launches only, so nothing
+ * is collected today.
+ */
+const launchAmount = Number(process.env.TOKEN_LAUNCH_FEE_USDC ?? 0);
+export const LAUNCH_FEE = {
+  enabled: launchAmount > 0,
+  amountUsdc: launchAmount,
+  note: launchAmount > 0 ? `A ${launchAmount} USDC launch fee will be disclosed and charged when on-platform token creation ships. Not collected today.` : "No token launch fee configured.",
+};
+
 export const PROVIDER_RULES = {
   "jupiter:platform": { min: 1, max: 1000, providerShareBps: 0, label: "Jupiter Swap V2 /build platform fee" },
   "jupiter:referral": { min: 50, max: 255, providerShareBps: 2000, label: "Jupiter Swap V2 /order referral fee" },
   "0x:integrator": { min: 1, max: 1000, providerShareBps: 0, label: "0x Swap API integrator fee" },
+  // LI.FI may keep a share depending on volume/plan; the quote's feeSplit is authoritative.
+  "lifi:cross_chain": { min: 1, max: 300, providerShareBps: 0, label: "LI.FI cross-chain integrator fee" },
 } as const;
 export type RuleKey = keyof typeof PROVIDER_RULES;
 
@@ -32,6 +47,7 @@ export interface FeeCandidate {
   status: string;
   mode: "platform" | "referral" | "integrator";
   bps: number;
+  preferUsdc?: boolean;
   tokens: { token: string; symbol: string; decimals: number; account: string; initialized?: boolean }[];
   referralAccount?: string;
 }
@@ -65,7 +81,10 @@ export function selectEvmFee(cands: FeeCandidate[], sellToken: string, buyToken:
   for (const c of live) {
     // Prefer the buy token, then the sell token. Native ETH is never used: fees
     // must arrive as ERC-20 Transfer events so they can be verified on-chain.
-    const tok = c.tokens.find((t) => sameToken(t.token, buyToken)) ?? c.tokens.find((t) => sameToken(t.token, sellToken));
+    const pair = c.tokens.filter((t) => sameToken(t.token, buyToken) || sameToken(t.token, sellToken));
+    // USDC preferred (stable accounting) when enabled and one side is USDC; then buy token, then sell token.
+    const tok = (c.preferUsdc !== false ? pair.find((t) => t.symbol.toUpperCase() === "USDC") : undefined)
+      ?? c.tokens.find((t) => sameToken(t.token, buyToken)) ?? c.tokens.find((t) => sameToken(t.token, sellToken));
     if (tok) return { applied: true, treasuryId: c.treasuryId, mode: "integrator", bps: c.bps, providerShareBps: 0, token: tok.token, symbol: tok.symbol, decimals: tok.decimals, recipient: tok.account, isTest: c.status === "testing" };
   }
   return { applied: false, reason: "No platform fee: neither token is an enabled fee token on this network." };

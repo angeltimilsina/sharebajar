@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AreaSeries, CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LineSeries, LineStyle, createChart, createSeriesMarkers,
+  AreaSeries, CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LastPriceAnimationMode, LineSeries, LineStyle, createChart, createSeriesMarkers,
   type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type SeriesType, type Time, type UTCTimestamp, type SeriesMarker,
 } from "lightweight-charts";
 import clsx from "clsx";
@@ -83,6 +83,9 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
   toolRef.current = tool;
   const candlesRef = useRef(candles);
   candlesRef.current = candles;
+  /** Display-only tween of the live bar (see push-data effect). */
+  const tweenRef = useRef<{ raf: number | null; time: number; shown: number } | null>(null);
+  const [following, setFollowing] = useState(true);
 
   useEffect(() => {
     const on = () => setTheme((t) => t + 1);
@@ -125,7 +128,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
 
     let main: ISeriesApi<SeriesType>;
     if (type === "candles") main = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false, priceFormat });
-    else if (type === "line") main = chart.addSeries(LineSeries, { color: brand, lineWidth: 2, priceFormat });
+    else if (type === "line") main = chart.addSeries(LineSeries, { color: brand, lineWidth: 2, priceFormat, lastPriceAnimation: LastPriceAnimationMode.Continuous });
     else main = chart.addSeries(AreaSeries, { lineColor: brand, topColor: `${brand}55`, bottomColor: `${brand}00`, lineWidth: 2, priceFormat });
     mainRef.current = main;
     const s: Record<string, ISeriesApi<SeriesType>> = {};
@@ -212,6 +215,9 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
       }));
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleVp);
+    // Auto-scroll: lightweight-charts keeps the latest bar in view while the user is
+    // at the right edge; show a "Live" button when they scroll back in time.
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => setFollowing(chart.timeScale().scrollPosition() > -2));
     (chart as unknown as { __vp: () => void }).__vp = scheduleVp;
 
     return () => {
@@ -223,6 +229,38 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, indKey, theme, subSecond, feed.kind, compact]);
+
+  /**
+   * Smooth the live bar between two REAL updates (~220ms, rAF). Display-only:
+   * the tween only moves the drawn close between the previous and the new real
+   * value of the SAME bar, clamped to that bar's real high/low; it never creates
+   * bars, never alters history, and always lands exactly on the real value.
+   * Legends, indicators and trade markers use the real data.
+   */
+  const animateLast = (main: ISeriesApi<SeriesType>, c: Candle, kind: ChartType) => {
+    const point = (close: number) => (kind === "candles" ? { time: ts(c.time), open: c.open, high: c.high, low: c.low, close } : { time: ts(c.time), value: close });
+    const prev = tweenRef.current;
+    if (prev?.raf) cancelAnimationFrame(prev.raf);
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!prev || prev.time !== c.time || reduce || prev.shown === c.close) {
+      main.update(point(c.close) as never);
+      tweenRef.current = { raf: null, time: c.time, shown: c.close };
+      return;
+    }
+    const start = prev.shown, end = c.close, t0 = performance.now(), D = 220;
+    const st = { raf: null as number | null, time: c.time, shown: start };
+    tweenRef.current = st;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / D);
+      const e = 1 - (1 - k) ** 3;
+      const v = k >= 1 ? end : Math.min(c.high, Math.max(c.low, start + (end - start) * e));
+      st.shown = v;
+      try { main.update(point(v) as never); } catch { return; }
+      st.raf = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    st.raf = requestAnimationFrame(step);
+  };
+  useEffect(() => () => { if (tweenRef.current?.raf) cancelAnimationFrame(tweenRef.current.raf); }, []);
 
   /* ---------- push data ---------- */
   useEffect(() => {
@@ -253,8 +291,10 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     try {
       if (incremental) {
         const from = Math.max(0, cs.length - 2);
+        const lastI = cs.length - 1;
         for (let i = from; i < cs.length; i++) {
-          main.update(mainPoint(cs[i]) as never);
+          if (i === lastI) animateLast(main, cs[i], type);
+          else main.update(mainPoint(cs[i]) as never);
           s.vol?.update(volPoint(cs[i]) as never);
           for (const [k, arr] of Object.entries(computed)) {
             const v = arr[i];
@@ -264,6 +304,8 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
           }
         }
       } else {
+        if (tweenRef.current?.raf) cancelAnimationFrame(tweenRef.current.raf);
+        tweenRef.current = cs.length ? { raf: null, time: cs[cs.length - 1].time, shown: cs[cs.length - 1].close } : null;
         main.setData(cs.map(mainPoint) as never);
         s.vol?.setData(cs.map(volPoint) as never);
         for (const [k, arr] of Object.entries(computed)) {
@@ -384,6 +426,9 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
       {/* chart */}
       <div className={clsx("relative", full ? "flex-1 min-h-0" : "shrink-0")} style={full ? undefined : { height }}>
         <div ref={elRef} className={clsx("absolute inset-0", tool !== "none" && "cursor-crosshair")} />
+        {!following && (
+          <button onClick={() => chartRef.current?.timeScale().scrollToRealTime()} className="absolute bottom-8 right-20 z-10 rounded-full bg-surface-3/90 border border-line px-2.5 py-1 text-[11px] font-semibold text-brand shadow" aria-label="Jump to live">Live ›</button>
+        )}
         <div className="pointer-events-none absolute left-3 top-2 z-10 text-[11px] num flex flex-wrap gap-x-3 gap-y-0.5 max-w-[calc(100%-80px)]">
           {label && <span className="font-semibold text-fg text-xs">{label} · {res}</span>}
           {shown && (type === "candles" ? (

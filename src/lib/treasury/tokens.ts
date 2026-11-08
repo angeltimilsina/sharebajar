@@ -69,4 +69,4 @@ export function priceSymbol(symbol: string): string | null {
 export const ZEROX_CHAINS: Record<string, number> = { ethereum: 1, base: 8453, arbitrum: 42161, optimism: 10, polygon: 137, bsc: 56, avalanche: 43114 };
 
 /** Confirmations required before revenue counts as settled. */
-export const CONFIRMATIONS: Record<string, number> = { ethereum: 12, base: 30, arbitrum: 30, optimism: 30, polygon: 64, bsc: 15, avalanche: 12 };
+export const CONFIRMATIONS: Record<string, number> = { bitcoin: 3, ethereum: 12, base: 30, arbitrum: 30, optimism: 30, polygon: 64, bsc: 15, avalanche: 12 };

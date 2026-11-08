@@ -5,6 +5,7 @@ import { TickerBar } from "@/components/layout/TickerBar";
 import { Footer } from "@/components/layout/Footer";
 import { THEME_SCRIPT } from "@/components/layout/ThemeToggle";
 import { WalletProvider } from "@/components/wallet/WalletProvider";
+import { ApprovalHost } from "@/components/bajar/ApprovalHost";
 import { WalletModal } from "@/components/wallet/WalletModal";
 import { AlertWatcher } from "@/components/layout/AlertWatcher";
 import { Toaster } from "@/components/layout/Toaster";
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <WalletModal />
           <AlertWatcher />
           <Toaster />
+          <ApprovalHost />
         </WalletProvider>
       </body>
     </html>

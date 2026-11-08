@@ -17,6 +17,7 @@ export const NAV = [
   { href: "/launchpad", label: "Launchpad" },
   { href: "/intelligence", label: "Intelligence", ai: true },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/wallet", label: "Wallet" },
 ];
 
 export function Header() {

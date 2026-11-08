@@ -41,6 +41,7 @@ export const evmDiscovery = {
 
 /** Find a provider by EIP-6963 rdns, falling back to legacy window.ethereum. */
 export function getEvmProvider(id: string): Eip1193 | undefined {
+  if (id === "bajar.evm") return typeof window !== "undefined" ? (window.bajar?.evm as Eip1193 | undefined) : undefined;
   const d = found.get(id);
   if (d) return d.provider;
   if (id === "io.metamask" && typeof window !== "undefined" && window.ethereum?.isMetaMask) return window.ethereum;

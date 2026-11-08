@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { CHAINS } from "@/lib/chains";
+import { BITCOIN_TREASURY_CHAIN, treasuryChain } from "@/lib/treasury/chainInfo";
 import { fmtUsd, SERIES } from "./client";
 
 /**
@@ -16,8 +17,8 @@ export function RevenueChart({ daily }: { daily: { day: string; chain: string; u
     for (let i = 29; i >= 0; i--) out.push(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i)).toISOString().slice(0, 10));
     return out;
   }, []);
-  const chains = CHAINS.filter((c) => daily.some((d) => d.chain === c.id));
-  const color = (id: string) => SERIES[CHAINS.findIndex((c) => c.id === id) % SERIES.length];
+  const chains = [BITCOIN_TREASURY_CHAIN, ...CHAINS].filter((c) => daily.some((d) => d.chain === c.id));
+  const color = (id: string) => SERIES[(id === "bitcoin" ? CHAINS.length : CHAINS.findIndex((c) => c.id === id)) % SERIES.length];
   const byDay = days.map((day) => ({ day, parts: chains.map((c) => ({ chain: c.id, usd: daily.filter((d) => d.day === day && d.chain === c.id).reduce((s, d) => s + d.usd, 0) })) }));
   const max = Math.max(1e-9, ...byDay.map((d) => d.parts.reduce((s, p) => s + p.usd, 0)));
   const W = 720, H = 200, pad = { l: 44, b: 22, t: 8 }, bw = (W - pad.l) / days.length;
@@ -61,7 +62,7 @@ export function RevenueChart({ daily }: { daily: { day: string; chain: string; u
           {hover !== null && (
             <div className="absolute top-0 pointer-events-none panel glass px-3 py-2 text-xs num" style={{ left: `min(calc(${((pad.l + hover * bw) / W) * 100}% + 8px), calc(100% - 180px))` }}>
               <div className="font-semibold mb-1">{byDay[hover].day}</div>
-              {byDay[hover].parts.filter((p) => p.usd > 0).map((p) => <div key={p.chain} className="flex justify-between gap-4"><span className="inline-flex items-center gap-1.5 text-muted"><span className="h-2 w-2 rounded-sm" style={{ background: color(p.chain) }} />{CHAINS.find((c) => c.id === p.chain)?.name}</span><span>{fmtUsd(p.usd)}</span></div>)}
+              {byDay[hover].parts.filter((p) => p.usd > 0).map((p) => <div key={p.chain} className="flex justify-between gap-4"><span className="inline-flex items-center gap-1.5 text-muted"><span className="h-2 w-2 rounded-sm" style={{ background: color(p.chain) }} />{treasuryChain(p.chain)?.name}</span><span>{fmtUsd(p.usd)}</span></div>)}
               <div className="flex justify-between gap-4 border-t border-line mt-1 pt-1"><span className="text-muted">Total</span><span>{fmtUsd(byDay[hover].parts.reduce((s, p) => s + p.usd, 0))}</span></div>
             </div>
           )}

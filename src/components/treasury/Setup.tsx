@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { ExternalLink, ShieldCheck, Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
-import { CHAINS, getChain } from "@/lib/chains";
+import { CHAINS } from "@/lib/chains";
+import { BITCOIN_TREASURY_CHAIN, treasuryChain as getChain } from "@/lib/treasury/chainInfo";
 import { Badge, Button, Card, Notice } from "../ui/primitives";
 import { ChainIcon } from "../ui/ChainIcon";
 import { api, can, usePropose, type Me } from "./client";
@@ -17,6 +18,9 @@ const KINDS: Record<string, { id: string; label: string; desc: string; how: Reac
   evm: [
     { id: "safe", label: "Safe smart account (recommended)", desc: "0x fees arrive at the Safe; transfers require owner signatures.", how: <>Deploy a Safe at <a className="text-brand" href="https://app.safe.global" target="_blank" rel="noopener noreferrer">app.safe.global</a> on this network (threshold ≥ 2). Paste the Safe address.</> },
     { id: "wallet", label: "Wallet (MetaMask-compatible)", desc: "An externally owned account receives 0x integrator fees.", how: <>Create a <b>new, dedicated</b> account in MetaMask or a hardware wallet. Copy its public address only.</> },
+  ],
+  bitcoin: [
+    { id: "wallet", label: "Bitcoin address (multisig recommended)", desc: "Receives LI.FI cross-chain fees (0.50%) on native-BTC routes.", how: <>Create a <b>multisig</b> wallet (2-of-3) in <a className="text-brand" href="https://sparrowwallet.com" target="_blank" rel="noopener noreferrer">Sparrow</a>, Nunchuk or Casa with hardware signers. Paste one receiving address. Set the same address as the Bitcoin fee wallet in the <a className="text-brand" href="https://portal.li.fi" target="_blank" rel="noopener noreferrer">LI.FI Partner Portal</a>. Ownership is proven with a BIP-137 message signature (single-key or a signer key of the wallet).</> },
   ],
 };
 
@@ -53,7 +57,7 @@ export function Setup({ me, onDone }: { me: Me; onDone: () => void }) {
         <>
           <Card className="p-4 space-y-3">
             <div className="text-sm font-semibold">Step 1 · Select a network</div>
-            <div className="flex flex-wrap gap-2">{CHAINS.map((x) => <button key={x.id} onClick={() => { setChain(x.id); setKind(null); setInsp(null); }} className={`h-9 inline-flex items-center gap-2 rounded-full border px-3.5 text-sm ${chain === x.id ? "border-brand/50 bg-brand-soft" : "border-line hover:bg-surface-2"}`}><ChainIcon chain={x.id} size={16} />{x.name}</button>)}</div>
+            <div className="flex flex-wrap gap-2">{[...CHAINS, BITCOIN_TREASURY_CHAIN].map((x) => <button key={x.id} onClick={() => { setChain(x.id); setKind(null); setInsp(null); }} className={`h-9 inline-flex items-center gap-2 rounded-full border px-3.5 text-sm ${chain === x.id ? "border-brand/50 bg-brand-soft" : "border-line hover:bg-surface-2"}`}><ChainIcon chain={x.id} size={16} />{x.name}</button>)}</div>
             <div className="flex gap-2 text-xs">{(["mainnet", "testnet"] as const).map((e) => <button key={e} onClick={() => setEnv(e)} className={`px-2.5 py-1 rounded-md ${environment === e ? "bg-surface-3" : "text-muted"}`}>{e}</button>)}</div>
             {environment === "testnet" && <p className="text-[11px] text-warn">Testnet treasuries are for indexer testing only (Jupiter and 0x swap fees run on mainnet). EVM testnets need <code>RPC_URL_&lt;CHAIN&gt;_TESTNET</code>; Solana uses devnet.</p>}
           </Card>

@@ -139,6 +139,15 @@ export async function evmQuote(p: { chain: string; sellToken: string; buyToken: 
 export async function liveQuoteCheck(t: Treasury): Promise<{ ok: boolean; detail: string }> {
   const cfg = t.feeConfig!;
   const tok = cfg.tokens[0];
+  if (t.chainType === "bitcoin") {
+    if (!process.env.LIFI_INTEGRATOR) return { ok: false, detail: "LIFI_INTEGRATOR not configured." };
+    const { lifiQuote, integratorFeeOf } = await import("../trading/lifi");
+    // Reference funded address for quoting only (LI.FI needs spendable UTXOs to build a PSBT); nothing is signed.
+    const REF_BTC = "bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97";
+    const { quote } = await lifiQuote({ fromNetwork: "bitcoin", toNetwork: "solana", fromToken: "bitcoin", toToken: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", fromAmount: "1000000", fromAddress: REF_BTC, toAddress: "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk", slippage: 0.01 });
+    const fee = integratorFeeOf(quote);
+    return fee ? { ok: true, detail: `LI.FI ${quote.tool} quote includes an integrator fee of ${fee.amount} sats. Confirm the Partner Portal BTC fee wallet is ${t.address}.` } : { ok: false, detail: `LI.FI ${quote.tool} route did not include the integrator fee.` };
+  }
   if (t.chainType === "solana") {
     const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
     const SOL = "So11111111111111111111111111111111111111112";

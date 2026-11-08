@@ -47,6 +47,8 @@ export interface FetchOptions {
   body?: unknown;
   /** Return raw text instead of JSON. */
   text?: boolean;
+  /** Send this string as the request body verbatim (e.g. a raw transaction). */
+  rawBody?: string;
 }
 
 /**
@@ -54,7 +56,7 @@ export interface FetchOptions {
  * Never caches by itself — use `cached()` on top.
  */
 export async function fetchUpstream<T = unknown>(url: string, opts: FetchOptions = {}): Promise<T> {
-  const { timeoutMs = 8000, retries = 1, headers = {}, method = "GET", body, text } = opts;
+  const { timeoutMs = 8000, retries = 1, headers = {}, method = "GET", body, text, rawBody } = opts;
   const host = new URL(url).host;
   const until = cooldown.get(host);
   if (until && until > Date.now()) {
@@ -73,7 +75,7 @@ export async function fetchUpstream<T = unknown>(url: string, opts: FetchOptions
           ...(body ? { "content-type": "application/json" } : {}),
           ...headers,
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: rawBody ?? (body ? JSON.stringify(body) : undefined),
         signal: AbortSignal.timeout(timeoutMs),
         cache: "no-store",
         redirect: "follow",

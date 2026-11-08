@@ -5,7 +5,7 @@ import { alert } from "./audit";
 
 export type TreasuryKind = "wallet" | "safe" | "squads" | "jupiter_referral";
 export type TreasuryStatus = "registered" | "verified" | "validated" | "testing" | "active" | "disabled";
-export type FeeMode = "platform" | "referral" | "integrator";
+export type FeeMode = "platform" | "referral" | "integrator" | "cross_chain";
 
 export interface FeeToken {
   token: string;          // mint / contract
@@ -17,13 +17,17 @@ export interface FeeToken {
 }
 
 export interface FeeConfig {
-  provider: "jupiter" | "0x";
+  provider: "jupiter" | "0x" | "lifi";
   /** jupiter: "platform" (/build platformFeeBps) or "referral" (/order referralFee). 0x: "integrator". */
   mode: FeeMode;
   feeBps: number;
   /** Jupiter referral account (mode = referral). */
   referralAccount?: string;
   tokens: FeeToken[];
+  /** LI.FI cross-chain fee for routes whose SOURCE chain is this treasury's chain. Replaces the standard swap fee. */
+  crossChainFeeBps?: number;
+  /** Prefer USDC as the fee token where the provider lets us choose (0x). */
+  preferUsdc?: boolean;
 }
 
 export interface Ownership { method: string; signer: string; message: string; signature: string; verifiedAt: string; detail: string }
@@ -31,7 +35,7 @@ export interface Ownership { method: string; signer: string; message: string; si
 export interface Treasury {
   id: string;
   chain: string;
-  chainType: "solana" | "evm";
+  chainType: "solana" | "evm" | "bitcoin";
   environment: "mainnet" | "testnet";
   label: string;
   address: string;

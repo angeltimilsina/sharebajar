@@ -15,7 +15,22 @@ Noncustodial revenue collection, monitoring and accounting at `/admin/treasury`.
 | --- | --- | --- | --- | --- | --- |
 | Solana | Jupiter Swap V2 `/build` | `platformFeeBps` + `feeAccount` | any (default **30 bps**) | output token (live check: exactly 0.30% of output) | none |
 | Solana | Jupiter Swap V2 `/order` | `referralAccount` + `referralFee` | **50–255 bps** | Jupiter picks (SOL > stables > …) | Jupiter keeps **20%** |
-| EVM | 0x Swap API (AllowanceHolder) | `swapFeeRecipient`, `swapFeeBps`, `swapFeeToken` | up to 1000 bps (default **30**) | buy or sell token (ERC-20 only) | none; 0x charges its own fee, shown separately |
+| EVM | 0x Swap API (AllowanceHolder) | `swapFeeRecipient`, `swapFeeBps`, `swapFeeToken` | up to 1000 bps (default **30**) | **USDC preferred** when either side is USDC (toggle), else buy then sell token (ERC-20 only) | none; 0x charges its own fee, shown separately |
+| Cross-chain (any source chain incl. **Bitcoin**) | LI.FI `integrator` + `fee` | Paid by LI.FI directly to the Partner Portal fee wallet (FeeForwarder on EVM) | **50 bps** default (`CROSS_CHAIN_FEE_BPS`, per-treasury override), **replaces** the swap fee | source token | LI.FI may keep a share depending on plan (`feeSplit` in the quote) |
+
+Cross-chain fees are only requested when `LIFI_INTEGRATOR` is set **and** an active treasury exists on the source chain. The LI.FI Partner Portal fee wallet for that chain must be the registered treasury address, which validation reminds you of.
+
+### Bitcoin treasuries
+
+Bitcoin (native BTC) treasuries receive LI.FI cross-chain fees on BTC-source routes.
+- Register any mainnet address. Multisig (P2WSH/P2SH descriptor wallets, e.g. Sparrow, Nunchuk or Casa) is strongly recommended.
+- Ownership is proven with a **BIP-137** message signature (P2WPKH/P2PKH). BIP-322 (script/multisig addresses) is not verified yet.
+- The indexer reads the address via mempool.space and tracks confirmations (3 required) and reorgs (orphaned if dropped). An inflow counts as **revenue only when it matches a disclosed cross-chain swap intent** for that exact transaction. Every other inflow is recorded as a transfer.
+- Fee ledger entries link each fee to its originating swap through the intent (`intent_id`, `tx_hash`), with provider attribution taken from the intent (`jupiter` / `0x` / `lifi`).
+
+### Token launch fee
+
+`TOKEN_LAUNCH_FEE_USDC` configures a USDC launch fee, shown in the admin config. It is disclosed but **not collected**: ShareBajar's Launchpad lists external launches and has no on-platform token creation yet.
 
 The 30 bps default is below Jupiter's referral minimum. Solana wallet/Squads treasuries therefore use `/build`. Jupiter referral treasuries start at 50 bps.
 

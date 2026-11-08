@@ -15,17 +15,20 @@ export function WalletModal() {
   const evm = useEvmWallets();
   const [solInstalled, setSolInstalled] = useState<Record<string, boolean>>({});
   const [legacyEth, setLegacyEth] = useState(false);
+  const [bajarReady, setBajarReady] = useState(false);
 
   useEffect(() => {
     if (!modalOpen) return;
     setSolInstalled(Object.fromEntries(SOLANA_WALLETS.map((w) => [w.id, Boolean(w.get())])));
     setLegacyEth(Boolean(window.ethereum));
+    import("@/lib/bajar/session").then((m) => setBajarReady(m.bajar.isUnlocked())).catch(() => {});
   }, [modalOpen]);
 
   const hasMetaMask = evm.some((w) => w.info.rdns === "io.metamask") || (legacyEth && Boolean(window.ethereum?.isMetaMask));
   const rows: Row[] = [
-    { id: "bajar", name: "BAJAR Wallet", icon: ICONS.bajar, chainType: "native", installed: false, soon: true, note: "ShareBajar's native multi-chain wallet" },
-    ...SOLANA_WALLETS.map((w) => ({ id: w.id, name: w.name, icon: ICONS[w.id as keyof typeof ICONS], chainType: "solana" as const, installed: !!solInstalled[w.id], installUrl: w.installUrl })),
+    { id: "bajar", name: "BAJAR Wallet · Solana", icon: ICONS.bajar, chainType: "solana", installed: bajarReady, installUrl: "/wallet", note: bajarReady ? "Noncustodial · keys stay in this browser" : "Create or unlock at /wallet" },
+    { id: "bajar.evm", name: "BAJAR Wallet · EVM", icon: ICONS.bajar, chainType: "evm", installed: bajarReady, installUrl: "/wallet", note: bajarReady ? "Ethereum, Base, Arbitrum and more" : "Create or unlock at /wallet" },
+    ...SOLANA_WALLETS.filter((w) => w.id !== "bajar").map((w) => ({ id: w.id, name: w.name, icon: ICONS[w.id as keyof typeof ICONS], chainType: "solana" as const, installed: !!solInstalled[w.id], installUrl: w.installUrl })),
     { id: "io.metamask", name: "MetaMask", icon: evm.find((w) => w.info.rdns === "io.metamask")?.info.icon ?? ICONS.metamask, chainType: "evm", installed: hasMetaMask, installUrl: "https://metamask.io/download/" },
     ...evm.filter((w) => w.info.rdns !== "io.metamask").map((w) => ({ id: w.info.rdns, name: w.info.name, icon: w.info.icon, chainType: "evm" as const, installed: true })),
   ];
@@ -42,7 +45,7 @@ export function WalletModal() {
                 disabled={r.soon || (!r.installed && !r.installUrl) || !!connecting}
                 onClick={() => {
                   if (r.soon) return;
-                  if (!r.installed && r.installUrl) { window.open(r.installUrl, "_blank", "noopener,noreferrer"); return; }
+                  if (!r.installed && r.installUrl) { if (r.installUrl.startsWith("/")) { closeModal(); window.location.href = r.installUrl; } else window.open(r.installUrl, "_blank", "noopener,noreferrer"); return; }
                   connect(r.id, r.chainType as ChainType, r.name);
                 }}
                 className="w-full flex items-center gap-3 rounded-xl border border-line bg-surface-2/70 hover:bg-surface-3 px-3 py-2.5 text-left transition-colors disabled:opacity-60 disabled:hover:bg-surface-2/70"
