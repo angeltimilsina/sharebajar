@@ -6,9 +6,14 @@ import { chainFromGecko } from "../chains";
 import type { Candle, Pool, Trade } from "../types";
 
 const SOURCE = "GeckoTerminal";
-const BASE = "https://api.geckoterminal.com/api/v2";
-// Free tier ≈30 calls/min — all calls go through generous caches.
-const gt = <T>(path: string) => fetchUpstream<T>(`${BASE}${path}`, { headers: { accept: "application/json;version=20230302" }, timeoutMs: 10_000 });
+// Free tier ≈30 calls/min (paced + cached). With COINGECKO_API_KEY the same
+// on-chain data comes from CoinGecko's paid API (≈500 calls/min).
+const PRO_KEY = process.env.COINGECKO_API_KEY;
+const BASE = PRO_KEY ? "https://pro-api.coingecko.com/api/v3/onchain" : "https://api.geckoterminal.com/api/v2";
+const gt = <T>(path: string) => fetchUpstream<T>(`${BASE}${path}`, {
+  headers: { accept: "application/json;version=20230302", ...(PRO_KEY ? { "x-cg-pro-api-key": PRO_KEY } : {}) },
+  timeoutMs: 12_000,
+});
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function normalizePools(raw: { data: any[]; included?: any[] }): Pool[] {
@@ -89,7 +94,7 @@ export function getPoolOhlcv(network: string, pool: string, timeframe: GtTimefra
 /** Last ~300 trades in the pool (past 24h), newest first. */
 export function getPoolTrades(network: string, pool: string, baseAddress?: string) {
   const path = `/networks/${network}/pools/${pool}/trades`;
-  return cached(`gt:${path}`, SOURCE, { ttlMs: 4000, staleMs: 5 * 60_000 }, async (): Promise<Trade[]> => {
+  return cached(`gt:${path}`, SOURCE, { ttlMs: PRO_KEY ? 4000 : 8000, staleMs: 5 * 60_000 }, async (): Promise<Trade[]> => {
     const raw = await gt<{ data: any[] }>(path);
     return (raw.data ?? []).map((t) => {
       const a = t.attributes;

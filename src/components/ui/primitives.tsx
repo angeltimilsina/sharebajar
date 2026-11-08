@@ -8,9 +8,9 @@ export function Card({ className, children, ...rest }: { className?: string; chi
 
 export function CardHeader({ title, icon, action, sub }: { title: ReactNode; icon?: ReactNode; action?: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 pt-3.5 pb-2.5">
+    <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-3">
       <div className="min-w-0">
-        <h2 className="flex items-center gap-1.5 text-[15px] font-semibold tracking-tight">{title}{icon}</h2>
+        <h2 className="flex items-center gap-1.5 text-[17px] leading-tight">{title}{icon}</h2>
         {sub && <div className="text-xs text-muted mt-0.5">{sub}</div>}
       </div>
       {action}
@@ -27,15 +27,15 @@ export function Button({ variant = "primary", size = "md", className, ...rest }:
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors disabled:opacity-45 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2",
-        size === "sm" && "h-8 px-3 text-xs",
+        "inline-flex items-center justify-center gap-1.5 rounded-xl font-medium transition-colors select-none disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
+        size === "sm" && "h-8 px-3.5 text-[13px]",
         size === "md" && "h-10 px-4 text-sm",
-        size === "lg" && "h-12 px-5 text-[15px]",
-        variant === "primary" && "btn-silver",
-        variant === "outline" && "border border-line-strong text-fg hover:bg-surface-2",
+        size === "lg" && "h-12 px-6 text-[15px] rounded-2xl",
+        variant === "primary" && "btn-ink",
+        variant === "outline" && "border border-line-strong bg-surface text-fg hover:bg-surface-2",
         variant === "ghost" && "text-muted hover:text-fg hover:bg-surface-2",
-        variant === "subtle" && "bg-surface-2 border border-line text-fg hover:bg-surface-3",
-        variant === "danger" && "bg-down/90 text-white hover:bg-down",
+        variant === "subtle" && "bg-surface-2 text-fg hover:bg-surface-3",
+        variant === "danger" && "bg-down text-white hover:opacity-90",
         className,
       )}
       {...rest}
@@ -48,14 +48,14 @@ export function Badge({ tone = "neutral", children, className, title }: { tone?:
     <span
       title={title}
       className={clsx(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold leading-none whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-full px-2 py-[3px] font-sans text-[11px] font-medium leading-none whitespace-nowrap tracking-normal",
         tone === "neutral" && "bg-surface-3 text-muted",
         tone === "up" && "bg-up/12 text-up",
         tone === "down" && "bg-down/12 text-down",
         tone === "warn" && "bg-warn/14 text-warn",
-        tone === "brand" && "bg-brand-soft text-brand",
-        tone === "ai" && "bg-ai/15 text-ai",
-        tone === "info" && "bg-sky-500/12 text-sky-400",
+        tone === "brand" && "bg-brand-soft text-fg",
+        tone === "ai" && "bg-ai/14 text-ai",
+        tone === "info" && "bg-sky-500/12 text-sky-500",
         className,
       )}
     >
@@ -72,7 +72,7 @@ export function EmptyState({ title, children, icon }: { title: string; children?
   return (
     <div className="flex flex-col items-center justify-center text-center gap-1.5 py-10 px-6 text-muted">
       {icon}
-      <div className="text-sm font-medium text-fg">{title}</div>
+      <div className="font-display text-base text-fg">{title}</div>
       {children && <div className="text-xs max-w-sm">{children}</div>}
     </div>
   );
@@ -83,11 +83,11 @@ export function Notice({ tone = "info", title, children, className }: { tone?: "
     <div
       role="note"
       className={clsx(
-        "rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed",
+        "rounded-2xl border px-4 py-3 text-[13px] leading-relaxed",
         tone === "info" && "border-line bg-surface-2 text-muted",
-        tone === "warn" && "border-warn/30 bg-warn/8 text-warn",
-        tone === "down" && "border-down/30 bg-down/8 text-down",
-        tone === "ai" && "border-ai/30 bg-ai/8 text-fg",
+        tone === "warn" && "border-warn/25 bg-warn/[0.07] text-warn",
+        tone === "down" && "border-down/25 bg-down/[0.07] text-down",
+        tone === "ai" && "border-ai/25 bg-ai/[0.07] text-fg",
         className,
       )}
     >
@@ -99,7 +99,7 @@ export function Notice({ tone = "info", title, children, className }: { tone?: "
 
 export function Tabs<T extends string>({ tabs, value, onChange, className, size = "md" }: { tabs: { id: T; label: ReactNode }[]; value: T; onChange: (v: T) => void; className?: string; size?: "sm" | "md" }) {
   return (
-    <div role="tablist" className={clsx("flex items-center gap-1 overflow-x-auto no-scrollbar", className)}>
+    <div role="tablist" className={clsx("flex items-center gap-1 overflow-x-auto no-scrollbar", size === "md" && "rounded-full bg-surface-2 p-1 w-fit max-w-full", className)}>
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -107,14 +107,13 @@ export function Tabs<T extends string>({ tabs, value, onChange, className, size 
           aria-selected={value === t.id}
           onClick={() => onChange(t.id)}
           className={clsx(
-            "relative whitespace-nowrap font-medium transition-colors",
-            size === "md" ? "px-3 py-2.5 text-sm" : "px-2.5 py-1.5 text-xs rounded-md",
-            size === "md" && (value === t.id ? "text-fg" : "text-muted hover:text-fg"),
+            "relative whitespace-nowrap font-medium transition-all",
+            size === "md" ? "px-3.5 py-1.5 text-sm rounded-full" : "px-2.5 py-1.5 text-xs rounded-lg",
+            size === "md" && (value === t.id ? "bg-surface text-fg shadow-[var(--shadow)]" : "text-muted hover:text-fg"),
             size === "sm" && (value === t.id ? "bg-surface-3 text-fg" : "text-muted hover:text-fg"),
           )}
         >
           {t.label}
-          {size === "md" && value === t.id && <span className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-brand" />}
         </button>
       ))}
     </div>

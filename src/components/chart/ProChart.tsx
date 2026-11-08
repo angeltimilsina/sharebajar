@@ -114,9 +114,9 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
 
     const chart = createChart(el, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: text, fontFamily: "Inter, ui-sans-serif, system-ui", fontSize: 11, panes: { separatorColor: border, separatorHoverColor: border }, attributionLogo: false },
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: text, fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui", fontSize: 11, panes: { separatorColor: border, separatorHoverColor: border }, attributionLogo: false },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
-      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelBackgroundColor: "#1d2622" }, horzLine: { labelBackgroundColor: "#1d2622" } },
+      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelBackgroundColor: cssVar("--text", "#1f1e1d") }, horzLine: { labelBackgroundColor: cssVar("--text", "#1f1e1d") } },
       rightPriceScale: { borderColor: border, scaleMargins: { top: 0.08, bottom: ind.has("vol") ? 0.22 : 0.08 } },
       timeScale: { borderColor: border, timeVisible: true, secondsVisible: subSecond, rightOffset: 6, barSpacing: subSecond ? 7 : 8 },
       localization: { priceFormatter: (p: number) => formatPrice(p, { currency: false }) },

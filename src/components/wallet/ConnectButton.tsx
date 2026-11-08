@@ -20,8 +20,8 @@ export function ConnectButton({ compact }: { compact?: boolean }) {
 
   if (!wallet) {
     return (
-      <Button onClick={openModal} className="h-10" aria-label="Connect wallet">
-        <Wallet size={16} />{!compact && <span className="whitespace-nowrap">Connect Wallet</span>}
+      <Button onClick={openModal} className={compact ? "h-9 rounded-full px-3.5 text-[13px]" : "h-10 rounded-full px-4"} aria-label="Connect wallet">
+        <Wallet size={15} /><span className="whitespace-nowrap">{compact ? "Connect" : "Connect wallet"}</span>
       </Button>
     );
   }
@@ -29,8 +29,8 @@ export function ConnectButton({ compact }: { compact?: boolean }) {
   const chainName = wallet.chainType === "solana" ? "Solana" : chainFromEvmId(wallet.chainId ?? 0)?.name ?? `Chain ${wallet.chainId}`;
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setMenu((m) => !m)} className="h-10 flex items-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-3 text-sm font-semibold">
-        <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
+      <button onClick={() => setMenu((m) => !m)} className="h-10 flex items-center gap-2 rounded-full bg-surface-2 hover:bg-surface-3 px-3.5 text-sm font-medium">
+        <span className="h-2 w-2 rounded-full bg-accent" />
         <span className="num">{shortAddress(wallet.address)}</span>
       </button>
       {menu && (

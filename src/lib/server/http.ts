@@ -52,16 +52,38 @@ export interface FetchOptions {
 }
 
 /**
- * fetch with timeout, retries on network errors / 5xx, and 429 cool-down.
- * Never caches by itself — use `cached()` on top.
+ * Minimum spacing between requests per host (free-tier rate limits). Requests
+ * queue for their slot instead of failing; only a queue longer than
+ * MAX_QUEUE_WAIT_MS gives up (the cache then serves the last good copy).
+ */
+const HOST_SPACING_MS: Record<string, number> = {
+  "api.geckoterminal.com": 2_100,           // ~30 req/min free tier
+  "api.gopluslabs.io": 400,
+  "api.coinlore.net": 300,
+};
+const MAX_QUEUE_WAIT_MS = 9_000;
+const nextSlot = ((globalThis as unknown as { __sbNextSlot?: Map<string, number> }).__sbNextSlot ??= new Map<string, number>());
+
+async function waitForSlot(host: string) {
+  const now = Date.now();
+  // A short cool-down after a 429 is waited out rather than failed.
+  const until = cooldown.get(host) ?? 0;
+  if (until > now + MAX_QUEUE_WAIT_MS) throw new UpstreamError(`${host} rate-limited, cooling down`, 429, host, until - now);
+  const spacing = HOST_SPACING_MS[host] ?? 0;
+  const slot = Math.max(now, until, nextSlot.get(host) ?? 0);
+  if (slot - now > MAX_QUEUE_WAIT_MS) throw new UpstreamError(`${host} request queue full`, 429, host, slot - now);
+  nextSlot.set(host, slot + spacing);
+  if (slot > now) await sleep(slot - now);
+}
+
+/**
+ * fetch with timeout, retries on network errors / 5xx, per-host pacing and
+ * 429 cool-down. Never caches by itself — use `cached()` on top.
  */
 export async function fetchUpstream<T = unknown>(url: string, opts: FetchOptions = {}): Promise<T> {
   const { timeoutMs = 8000, retries = 1, headers = {}, method = "GET", body, text, rawBody } = opts;
   const host = new URL(url).host;
-  const until = cooldown.get(host);
-  if (until && until > Date.now()) {
-    throw new UpstreamError(`${host} rate-limited, cooling down`, 429, host, until - Date.now());
-  }
+  await waitForSlot(host);
 
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -83,7 +105,7 @@ export async function fetchUpstream<T = unknown>(url: string, opts: FetchOptions
       const latency = Date.now() - started;
       if (res.status === 429) {
         const ra = Number(res.headers.get("retry-after"));
-        const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : 30_000;
+        const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : 20_000;
         cooldown.set(host, Date.now() + wait);
         record(host, false, 429, latency, "rate limited");
         log("warn", "upstream rate limited", { host, waitMs: wait });

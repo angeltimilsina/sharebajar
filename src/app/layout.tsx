@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#050607" }, { media: "(prefers-color-scheme: light)", color: "#f3f4f6" }],
+  themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#1f1e1d" }, { media: "(prefers-color-scheme: light)", color: "#faf9f5" }],
   viewportFit: "cover",
   width: "device-width",
   initialScale: 1,
@@ -34,7 +34,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Applies the saved theme before first paint (no flash). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />

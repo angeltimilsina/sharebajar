@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test.describe("public marketplace", () => {
   test("homepage renders market overview without an account", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Open Crypto Marketplace/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
     await expect(page.getByText("Total Market Cap")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Market Overview" })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByText("Trending Tokens")).toBeVisible();
@@ -44,6 +44,8 @@ test.describe("public marketplace", () => {
   });
 
   test("theme toggle switches and persists light mode", async ({ page }) => {
+    // Default follows the device; start from a dark device and switch to light.
+    await page.emulateMedia({ colorScheme: "dark" });
     await page.goto("/");
     await page.getByRole("button", { name: /Switch to light mode/ }).first().click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -81,12 +83,12 @@ test.describe("charts", () => {
 });
 
 test.describe("wallet", () => {
-  test("wallet picker never asks for a seed phrase and lists upcoming Bajar Wallet", async ({ page }) => {
+  test("wallet picker never asks for a seed phrase and offers Bajar Wallet", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Connect wallet" }).first().click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("Bajar Wallet")).toBeVisible();
-    await expect(dialog.getByText("Coming soon")).toBeVisible();
+    await expect(dialog.getByText("Bajar Wallet · Solana")).toBeVisible();
+    await expect(dialog.getByText("Bajar Wallet · EVM")).toBeVisible();
     await expect(dialog.getByText("Phantom")).toBeVisible();
     await expect(dialog.getByText("MetaMask")).toBeVisible();
     await expect(dialog.getByText(/seed phrase or private key/)).toBeVisible();
@@ -126,14 +128,14 @@ test.describe("trading", () => {
 
 test("homepage has no horizontal overflow on desktop", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Open Crypto Marketplace/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 test.describe("mobile @mobile", () => {
   test("homepage has no horizontal overflow on phones @mobile", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Open Crypto Marketplace/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Every market, one calm place/ })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });

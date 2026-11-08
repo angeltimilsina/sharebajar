@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, Sparkles, Square, Check, ListPlus, BellPlus } from "lucide-react";
+import { Send, Loader2, Sparkles, Square, Check, ListPlus, BellPlus, ArrowUp } from "lucide-react";
 import { aiStatus, streamChat, type ChatMessage } from "@/lib/ai/client";
 import type { AiAction } from "@/lib/ai/config";
 import { useAlerts, useWatchlist } from "@/hooks/useWatchlist";
@@ -23,11 +23,17 @@ export function Chat() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
+  // Prefill from ?q= (suggested prompts on the home page). Never auto-sends.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setInput(q.slice(0, 500));
+  }, []);
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { aiStatus().then((s) => setConfigured(s.configured)); }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [turns]);
+  // Follow the conversation only once it has started (don't jump the page on first load).
+  useEffect(() => { if (turns.length) endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [turns]);
 
   const send = async (text: string) => {
     const content = text.trim();
@@ -100,20 +106,23 @@ export function Chat() {
         ))}
         <div ref={endRef} />
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="border-t border-line p-3 flex items-end gap-2">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-          rows={1}
-          maxLength={4000}
-          disabled={!configured}
-          placeholder={configured ? "Ask about any token, indicator, chain or market move…" : "AI assistant unavailable on this deployment"}
-          className="flex-1 resize-none bg-surface-2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand/50 max-h-40"
-          aria-label="Message"
-        />
-        {busy ? <Button type="button" variant="subtle" onClick={() => abort.current?.abort()} aria-label="Stop"><Square size={14} /></Button>
-          : <Button type="submit" disabled={!configured || !input.trim()} aria-label="Send"><Send size={15} /></Button>}
+      <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="p-3 sm:p-4">
+        <div className="flex items-end gap-2 rounded-2xl border border-line-strong bg-bg px-3.5 py-2.5 focus-within:border-[color-mix(in_srgb,var(--text)_35%,transparent)] transition-colors">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+            rows={1}
+            maxLength={4000}
+            disabled={!configured}
+            placeholder={configured ? "Ask about any token, chain or market move…" : "AI assistant unavailable on this deployment"}
+            className="flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none max-h-40 placeholder:text-faint"
+            aria-label="Message"
+          />
+          {busy ? <button type="button" onClick={() => abort.current?.abort()} aria-label="Stop" className="h-9 w-9 shrink-0 rounded-full bg-surface-3 grid place-items-center"><Square size={13} /></button>
+            : <button type="submit" disabled={!configured || !input.trim()} aria-label="Send" className="h-9 w-9 shrink-0 rounded-full btn-ink grid place-items-center disabled:opacity-30"><ArrowUp size={17} /></button>}
+        </div>
+        <p className="mt-2 text-center text-[11px] text-faint">Not financial advice. Verify important information.</p>
       </form>
     </Card>
   );
