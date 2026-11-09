@@ -1,9 +1,16 @@
 import { getHostStats } from "@/lib/server/http";
 import { aiConfigured } from "@/lib/ai/config";
 import { NextResponse } from "next/server";
+import { feeCandidates, treasuryStatus } from "@/lib/treasury/service";
 
 /** Integration status for monitoring dashboards and the /status page. */
 export async function GET() {
+  // Which networks currently charge a platform fee (no addresses exposed).
+  const feeNetworks: string[] = [];
+  for (const chain of ["solana", "ethereum", "base", "arbitrum", "optimism", "polygon", "bsc", "avalanche"]) {
+    if ((await feeCandidates(chain).catch(() => [])).some((c) => c.status === "active")) feeNetworks.push(chain);
+  }
+  const store = treasuryStatus();
   return NextResponse.json(
     {
       status: "ok",
@@ -13,7 +20,10 @@ export async function GET() {
         ai: { configured: aiConfigured(), provider: "Anthropic" },
         marketData: "CoinLore + Binance (keyless)",
         networks: "mempool.space + public JSON-RPC",
-        solanaRpc: process.env.NEXT_PUBLIC_SOLANA_RPC_URL ? "custom" : "public (rate-limited)",
+        solanaRpc: process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL ? "custom" : "public (rate-limited)",
+        treasury: store
+          ? { configured: false, note: `Platform fees off: ${store}. Set DATABASE_URL to enable the treasury.` }
+          : { configured: true, feeNetworks, note: feeNetworks.length ? `Platform fees active on ${feeNetworks.join(", ")}` : "No active treasury: swaps run with no platform fee" },
         evmSwaps: { configured: !!process.env.ZEROX_API_KEY, note: process.env.ZEROX_API_KEY ? "0x Swap API" : "ZEROX_API_KEY not set" },
         limitOrders: { configured: false, note: "Limit orders not yet integrated" },
       },

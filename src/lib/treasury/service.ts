@@ -2,6 +2,7 @@ import "server-only";
 import { treasuryChain } from "./chainInfo";
 import { CROSS_CHAIN_FEE_BPS } from "../trading/lifi";
 import { q } from "./db";
+import { log } from "../server/log";
 import { adapterFor } from "./adapters";
 import { audit } from "./audit";
 import { envOwners, type Actor, type Role } from "./access";
@@ -109,10 +110,23 @@ export async function applyChange(c: ChangeRequest, actor: Actor) {
 
 let candCache: { at: number; byChain: Map<string, FeeCandidate[]> } | null = null;
 
+/** Why fee collection is off when the treasury store can't be read (null when it can). */
+let treasuryUnavailable: string | null = null;
+export const treasuryStatus = () => treasuryUnavailable;
+
 export async function feeCandidates(chain: string): Promise<FeeCandidate[]> {
   if (!candCache || Date.now() - candCache.at > 15_000) {
     const byChain = new Map<string, FeeCandidate[]>();
-    for (const t of await listTreasuries()) {
+    // Fail closed on FEES, never on trading: if the treasury store is unreachable
+    // (e.g. DATABASE_URL missing), swaps proceed with no platform fee and say so.
+    let treasuries: Awaited<ReturnType<typeof listTreasuries>>;
+    try { treasuries = await listTreasuries(); treasuryUnavailable = null; }
+    catch (e) {
+      if (!treasuryUnavailable) log("error", "treasury store unavailable — platform fees disabled", { error: String(e) });
+      treasuryUnavailable = "the treasury store is unavailable";
+      treasuries = [];
+    }
+    for (const t of treasuries) {
       if (!t.integrityOk || !t.feeConfig || t.environment !== "mainnet" || !["active", "testing"].includes(t.status)) continue;
       if (t.feeConfig.mode === "cross_chain") continue; // LI.FI fees are selected in the cross-chain route
 
@@ -133,8 +147,10 @@ export function invalidateCandidates() { candCache = null; }
 export async function isAdminAddress(address: string): Promise<boolean> {
   const a = address.startsWith("0x") ? address.toLowerCase() : address;
   if (envOwners().includes(a)) return true;
-  const rows = await q("select 1 from admins where address=$1 and role in ('operator','admin','owner')", [a]);
-  return rows.length > 0;
+  try {
+    const rows = await q("select 1 from admins where address=$1 and role in ('operator','admin','owner')", [a]);
+    return rows.length > 0;
+  } catch { return false; } // store unavailable: nobody gets test-fee privileges
 }
 
 /* ------------------------------------------------------------------ */

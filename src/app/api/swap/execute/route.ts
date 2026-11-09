@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { v2Execute } from "@/lib/trading/jupiterV2";
 import { readIntent, recordIntent } from "@/lib/treasury/intents";
+import { log } from "@/lib/server/log";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 import { crossSiteRejection } from "@/lib/server/guard";
 
@@ -19,7 +20,9 @@ export async function POST(req: Request) {
   if (!claims || claims.requestId !== parsed.data.requestId) return NextResponse.json({ error: "Intent does not match this order" }, { status: 400 });
   try {
     const r = await v2Execute(parsed.data.signedTransaction, parsed.data.requestId);
-    if (r.signature) await recordIntent(claims, r.signature);
+    // The swap has landed (or failed) on-chain at this point: recording the fee intent is
+    // bookkeeping and must never turn a submitted swap into an error for the user.
+    if (r.signature) await recordIntent(claims, r.signature).catch((e) => log("warn", "intent not recorded", { error: String(e) }));
     return NextResponse.json(r, { status: r.status === "Success" ? 200 : 422 });
   } catch (e) {
     return NextResponse.json({ error: String(e instanceof Error ? e.message : e) }, { status: 502 });
