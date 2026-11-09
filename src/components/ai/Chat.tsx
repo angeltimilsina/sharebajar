@@ -6,7 +6,15 @@ import type { AiAction } from "@/lib/ai/config";
 import { useAlerts, useWatchlist } from "@/hooks/useWatchlist";
 import { Badge, Button, Card, Notice } from "../ui/primitives";
 import { Markdown } from "./Markdown";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatUsd } from "@/lib/format";
+import { readAgentPortfolio, type AgentPortfolio } from "@/lib/wallets/agent";
+
+const AGENT_SUGGESTIONS = [
+  "How diversified is my portfolio, and what's my biggest risk?",
+  "Propose a rebalance plan toward 60% majors, 25% stablecoins, 15% higher-risk.",
+  "Which of my holdings moved most today, and why?",
+  "Should I consolidate across my wallets? Suggest which transfers to make.",
+];
 
 interface Turn extends ChatMessage { steps?: string[]; actions?: AiAction[]; error?: string }
 
@@ -23,10 +31,14 @@ export function Chat() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
+  const [portfolio, setPortfolio] = useState<AgentPortfolio | null>(null);
   // Prefill from ?q= (suggested prompts on the home page). Never auto-sends.
+  // ?agent=portfolio: investment agent mode with the portfolio summary from the Market dashboard.
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("q");
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("q");
     if (q) setInput(q.slice(0, 500));
+    if (sp.get("agent") === "portfolio") setPortfolio(readAgentPortfolio());
   }, []);
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -47,7 +59,7 @@ export function Chat() {
     try {
       await streamChat(
         history.filter((t) => t.content).map(({ role, content }) => ({ role, content })),
-        null,
+        portfolio ? { kind: "portfolio", portfolio } : null,
         (e) => {
           if (e.type === "text") update((t) => ({ ...t, content: t.content + e.text }));
           else if (e.type === "tool") update((t) => ({ ...t, steps: [...(t.steps ?? []), e.label] }));
@@ -78,13 +90,32 @@ export function Chat() {
         )}
         {!turns.length && (
           <div className="py-6">
-            <div className="text-center mb-5">
-              <Sparkles className="mx-auto text-ai" size={28} />
-              <h2 className="mt-2 font-semibold text-lg">What do you want to know about the market?</h2>
-              <p className="text-xs text-muted mt-1">The assistant pulls live prices, indicators, on-chain activity, security checks and news before answering.</p>
-            </div>
+            {portfolio ? (
+              <div className="mb-5" data-testid="agent-portfolio">
+                <div className="text-center">
+                  <span className="mx-auto h-11 w-11 rounded-full grid place-items-center text-white" style={{ background: "linear-gradient(135deg,#bf5af2,#0a84ff)" }}><Sparkles size={20} /></span>
+                  <h2 className="mt-2 font-semibold text-lg">Investment agent</h2>
+                  <p className="text-xs text-muted mt-1 max-w-md mx-auto">Analyses your portfolio with live market data and proposes steps. It never executes anything — you approve every trade or transfer in your own wallet.</p>
+                </div>
+                <div className="mt-4 rounded-2xl bg-surface-2 p-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[13px] text-muted">{portfolio.walletCount} wallet{portfolio.walletCount === 1 ? "" : "s"} · shared without addresses</span>
+                    <span className="text-[20px] font-semibold num">{formatUsd(portfolio.totalUsd)}</span>
+                  </div>
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {portfolio.holdings.slice(0, 8).map((h) => <li key={h.symbol + h.network} className="text-[12px] rounded-full bg-surface px-2.5 py-1 num">{h.symbol} <span className="text-muted">{h.pct}%</span></li>)}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center mb-5">
+                <Sparkles className="mx-auto text-ai" size={28} />
+                <h2 className="mt-2 font-semibold text-lg">What do you want to know about the market?</h2>
+                <p className="text-xs text-muted mt-1">The assistant pulls live prices, indicators, on-chain activity, security checks and news before answering.</p>
+              </div>
+            )}
             <div className="grid sm:grid-cols-2 gap-2">
-              {SUGGESTIONS.map((s) => <button key={s} disabled={!configured} onClick={() => send(s)} className="text-left text-[13px] rounded-xl border border-line bg-surface-2 hover:bg-surface-3 px-3 py-2.5 disabled:opacity-50">{s}</button>)}
+              {(portfolio ? AGENT_SUGGESTIONS : SUGGESTIONS).map((s) => <button key={s} disabled={!configured} onClick={() => send(s)} className="text-left text-[13px] rounded-xl border border-line bg-surface-2 hover:bg-surface-3 px-3 py-2.5 disabled:opacity-50">{s}</button>)}
             </div>
           </div>
         )}

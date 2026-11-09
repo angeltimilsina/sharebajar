@@ -1,6 +1,7 @@
 "use client";
 
 /** EIP-1193 provider + EIP-6963 multi-wallet discovery. */
+import { wcProvider } from "./walletconnect";
 export interface Eip1193 {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
   on?(event: string, cb: (...a: unknown[]) => void): void;
@@ -41,6 +42,7 @@ export const evmDiscovery = {
 
 /** Find a provider by EIP-6963 rdns, falling back to legacy window.ethereum. */
 export function getEvmProvider(id: string): Eip1193 | undefined {
+  if (id.startsWith("wc:")) return wcProvider();
   if (id === "bajar.evm") return typeof window !== "undefined" ? (window.bajar?.evm as Eip1193 | undefined) : undefined;
   const d = found.get(id);
   if (d) return d.provider;

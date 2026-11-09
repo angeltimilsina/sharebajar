@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useConnected } from "@/hooks/useConnected";
 
 /** App pages: each has its own experience, so no marketing footer. */
-const APP_PAGES = /^\/(discover|trade|portfolio|wallet)(\/|$)/;
+const APP_PAGES = /^\/(discover|trade|portfolio|wallet|wallets)(\/|$)/;
 
 /** Marks the page as an app view (hides the footer): on app pages, and site-wide once a wallet is connected. */
 export function AppViewSync() {

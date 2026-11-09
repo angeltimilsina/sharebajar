@@ -43,7 +43,7 @@ async function connectPhantom(page: Page, start = "/portfolio") {
   const dappPub = u.searchParams.get("dapp_encryption_public_key")!;
   const redirect = u.searchParams.get("redirect_link")!;
   expect(u.searchParams.get("app_url")).toMatch(/^http/);
-  expect(new URL(redirect).searchParams.get("phantom_req")).toBeTruthy();
+  expect(new URL(redirect).searchParams.get("link_req")).toBeTruthy();
   await page.goto(reply(redirect, dappPub, { public_key: SOL_ADDR, session: "test-session" }, { includeKey: true }));
   return dappPub;
 }
@@ -54,13 +54,13 @@ test.describe("Phantom deep links @mobile", () => {
   test("connects from the phone browser and returns here @mobile", async ({ page }) => {
     await connectPhantom(page);
     await expect(page.getByText(/Phantom · Solana/)).toBeVisible({ timeout: 15_000 });
-    await expect(page).not.toHaveURL(/phantom_req|nonce|data=/); // reply stripped from the address bar
+    await expect(page).not.toHaveURL(/link_req|nonce|data=/); // reply stripped from the address bar
   });
 
   test("rejects a forged reply that doesn't match a request @mobile", async ({ page }) => {
     await page.goto("/portfolio");
     const fake = new URL(page.url());
-    fake.searchParams.set("phantom_req", "forged");
+    fake.searchParams.set("link_req", "forged");
     fake.searchParams.set("phantom_encryption_public_key", bs58.encode(phantom.publicKey));
     fake.searchParams.set("nonce", bs58.encode(nacl.randomBytes(24)));
     fake.searchParams.set("data", bs58.encode(nacl.randomBytes(64)));

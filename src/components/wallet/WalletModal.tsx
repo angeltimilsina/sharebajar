@@ -8,7 +8,8 @@ import { SOLANA_WALLETS } from "@/lib/wallet/solana";
 import { ICONS } from "@/lib/wallet/icons";
 import type { ChainType } from "@/lib/types";
 import { hasDeepLink, isMobileBrowser, MOBILE_ONLY_EVM, walletDeepLink } from "@/lib/wallet/mobile";
-import { phantomConnect } from "@/lib/wallet/phantomLink";
+import { linkConnect, LINK_WALLETS, type LinkWallet } from "@/lib/wallet/solanaLink";
+import { wcAvailable, wcId, WC_WALLETS } from "@/lib/wallet/walletconnect";
 import { walletLogo } from "@/lib/logos";
 
 interface Row { id: string; name: string; icon: string; chainType: ChainType | "native"; installed: boolean; installUrl?: string; soon?: boolean; note?: string }
@@ -43,13 +44,15 @@ export function WalletModal() {
   if (!evm.length && legacyEth && !hasMetaMask) rows.push({ id: "injected", name: "Browser wallet", icon: ICONS.evm, chainType: "evm", installed: true });
   // Phones: wallets without an extension are reached through their app's browser.
   if (mobile) for (const w of MOBILE_ONLY_EVM) if (!rows.some((r) => r.id === w.id)) rows.push({ id: w.id, name: w.name, icon: walletLogo(w.id) ?? ICONS.evm, chainType: "evm", installed: false });
-  const viaApp = (r: Row) => mobile && !r.installed && hasDeepLink(r.id);
+  const viaApp = (r: Row) => mobile && !r.installed && (hasDeepLink(r.id) || r.id in LINK_WALLETS);
+  // EVM wallet apps on phones: WalletConnect when configured (stay in this browser), else open the app's browser.
+  const viaWc = (r: Row) => viaApp(r) && wcAvailable() && WC_WALLETS.includes(r.id);
 
   return (
     <Modal open={modalOpen} onClose={closeModal} title="Connect a wallet">
       <div className="px-5 pb-5">
         <p className="text-xs text-muted mb-3">Connect to view balances, sign in and trade. Bajar never takes custody of your funds.</p>
-        {mobile && <p className="text-xs text-muted mb-3 -mt-1">On your phone, Phantom approves in its app and returns you here. Other wallets open Bajar inside their app.</p>}
+        {mobile && <p className="text-xs text-muted mb-3 -mt-1">On your phone, the wallet app opens to approve and then returns you here.</p>}
         <ul className="space-y-1.5">
           {rows.map((r) => (
             <li key={r.id}>
@@ -60,7 +63,8 @@ export function WalletModal() {
                   if (r.soon) return;
                   // Phone without the extension: open this page inside the wallet app (same tab = universal link).
                   // Phantom: connect from this browser (Phantom approves and sends you back here).
-                  if (viaApp(r) && r.id === "phantom") { phantomConnect(); return; }
+                  if (viaApp(r) && r.id in LINK_WALLETS) { linkConnect(r.id as LinkWallet); return; }
+                  if (viaWc(r)) { connect(wcId(r.id), "evm", r.name); return; }
                   if (viaApp(r)) { const link = walletDeepLink(r.id); if (link) { window.location.href = link; return; } }
                   if (!r.installed && r.installUrl) { if (r.installUrl.startsWith("/")) { closeModal(); window.location.href = r.installUrl; } else window.open(r.installUrl, "_blank", "noopener,noreferrer"); return; }
                   connect(r.id, r.chainType as ChainType, r.name);
@@ -71,7 +75,7 @@ export function WalletModal() {
                 <img src={r.icon} alt="" width={32} height={32} className="rounded-lg" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold">{r.name}</span>
-                  <span className="block text-[11px] text-muted">{viaApp(r) ? (r.id === "phantom" ? "Approve in the Phantom app, then come right back" : `Opens Bajar in the ${r.name} app`) : r.note ?? (r.chainType === "solana" ? "Solana" : "Ethereum & EVM chains")}</span>
+                  <span className="block text-[11px] text-muted">{viaApp(r) ? (r.id in LINK_WALLETS || viaWc(r) ? `Approve in the ${r.name} app, then come right back` : `Opens Bajar in the ${r.name} app`) : r.note ?? (r.chainType === "solana" ? "Solana" : "Ethereum & EVM chains")}</span>
                 </span>
                 {connecting === r.id ? <Loader2 size={16} className="animate-spin text-muted" />
                   : r.soon ? <Badge tone="brand">Coming soon</Badge>

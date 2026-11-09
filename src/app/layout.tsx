@@ -12,6 +12,7 @@ import { AlertWatcher } from "@/components/layout/AlertWatcher";
 import { Toaster } from "@/components/layout/Toaster";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { AppViewSync } from "@/components/layout/AppViewSync";
+import { WalletSync } from "@/components/wallets/WalletSync";
 
 const SITE = siteUrl();
 
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main id="main" className="flex-1 w-full mx-auto max-w-[1680px] px-3 sm:px-4 lg:px-6 py-4 lg:py-5">{children}</main>
           <Footer />
           <AppViewSync />
+          <WalletSync />
           <MobileNav />
           <WalletModal />
           <AlertWatcher />

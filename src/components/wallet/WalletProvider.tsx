@@ -4,8 +4,9 @@ import { getSolanaProvider, solanaSignMessage, SOLANA_WALLETS, type InjectedSola
 import { evmDiscovery, evmSignMessage, getEvmProvider, startEvmDiscovery, type Eip1193 } from "@/lib/wallet/evm";
 import type { ConnectedWallet } from "@/lib/wallet/types";
 import { takeConnectRequest } from "@/lib/wallet/mobile";
+import { wcConnect, wcDisconnect, wcRestore, wcWalletOf } from "@/lib/wallet/walletconnect";
 import { toast } from "@/components/layout/Toaster";
-import { clearPhantomSession, PHANTOM_MOBILE, phantomSession, phantomSignMessage, readPhantomReturn } from "@/lib/wallet/phantomLink";
+import { clearLinkSession, LINK_WALLETS, linkId, linkSession, linkSignMessage, linkWalletOf, readLinkReturn } from "@/lib/wallet/solanaLink";
 import type { ChainType } from "@/lib/types";
 
 interface Session { address: string; chainType: ChainType; exp: number }
@@ -57,9 +58,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const cleanup = useRef<(() => void) | null>(null);
 
   const solana = useCallback(() => {
-    if (wallet?.walletId === PHANTOM_MOBILE) {
-      // Deep-link sessions sign by redirecting to the Phantom app; flows that support it branch before calling this.
-      const unsupported = async () => { throw new Error("This action needs Phantom's in-app browser. Open Bajar from the Phantom app to continue."); };
+    const lw = linkWalletOf(wallet?.walletId);
+    if (wallet && lw) {
+      // Deep-link sessions sign by redirecting to the wallet app; flows that support it branch before calling this.
+      const unsupported = async () => { throw new Error(`This action needs ${LINK_WALLETS[lw].name}'s in-app browser. Open Bajar from the ${LINK_WALLETS[lw].name} app to continue.`); };
       return { publicKey: { toString: () => wallet.address }, connect: unsupported, disconnect: async () => {}, signMessage: unsupported, signTransaction: unsupported } as unknown as InjectedSolana;
     }
     return wallet?.chainType === "solana" ? getSolanaProvider(wallet.walletId) : undefined;
@@ -105,6 +107,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         if (!pk) throw new Error("No account returned");
         setWallet({ walletId, walletName: name, chainType, address: pk });
       } else {
+        const wcw = wcWalletOf(walletId);
+        // WalletConnect: pair with the wallet app (silent = restore an existing session only).
+        if (wcw) { const restored = silent ? await wcRestore(wcw) : await wcConnect(wcw); if (!restored) return; }
         const p = getEvmProvider(walletId);
         if (!p) throw new Error(`${name} is not installed`);
         const accounts = (await p.request({ method: silent ? "eth_accounts" : "eth_requestAccounts" })) as string[];
@@ -122,23 +127,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [attachListeners]);
 
-  // Back from the Phantom app (deep-link protocol): verify the encrypted reply and finish the action.
+  // Back from a wallet app (Solana deep-link protocol): verify the encrypted reply and finish the action.
   useEffect(() => {
-    const ret = readPhantomReturn();
+    const ret = readLinkReturn();
     if (!ret) return;
     if (!ret.ok) { setError(ret.error); toast(ret.error); if (ret.resume?.kind === "connect") setModalOpen(true); return; }
-    const acct = phantomSession();
+    const w = ret.wallet, wName = LINK_WALLETS[w].name, wId = linkId(w);
+    const acct = linkSession(w);
     if (ret.resume.kind === "connect" && ret.publicKey) {
-      setWallet({ walletId: PHANTOM_MOBILE, walletName: "Phantom", chainType: "solana", address: ret.publicKey });
-      try { localStorage.setItem(LAST, JSON.stringify({ walletId: PHANTOM_MOBILE, chainType: "solana", name: "Phantom" })); } catch { /* ignore */ }
-      toast("Phantom connected");
+      setWallet({ walletId: wId, walletName: wName, chainType: "solana", address: ret.publicKey });
+      try { localStorage.setItem(LAST, JSON.stringify({ walletId: wId, chainType: "solana", name: wName })); } catch { /* ignore */ }
+      toast(`${wName} connected`);
       return;
     }
     if (!acct) return;
-    setWallet({ walletId: PHANTOM_MOBILE, walletName: "Phantom", chainType: "solana", address: acct.publicKey });
+    setWallet({ walletId: wId, walletName: wName, chainType: "solana", address: acct.publicKey });
     if (ret.resume.kind === "signin" && ret.signature) {
       fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature: ret.signature }) })
-        .then((r) => r.json()).then((v) => { if (!v.ok) throw new Error(v.error ?? "Verification failed"); setSession(v.session); toast("Signed in with Phantom"); })
+        .then((r) => r.json()).then((v) => { if (!v.ok) throw new Error(v.error ?? "Verification failed"); setSession(v.session); toast(`Signed in with ${wName}`); })
         .catch((e) => setError(friendlyError(e)));
       return;
     }
@@ -163,6 +169,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           const { addActivity } = await import("@/lib/activity");
           addActivity({ chain: "solana", hash: signature, kind: r.activityKind, summary: r.summary, wallet: acct.publicKey, assetHref: r.assetHref });
           toast("Swap submitted · tracking it in Portfolio");
+        } catch (e) { setError(friendlyError(e)); toast(friendlyError(e)); }
+      })();
+    }
+    if (ret.resume.kind === "send" && ret.signedTxBase64) {
+      const r = ret.resume, signed = ret.signedTxBase64;
+      (async () => {
+        try {
+          // Plain transfers: must be paid by this wallet and grant no one control of assets.
+          const { inspectSolanaTx } = await import("@/lib/wallet/txguard");
+          const i = await inspectSolanaTx(signed);
+          if (i.feePayer !== acct.publicKey || i.risks.length) throw new Error("Blocked: the signed transfer doesn't match what was requested.");
+          const { rpc } = await import("@/lib/wallet/rpc");
+          const signature = await rpc<string>("sendTransaction", [signed, { encoding: "base64", maxRetries: 3, preflightCommitment: "confirmed" }]);
+          const { addActivity } = await import("@/lib/activity");
+          addActivity({ chain: "solana", hash: signature, kind: "send", summary: r.summary, wallet: acct.publicKey });
+          toast("Transfer submitted · tracking it in Portfolio");
         } catch (e) { setError(friendlyError(e)); toast(friendlyError(e)); }
       })();
     }
@@ -191,9 +213,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     fetch("/api/auth/session").then((r) => r.json()).then((b) => setSession(b.session ?? null)).catch(() => {});
     let last: { walletId: string; chainType: ChainType; name: string } | null = null;
     try { last = JSON.parse(localStorage.getItem(LAST) ?? "null"); } catch { /* ignore */ }
-    if (last?.walletId === PHANTOM_MOBILE) {
-      const acct = phantomSession();
-      if (acct) setWallet((w) => w ?? { walletId: PHANTOM_MOBILE, walletName: "Phantom", chainType: "solana", address: acct.publicKey });
+    const lastLink = linkWalletOf(last?.walletId);
+    if (lastLink) {
+      const acct = linkSession(lastLink);
+      if (acct) setWallet((w) => w ?? { walletId: linkId(lastLink), walletName: LINK_WALLETS[lastLink].name, chainType: "solana", address: acct.publicKey });
       return () => cleanup.current?.();
     }
     if (last) {
@@ -205,7 +228,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   const disconnect = useCallback(async () => {
-    if (wallet?.walletId === PHANTOM_MOBILE) clearPhantomSession();
+    const lw = linkWalletOf(wallet?.walletId);
+    if (lw) clearLinkSession(lw);
+    if (wcWalletOf(wallet?.walletId)) await wcDisconnect();
     try { await getSolanaProvider(wallet?.walletId ?? "")?.disconnect(); } catch { /* ignore */ }
     cleanup.current?.();
     setWallet(null);
@@ -220,7 +245,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const n = await fetch(`/api/auth/nonce?chainType=${wallet.chainType}&address=${encodeURIComponent(wallet.address)}`).then((r) => r.json());
       if (!n.message) throw new Error(n.error ?? "Could not start sign-in");
       let signature: string;
-      if (wallet.walletId === PHANTOM_MOBILE) { phantomSignMessage(n.message, { kind: "signin" }); return; }
+      const lw = linkWalletOf(wallet.walletId);
+      if (lw) { linkSignMessage(lw, n.message, { kind: "signin" }); return; }
       if (wallet.chainType === "solana") {
         const p = getSolanaProvider(wallet.walletId);
         if (!p) throw new Error("Wallet unavailable");
