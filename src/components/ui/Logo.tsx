@@ -18,14 +18,14 @@ export function LogoMark({ size = 28, open = false }: { size?: number; open?: bo
  * The three-bar mark is the menu button (it morphs into a close icon when
  * open); the "Bajar" wordmark links home.
  */
-export function Logo({ menuOpen, onMenu, connected }: { menuOpen?: boolean; onMenu?: () => void; connected?: boolean }) {
+export function Logo({ menuOpen, onMenu, connected, menuLabel = "Wallet panel" }: { menuOpen?: boolean; onMenu?: () => void; connected?: boolean; menuLabel?: string }) {
   return (
     <div className="flex items-center gap-1 shrink-0">
       {onMenu && (
         <button
           type="button"
           onClick={onMenu}
-          aria-label={menuOpen ? "Close menu" : connected ? "Open menu (wallet connected)" : "Open menu"}
+          aria-label={menuOpen ? "Close wallet panel" : connected ? `${menuLabel} (wallet connected)` : menuLabel}
           aria-expanded={menuOpen}
           data-testid="menu-button"
           className={clsx("relative -ml-1.5 h-10 w-10 grid place-items-center rounded-full text-fg transition-colors", menuOpen ? "bg-surface-2" : "hover:bg-surface-2")}

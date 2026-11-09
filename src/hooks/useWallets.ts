@@ -38,7 +38,11 @@ export function useWalletBalances(wallets: TrackedWallet[]) {
     };
     run();
     const t = setInterval(() => { if (document.visibilityState === "visible") run(); }, 60_000);
-    return () => { alive = false; clearInterval(t); };
+    // Coming back to the app (e.g. from a wallet app on a phone): refresh right away.
+    let lastRun = Date.now();
+    const onVisible = () => { if (document.visibilityState === "visible" && Date.now() - lastRun > 5000) { lastRun = Date.now(); run(); } };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 

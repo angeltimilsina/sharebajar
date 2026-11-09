@@ -61,7 +61,7 @@ export function ConnectedDashboard() {
       <div className="panel p-4 sm:p-6 space-y-5">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-[20px]">Your portfolio</h2>
+          <h2 className="text-[20px]">All wallets</h2>
           <span className="text-[12.5px] text-muted" data-testid="dashboard-wallet-count">{live} wallet{live === 1 ? "" : "s"} connected{wallets.length > live ? ` · ${wallets.length - live} watch-only` : ""}</span>
           <div className="flex-1" />
           <button onClick={openAgent} className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-white text-[13px] font-semibold" style={{ background: "linear-gradient(135deg,#bf5af2,#0a84ff)" }} data-testid="open-agent"><Sparkles size={14} />Investment agent</button>

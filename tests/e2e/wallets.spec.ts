@@ -121,13 +121,13 @@ test.describe("multiple wallets", () => {
     await expect(page.getByTestId("portfolio-intro")).toBeVisible();
     await page.getByTestId("portfolio-connect").click();
     await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-    await expect(page.getByText(/Phantom · Solana/)).toBeVisible();
+    const main = page.locator("main");
+    await expect(main.getByText(/Phantom · Solana/)).toBeVisible();
     await expect(page.getByRole("row", { name: /SOL/ }).first()).toBeVisible({ timeout: 45_000 });
-    // Switch wallet from the menu: Solana → EVM.
-    await page.getByTestId("menu-button").click();
+    // Switch wallet from the sidebar: Solana → EVM.
     await page.getByTestId("account-switch").click();
     await page.getByRole("dialog").getByRole("button", { name: /MetaMask/ }).click();
-    await expect(page.getByText(/MetaMask · /)).toBeVisible({ timeout: 20_000 });
+    await expect(main.getByText(/MetaMask · /)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Phantom · Solana/)).toHaveCount(0);
   });
 

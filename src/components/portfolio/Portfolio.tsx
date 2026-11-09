@@ -13,6 +13,7 @@ import { TokenIcon } from "../ui/TokenIcon";
 import { DataStatus } from "../ui/DataStatus";
 import { ActivityPanel } from "./ActivityPanel";
 import { PortfolioIntro } from "./PortfolioIntro";
+import { ConnectedDashboard } from "../market/ConnectedDashboard";
 
 interface Holding { mint: string; symbol: string; name: string; icon: string | null; amount: number; price: number | null; value: number | null; verified: boolean; network?: string; token?: string }
 
@@ -72,7 +73,7 @@ export function Portfolio() {
       <div className="space-y-6">
         <PortfolioIntro />
         <div className="grid gap-4 lg:grid-cols-2">
-          <ActivityPanel />
+          <div id="activity" className="scroll-mt-24"><ActivityPanel /></div>
           <WatchAndAlerts />
         </div>
       </div>
@@ -84,10 +85,15 @@ export function Portfolio() {
   const signedIn = session?.address.toLowerCase() === wallet.address.toLowerCase();
   return (
     <div className="space-y-4">
-      <h1 className="text-[30px] sm:text-[34px] leading-tight">Portfolio</h1>
+      <div>
+        <h1 className="text-[30px] sm:text-[34px] leading-tight">Portfolio</h1>
+        <p className="text-muted text-[14.5px] mt-1">Everything you hold across your wallets, then the wallet you&apos;re connected with now.</p>
+      </div>
+      <ConnectedDashboard />
+      <h2 className="text-[20px] pt-2">Connected wallet</h2>
       <div className="panel p-5 flex flex-wrap items-center gap-4">
         <div className="min-w-0">
-          <div className="text-[13px] text-muted">Total value</div>
+          <div className="text-[13px] text-muted">This wallet</div>
           <div className="text-[34px] font-semibold num leading-tight" data-testid="portfolio-total">{total !== null ? formatUsd(total) : "—"}</div>
           <div className="text-[13px] text-muted mt-0.5 flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-accent" />{wallet.walletName} · {chainName} · <span className="num">{shortAddress(wallet.address, 4, 4)}</span></div>
         </div>
@@ -145,7 +151,7 @@ export function Portfolio() {
             </Card>
           )}
         </div>
-        <div className="space-y-4"><ActivityPanel wallet={wallet.address} /><WatchAndAlerts /></div>
+        <div className="space-y-4"><div id="activity" className="scroll-mt-24"><ActivityPanel wallet={wallet.address} /></div><WatchAndAlerts /></div>
       </div>
     </div>
   );

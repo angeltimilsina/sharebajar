@@ -125,19 +125,16 @@ test.describe("wallet", () => {
       (window as unknown as { phantom: unknown }).phantom = { solana: provider };
     });
     await page.goto("/");
-    await page.getByTestId("menu-button").click();
     await page.getByTestId("menu-connect").click();
     await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
     // Connected: no Connect button, no footer; wallet controls live in the menu.
     await expect(page.getByTestId("menu-connect")).toHaveCount(0);
     await expect(page.locator(".site-footer")).toBeHidden();
-    await page.getByTestId("menu-button").click();
     const menu = page.getByTestId("account-menu");
     await expect(menu.getByText("9WzD…AWWM")).toBeVisible();
     await expect(page.getByTestId("account-switch")).toBeVisible();
     await page.getByTestId("account-disconnect").click();
     await expect(page.locator(".site-footer")).toBeVisible();
-    await page.getByTestId("menu-button").click();
     await expect(page.getByTestId("menu-connect")).toBeVisible();
   });
 });

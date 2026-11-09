@@ -26,6 +26,9 @@ interface WalletContextValue {
   solana: () => InjectedSolana | undefined;
   evm: () => Eip1193 | undefined;
   clearError: () => void;
+  /** Re-check the remembered wallet: reconnect silently, pick up account/network changes. */
+  sync: () => Promise<void>;
+  syncing: boolean;
 }
 
 const Ctx = createContext<WalletContextValue | null>(null);
@@ -207,25 +210,62 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(t);
   }, [connect]);
 
-  // Eager reconnect for previously-approved wallets (no popup).
+  // Keep the connection in sync with the wallet (no popups):
+  //  - on load, wait for late-injected wallets instead of giving up after one try;
+  //  - when the app regains focus / is restored, re-check accounts and network;
+  //  - a remembered wallet that's no longer authorised is shown as disconnected.
+  const walletRef = useRef<ConnectedWallet | null>(null);
+  walletRef.current = wallet;
+  const [syncing, setSyncing] = useState(false);
+  const syncBusy = useRef(false);
+  const sync = useCallback(async () => {
+    if (syncBusy.current) return;
+    let last: { walletId: string; chainType: ChainType; name: string } | null = null;
+    try { last = JSON.parse(localStorage.getItem(LAST) ?? "null"); } catch { /* ignore */ }
+    if (!last) return;
+    syncBusy.current = true; setSyncing(true);
+    try {
+      const lw = linkWalletOf(last.walletId);
+      if (lw) {
+        const acct = linkSession(lw);
+        setWallet(acct ? { walletId: linkId(lw), walletName: LINK_WALLETS[lw].name, chainType: "solana", address: acct.publicKey } : null);
+        return;
+      }
+      if (wcWalletOf(last.walletId)) { if (!walletRef.current) await connect(last.walletId, last.chainType, last.name, true); return; }
+      // Injected wallets can appear late (extensions, EIP-6963 announcements): wait up to ~3s.
+      const find = () => (last!.chainType === "solana" ? getSolanaProvider(last!.walletId) : getEvmProvider(last!.walletId));
+      for (let i = 0; i < 15 && !find(); i++) await new Promise((r) => setTimeout(r, 200));
+      const found = find();
+      if (!found) return;
+      const cur = walletRef.current;
+      if (!cur || cur.walletId !== last.walletId) { await connect(last.walletId, last.chainType, last.name, true); return; }
+      if (last.chainType === "solana") {
+        const pk = (found as InjectedSolana).publicKey?.toString();
+        if (pk && pk !== cur.address) setWallet({ ...cur, address: pk });
+        else if (!pk) await connect(last.walletId, last.chainType, last.name, true);
+      } else {
+        const p = found as Eip1193;
+        const accounts = (await p.request({ method: "eth_accounts" }).catch(() => null)) as string[] | null;
+        if (accounts && !accounts[0]) { setWallet(null); return; } // access revoked in the wallet
+        const chainId = Number(await p.request({ method: "eth_chainId" }).catch(() => cur.chainId ?? 0));
+        if ((accounts?.[0] && accounts[0].toLowerCase() !== cur.address.toLowerCase()) || chainId !== cur.chainId) setWallet({ ...cur, address: accounts?.[0] ?? cur.address, chainId });
+      }
+    } catch { /* stay as-is; the next sync tries again */ }
+    finally { syncBusy.current = false; setSyncing(false); }
+  }, [connect]);
+
   useEffect(() => {
     startEvmDiscovery();
     fetch("/api/auth/session").then((r) => r.json()).then((b) => setSession(b.session ?? null)).catch(() => {});
-    let last: { walletId: string; chainType: ChainType; name: string } | null = null;
-    try { last = JSON.parse(localStorage.getItem(LAST) ?? "null"); } catch { /* ignore */ }
-    const lastLink = linkWalletOf(last?.walletId);
-    if (lastLink) {
-      const acct = linkSession(lastLink);
-      if (acct) setWallet((w) => w ?? { walletId: linkId(lastLink), walletName: LINK_WALLETS[lastLink].name, chainType: "solana", address: acct.publicKey });
-      return () => cleanup.current?.();
-    }
-    if (last) {
-      const l = last;
-      const t = setTimeout(() => connect(l.walletId, l.chainType, l.name, true), 400);
-      return () => clearTimeout(t);
-    }
-    return () => cleanup.current?.();
-  }, [connect]);
+    sync();
+    let lastRun = Date.now();
+    const again = () => { if (document.visibilityState === "visible" && Date.now() - lastRun > 1500) { lastRun = Date.now(); sync(); } };
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) again(); };
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("focus", again);
+    window.addEventListener("pageshow", onShow);
+    return () => { document.removeEventListener("visibilitychange", again); window.removeEventListener("focus", again); window.removeEventListener("pageshow", onShow); cleanup.current?.(); };
+  }, [sync]);
 
   const disconnect = useCallback(async () => {
     const lw = linkWalletOf(wallet?.walletId);
@@ -274,8 +314,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     openModal: () => { setError(null); setModalOpen(true); },
     closeModal: () => setModalOpen(false),
     connect: (id, ct, name) => connect(id, ct, name),
-    disconnect, signIn, signOut, solana, evm, clearError: () => setError(null),
-  }), [wallet, session, connecting, error, modalOpen, connect, disconnect, signIn, signOut, solana, evm]);
+    disconnect, signIn, signOut, solana, evm, clearError: () => setError(null), sync, syncing,
+  }), [wallet, session, connecting, error, modalOpen, connect, disconnect, signIn, signOut, solana, evm, sync, syncing]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

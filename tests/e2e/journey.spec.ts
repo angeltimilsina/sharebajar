@@ -4,10 +4,37 @@ import { expect, test } from "@playwright/test";
 test.describe("journey", () => {
   test.setTimeout(120_000);
 
-  test("navigation has exactly the four stages", async ({ page }) => {
+  test("navigation: Tokens and Launchpad, the rest under More, wallet in the sidebar", async ({ page }) => {
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Main" });
-    await expect(nav.getByRole("link")).toHaveText(["Market", "Discover", "Trade", "Portfolio"]);
+    await expect(nav.getByRole("link")).toHaveText(["Tokens", "Launchpad"]);
+    await page.getByTestId("more-menu").click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/Markets/, /Trade/, /Discover/, /Bajar Intelligence/, /System status/]);
+    const side = page.getByTestId("wallet-sidebar");
+    await expect(side.getByTestId("menu-connect")).toBeVisible();
+    await expect(side.getByRole("link", { name: "Portfolio" })).toBeVisible();
+    // Collapses to an icon rail and remembers it.
+    await page.getByTestId("sidebar-collapse").click();
+    await expect(page.locator("html")).toHaveAttribute("data-sb", "collapsed");
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-sb", "collapsed");
+    await expect(side.getByTestId("menu-connect")).toBeVisible();
+  });
+
+  test("tokens marketplace: trending Solana, Base and EVM launches, then tabs", async ({ page }) => {
+    await page.goto("/tokens");
+    await expect(page.getByRole("heading", { name: "Tokens", level: 1 })).toBeVisible();
+    const cols = page.getByTestId("trending-column");
+    await expect(cols).toHaveCount(3);
+    await expect(cols.nth(0)).toContainText("Trending on Solana");
+    await expect(cols.nth(1)).toContainText("Trending on Base");
+    await expect(cols.nth(2)).toContainText("Trending on EVM");
+    await expect(cols.nth(0).locator('a[href^="/token/solana/"]').first()).toBeVisible({ timeout: 45_000 });
+    await page.getByRole("tab", { name: /Liquidity pools/ }).click();
+    await expect(page).toHaveURL(/tab=pools/);
+    await page.getByTestId("net-base").click();
+    await expect(page).toHaveURL(/network=base/);
+    await expect(page.locator('table a[href^="/token/base/"]').first()).toBeVisible({ timeout: 45_000 });
   });
 
   test("discover → detail keeps network and pair → trade and swap stay on the asset page", async ({ page }) => {

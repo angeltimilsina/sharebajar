@@ -229,3 +229,9 @@ html[data-app-view] .site-footer { display: none; }
 html:has([data-app-page]) .site-footer { display: none; }
 /* Inputs that sit inside a styled field (the field shows focus instead). */
 .no-ring:focus-visible { outline: none; }
+
+/* Left wallet sidebar: content shifts beside it on desktop. */
+@media (min-width: 1024px) {
+  .with-sidebar { padding-left: 260px; transition: padding-left 0.2s ease; }
+  html[data-sb="collapsed"] .with-sidebar { padding-left: 76px; }
+}

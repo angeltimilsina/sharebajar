@@ -36,7 +36,7 @@ test.describe("multi-wallet", () => {
   test("market dashboard: wallet sources, holdings chart, allocation, agent hand-off", async ({ page }) => {
     await stubPhantom(page);
     await page.addInitScript((addr) => localStorage.setItem("bajar.wallets.v1", JSON.stringify([{ id: `evm:${addr.toLowerCase()}`, address: addr, chain: "evm", label: "Cold storage", source: "watch", addedAt: 1 }])), EVM_WATCH);
-    await page.goto("/");
+    await page.goto("/portfolio");
     await expect(page.getByTestId("connected-dashboard")).toHaveCount(0); // only once connected
     await connect(page);
     await expect(page.getByTestId("connected-dashboard")).toBeVisible();
@@ -74,7 +74,7 @@ test.describe("multi-wallet", () => {
       if (b.method === "sendTransaction") { sent++; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ result: "5".repeat(88) }) }); }
       return r.continue();
     });
-    await page.goto("/");
+    await page.goto("/portfolio");
     await connect(page);
     await page.getByTestId("open-move").click();
     const move = page.getByTestId("cross-transfer");
