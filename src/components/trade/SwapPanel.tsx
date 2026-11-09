@@ -9,6 +9,7 @@ import { TokenIcon } from "../ui/TokenIcon";
 import { COMMON, TokenPicker, type SwapToken } from "./TokenPicker";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { assertSafeSolanaSwap } from "@/lib/wallet/txguard";
+import { PHANTOM_MOBILE, phantomSignTransaction } from "@/lib/wallet/phantomLink";
 import { getSolBalance, getSplHoldings, getSignatureStatus, simulateBase64, SOLANA_RPC, SOL_MINT, type SimResult } from "@/lib/wallet/rpc";
 import { solanaSignAndSend, solanaSignOnly } from "@/lib/wallet/solana";
 import { addActivity } from "@/lib/activity";
@@ -193,6 +194,14 @@ export function SwapPanel({ defaultOutput, side, variant = "swap", lockAsset = f
     // The wallet account must still be the one the transaction was built for.
     if (!wallet || wallet.address !== tx.builtFor) { setStep("failed"); setExecErr("Your wallet account changed since this swap was prepared. Review it again."); return; }
     setStep("signing"); setExecErr(null);
+    if (wallet.walletId === PHANTOM_MOBILE) {
+      // Phone browser + Phantom app: Phantom signs and sends us back here, where the
+      // signed transaction is re-verified and submitted (see WalletProvider).
+      const summary = variant === "trade" ? `${side === "sell" ? "Sold" : "Bought"} ${side === "sell" ? input.symbol : output.symbol} · ${amount} ${input.symbol}` : `Swapped ${amount} ${input.symbol} → ${output.symbol}`;
+      try { phantomSignTransaction(tx.transaction, { kind: "swap", route: tx.route, requestId: tx.requestId, intentToken: tx.quote.intentToken ?? null, summary, assetHref, activityKind: variant === "trade" ? "trade" : "swap" }); }
+      catch (e) { setStep("failed"); setExecErr((e as Error).message); }
+      return;
+    }
     try {
       let signature: string;
       if (tx.route === "order") {

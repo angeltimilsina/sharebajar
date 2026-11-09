@@ -4,6 +4,8 @@ import { getSolanaProvider, solanaSignMessage, SOLANA_WALLETS, type InjectedSola
 import { evmDiscovery, evmSignMessage, getEvmProvider, startEvmDiscovery, type Eip1193 } from "@/lib/wallet/evm";
 import type { ConnectedWallet } from "@/lib/wallet/types";
 import { takeConnectRequest } from "@/lib/wallet/mobile";
+import { toast } from "@/components/layout/Toaster";
+import { clearPhantomSession, PHANTOM_MOBILE, phantomSession, phantomSignMessage, readPhantomReturn } from "@/lib/wallet/phantomLink";
 import type { ChainType } from "@/lib/types";
 
 interface Session { address: string; chainType: ChainType; exp: number }
@@ -54,7 +56,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [modalOpen, setModalOpen] = useState(false);
   const cleanup = useRef<(() => void) | null>(null);
 
-  const solana = useCallback(() => (wallet?.chainType === "solana" ? getSolanaProvider(wallet.walletId) : undefined), [wallet]);
+  const solana = useCallback(() => {
+    if (wallet?.walletId === PHANTOM_MOBILE) {
+      // Deep-link sessions sign by redirecting to the Phantom app; flows that support it branch before calling this.
+      const unsupported = async () => { throw new Error("This action needs Phantom's in-app browser. Open Bajar from the Phantom app to continue."); };
+      return { publicKey: { toString: () => wallet.address }, connect: unsupported, disconnect: async () => {}, signMessage: unsupported, signTransaction: unsupported } as unknown as InjectedSolana;
+    }
+    return wallet?.chainType === "solana" ? getSolanaProvider(wallet.walletId) : undefined;
+  }, [wallet]);
   const evm = useCallback(() => (wallet?.chainType === "evm" ? getEvmProvider(wallet.walletId) : undefined), [wallet]);
 
   const attachListeners = useCallback((id: string, chainType: ChainType, name: string) => {
@@ -113,6 +122,52 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [attachListeners]);
 
+  // Back from the Phantom app (deep-link protocol): verify the encrypted reply and finish the action.
+  useEffect(() => {
+    const ret = readPhantomReturn();
+    if (!ret) return;
+    if (!ret.ok) { setError(ret.error); toast(ret.error); if (ret.resume?.kind === "connect") setModalOpen(true); return; }
+    const acct = phantomSession();
+    if (ret.resume.kind === "connect" && ret.publicKey) {
+      setWallet({ walletId: PHANTOM_MOBILE, walletName: "Phantom", chainType: "solana", address: ret.publicKey });
+      try { localStorage.setItem(LAST, JSON.stringify({ walletId: PHANTOM_MOBILE, chainType: "solana", name: "Phantom" })); } catch { /* ignore */ }
+      toast("Phantom connected");
+      return;
+    }
+    if (!acct) return;
+    setWallet({ walletId: PHANTOM_MOBILE, walletName: "Phantom", chainType: "solana", address: acct.publicKey });
+    if (ret.resume.kind === "signin" && ret.signature) {
+      fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature: ret.signature }) })
+        .then((r) => r.json()).then((v) => { if (!v.ok) throw new Error(v.error ?? "Verification failed"); setSession(v.session); toast("Signed in with Phantom"); })
+        .catch((e) => setError(friendlyError(e)));
+      return;
+    }
+    if (ret.resume.kind === "swap" && ret.signedTxBase64) {
+      const r = ret.resume;
+      const signed = ret.signedTxBase64;
+      (async () => {
+        try {
+          // Re-verify what Phantom signed before it goes anywhere.
+          const { assertSafeSolanaSwap } = await import("@/lib/wallet/txguard");
+          await assertSafeSolanaSwap(signed, acct.publicKey);
+          let signature: string;
+          if (r.route === "order") {
+            const res = await fetch("/api/swap/execute", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signedTransaction: signed, requestId: r.requestId, intentToken: r.intentToken }) }).then((x) => x.json());
+            if (!res.signature) throw new Error(res.error ?? `Execution failed (code ${res.code ?? "?"})`);
+            signature = res.signature;
+          } else {
+            const { rpc } = await import("@/lib/wallet/rpc");
+            signature = await rpc<string>("sendTransaction", [signed, { encoding: "base64", maxRetries: 3, preflightCommitment: "confirmed" }]);
+            if (r.intentToken) fetch("/api/treasury/intents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ intentToken: r.intentToken, txHash: signature }) }).catch(() => {});
+          }
+          const { addActivity } = await import("@/lib/activity");
+          addActivity({ chain: "solana", hash: signature, kind: r.activityKind, summary: r.summary, wallet: acct.publicKey, assetHref: r.assetHref });
+          toast("Swap submitted · tracking it in Portfolio");
+        } catch (e) { setError(friendlyError(e)); toast(friendlyError(e)); }
+      })();
+    }
+  }, []);
+
   // Arrived from a mobile deep link (opened inside the wallet's app browser):
   // open that wallet's connect prompt once its provider has been injected.
   useEffect(() => {
@@ -136,6 +191,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     fetch("/api/auth/session").then((r) => r.json()).then((b) => setSession(b.session ?? null)).catch(() => {});
     let last: { walletId: string; chainType: ChainType; name: string } | null = null;
     try { last = JSON.parse(localStorage.getItem(LAST) ?? "null"); } catch { /* ignore */ }
+    if (last?.walletId === PHANTOM_MOBILE) {
+      const acct = phantomSession();
+      if (acct) setWallet((w) => w ?? { walletId: PHANTOM_MOBILE, walletName: "Phantom", chainType: "solana", address: acct.publicKey });
+      return () => cleanup.current?.();
+    }
     if (last) {
       const l = last;
       const t = setTimeout(() => connect(l.walletId, l.chainType, l.name, true), 400);
@@ -145,6 +205,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   const disconnect = useCallback(async () => {
+    if (wallet?.walletId === PHANTOM_MOBILE) clearPhantomSession();
     try { await getSolanaProvider(wallet?.walletId ?? "")?.disconnect(); } catch { /* ignore */ }
     cleanup.current?.();
     setWallet(null);
@@ -159,6 +220,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const n = await fetch(`/api/auth/nonce?chainType=${wallet.chainType}&address=${encodeURIComponent(wallet.address)}`).then((r) => r.json());
       if (!n.message) throw new Error(n.error ?? "Could not start sign-in");
       let signature: string;
+      if (wallet.walletId === PHANTOM_MOBILE) { phantomSignMessage(n.message, { kind: "signin" }); return; }
       if (wallet.chainType === "solana") {
         const p = getSolanaProvider(wallet.walletId);
         if (!p) throw new Error("Wallet unavailable");

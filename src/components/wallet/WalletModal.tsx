@@ -8,6 +8,7 @@ import { SOLANA_WALLETS } from "@/lib/wallet/solana";
 import { ICONS } from "@/lib/wallet/icons";
 import type { ChainType } from "@/lib/types";
 import { hasDeepLink, isMobileBrowser, MOBILE_ONLY_EVM, walletDeepLink } from "@/lib/wallet/mobile";
+import { phantomConnect } from "@/lib/wallet/phantomLink";
 import { walletLogo } from "@/lib/logos";
 
 interface Row { id: string; name: string; icon: string; chainType: ChainType | "native"; installed: boolean; installUrl?: string; soon?: boolean; note?: string }
@@ -48,7 +49,7 @@ export function WalletModal() {
     <Modal open={modalOpen} onClose={closeModal} title="Connect a wallet">
       <div className="px-5 pb-5">
         <p className="text-xs text-muted mb-3">Connect to view balances, sign in and trade. Bajar never takes custody of your funds.</p>
-        {mobile && <p className="text-xs text-muted mb-3 -mt-1">On your phone, choosing Phantom, MetaMask or another app opens Bajar inside that wallet, then asks you to connect.</p>}
+        {mobile && <p className="text-xs text-muted mb-3 -mt-1">On your phone, Phantom approves in its app and returns you here. Other wallets open Bajar inside their app.</p>}
         <ul className="space-y-1.5">
           {rows.map((r) => (
             <li key={r.id}>
@@ -58,6 +59,8 @@ export function WalletModal() {
                 onClick={() => {
                   if (r.soon) return;
                   // Phone without the extension: open this page inside the wallet app (same tab = universal link).
+                  // Phantom: connect from this browser (Phantom approves and sends you back here).
+                  if (viaApp(r) && r.id === "phantom") { phantomConnect(); return; }
                   if (viaApp(r)) { const link = walletDeepLink(r.id); if (link) { window.location.href = link; return; } }
                   if (!r.installed && r.installUrl) { if (r.installUrl.startsWith("/")) { closeModal(); window.location.href = r.installUrl; } else window.open(r.installUrl, "_blank", "noopener,noreferrer"); return; }
                   connect(r.id, r.chainType as ChainType, r.name);
@@ -68,7 +71,7 @@ export function WalletModal() {
                 <img src={r.icon} alt="" width={32} height={32} className="rounded-lg" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold">{r.name}</span>
-                  <span className="block text-[11px] text-muted">{viaApp(r) ? `Opens Bajar in the ${r.name} app` : r.note ?? (r.chainType === "solana" ? "Solana" : "Ethereum & EVM chains")}</span>
+                  <span className="block text-[11px] text-muted">{viaApp(r) ? (r.id === "phantom" ? "Approve in the Phantom app, then come right back" : `Opens Bajar in the ${r.name} app`) : r.note ?? (r.chainType === "solana" ? "Solana" : "Ethereum & EVM chains")}</span>
                 </span>
                 {connecting === r.id ? <Loader2 size={16} className="animate-spin text-muted" />
                   : r.soon ? <Badge tone="brand">Coming soon</Badge>
@@ -79,6 +82,9 @@ export function WalletModal() {
             </li>
           ))}
         </ul>
+        {mobile && !rows.find((r) => r.id === "phantom")?.installed && (
+          <button className="mt-2 text-[12px] text-brand" data-testid="phantom-open-inapp" onClick={() => { const l = walletDeepLink("phantom"); if (l) window.location.href = l; }}>Prefer Phantom&apos;s browser? Open Bajar inside Phantom</button>
+        )}
         {error && <Notice tone="down" className="mt-3">{error}</Notice>}
         <div className="mt-4 flex gap-2 text-[11px] text-muted leading-relaxed">
           <ShieldCheck size={15} className="text-brand shrink-0 mt-0.5" />

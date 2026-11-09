@@ -163,9 +163,9 @@ test.describe("mobile wallet deep links @mobile", () => {
     await page.goto("/trade?symbol=SOLUSDT");
     await page.getByTestId("menu-button").click();
     await page.getByTestId("menu-connect").click();
-    const phantom = page.getByTestId("wallet-option-phantom");
-    await expect(phantom).toContainText("Open app");
-    await phantom.click();
+    // Phantom's main option connects from this browser; the in-app browser is the secondary link.
+    await expect(page.getByTestId("wallet-option-phantom")).toContainText("come right back");
+    await page.getByTestId("phantom-open-inapp").click();
     await expect.poll(() => opened.length).toBeGreaterThan(0);
     const ph = new URL(opened[0]);
     expect(ph.hostname).toBe("phantom.app");
