@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  Activity, Check, Loader2, Sparkles, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
+  Activity, Check, Crown, Loader2, Sparkles, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
 } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
 import { useWallet } from "../wallet/WalletProvider";
@@ -22,6 +22,7 @@ const LINKS = [
   { href: "/portfolio", label: "Portfolio", Icon: PieChart },
   { href: "/wallet", label: "Bajar Wallet", Icon: Wallet },
   { href: "/portfolio#activity", label: "Activity", Icon: Activity },
+  { href: "/pro", label: "Profile & Pro", Icon: Crown },
 ];
 
 /**

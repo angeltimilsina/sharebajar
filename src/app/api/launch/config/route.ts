@@ -12,5 +12,5 @@ export async function GET() {
     recipient = t?.address ?? null;
   } catch { hosting = false; }
   const fee = feeUsdc > 0 && recipient ? { amountUsdc: feeUsdc, recipient } : null;
-  return NextResponse.json({ fee, metadataHosting: hosting, chains: ["solana"] }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ fee, metadataHosting: hosting, chains: ["solana", "ethereum", "base", "bsc"] }, { headers: { "cache-control": "no-store" } });
 }

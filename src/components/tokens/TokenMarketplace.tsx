@@ -193,21 +193,21 @@ function LiquidityPools({ chains }: { chains: readonly string[] }) {
   );
 }
 
-interface Launch { mint: string; name: string; symbol: string; fixed_supply: boolean; freeze_revoked: boolean; created_at: string }
+interface Launch { mint: string; chain?: string; name: string; symbol: string; fixed_supply: boolean; freeze_revoked: boolean; created_at: string }
 
 function BajarLaunches() {
   const [launches, setLaunches] = useState<Launch[] | null>(null);
   useEffect(() => { fetch("/api/launch/record").then((r) => r.json()).then((b) => setLaunches(b.launches ?? [])).catch(() => setLaunches([])); }, []);
   return (
     <Card>
-      <CardHeader title={<span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-ai" />Launched on Bajar</span>} sub="Solana tokens created from users' own wallets, verified on-chain" action={<Link href="/launchpad" className="text-[13px] text-brand font-medium">Launchpad</Link>} />
+      <CardHeader title={<span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-ai" />Launched on Bajar</span>} sub="Tokens created from users' own wallets on Solana, Ethereum, Base and BNB Chain, verified on-chain" action={<Link href="/launchpad" className="text-[13px] text-brand font-medium">Launchpad</Link>} />
       {launches === null ? <div className="px-5 pb-5"><Skeleton className="h-14 w-full" /></div> : launches.length === 0 ? (
         <p className="px-5 pb-5 text-sm text-muted">No launches yet. <Link href="/launchpad#create" className="text-brand">Launch the first one.</Link></p>
       ) : (
         <ul className="flex gap-2 overflow-x-auto no-scrollbar px-4 sm:px-5 pb-5">
           {launches.slice(0, 12).map((l) => (
             <li key={l.mint} className="shrink-0">
-              <Link href={`/token/solana/${l.mint}`} className="flex items-center gap-2.5 rounded-2xl bg-surface-2 hover:bg-surface-3 px-3 py-2.5 min-w-[200px]">
+              <Link href={`/token/${l.chain ?? "solana"}/${l.mint}`} className="flex items-center gap-2.5 rounded-2xl bg-surface-2 hover:bg-surface-3 px-3 py-2.5 min-w-[200px]">
                 <TokenIcon symbol={l.symbol} size={28} />
                 <span className="min-w-0">
                   <span className="block text-[14px] font-semibold truncate">{l.symbol}</span>

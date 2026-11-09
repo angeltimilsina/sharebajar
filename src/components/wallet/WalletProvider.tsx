@@ -23,6 +23,8 @@ interface WalletContextValue {
   disconnect: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Ask the connected wallet to sign a plain-text message (no transaction). */
+  signMessage: (message: string) => Promise<string>;
   solana: () => InjectedSolana | undefined;
   evm: () => Eip1193 | undefined;
   clearError: () => void;
@@ -304,6 +306,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [wallet]);
 
+  const signMessage = useCallback(async (message: string) => {
+    if (!wallet) throw new Error("Connect a wallet first.");
+    if (linkWalletOf(wallet.walletId)) throw new Error("Open Bajar in your wallet's in-app browser to sign this message.");
+    if (wallet.chainType === "solana") {
+      const p = getSolanaProvider(wallet.walletId);
+      if (!p) throw new Error("Wallet unavailable");
+      return solanaSignMessage(p, message);
+    }
+    const p = getEvmProvider(wallet.walletId);
+    if (!p) throw new Error("Wallet unavailable");
+    return evmSignMessage(p, wallet.address, message);
+  }, [wallet]);
+
   const signOut = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     setSession(null);
@@ -314,8 +329,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     openModal: () => { setError(null); setModalOpen(true); },
     closeModal: () => setModalOpen(false),
     connect: (id, ct, name) => connect(id, ct, name),
-    disconnect, signIn, signOut, solana, evm, clearError: () => setError(null), sync, syncing,
-  }), [wallet, session, connecting, error, modalOpen, connect, disconnect, signIn, signOut, solana, evm, sync, syncing]);
+    disconnect, signIn, signOut, signMessage, solana, evm, clearError: () => setError(null), sync, syncing,
+  }), [wallet, session, connecting, error, modalOpen, connect, disconnect, signIn, signOut, signMessage, solana, evm, sync, syncing]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

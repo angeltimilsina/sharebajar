@@ -1,12 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { AI_MODEL, aiConfigured, type AiEvent } from "@/lib/ai/config";
+import { AI_MODEL, aiConfigured, type AiAction, type AiEvent } from "@/lib/ai/config";
 import { buildTools, TOOL_LABELS } from "@/lib/ai/tools";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { getChain } from "@/lib/chains";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 import { log } from "@/lib/server/log";
 import { NextResponse } from "next/server";
+import { buildProTools, PRO_NOTE, PRO_TOOL_LABELS, type ProWallet } from "@/lib/ai/proTools";
+import { currentSession, planOf, profileForSession, walletsOf } from "@/lib/pro/profile";
 
 export const maxDuration = 120;
 
@@ -57,7 +59,16 @@ export async function POST(req: Request) {
   if (!aiConfigured()) {
     return NextResponse.json({ error: "Bajar Intelligence is not configured on this deployment (missing ANTHROPIC_API_KEY)." }, { status: 503 });
   }
-  const rl = rateLimit(`ai:${clientIp(req)}`, 8, 10);
+  // Pro: the signed-in profile's plan unlocks wallet-aware tools and deeper reasoning.
+  let proWallets: ProWallet[] | null = null;
+  try {
+    const s = await currentSession();
+    if (s) {
+      const id = await profileForSession(s);
+      if ((await planOf(id)).tier === "pro") proWallets = (await walletsOf(id)).map((w) => ({ address: w.address, chainType: w.chain_type }));
+    }
+  } catch { /* profiles unavailable: standard agent */ }
+  const rl = proWallets ? rateLimit(`aipro:${clientIp(req)}`, 30, 3) : rateLimit(`ai:${clientIp(req)}`, 8, 10);
   if (!rl.ok) return NextResponse.json({ error: `Rate limit reached. Try again in ${rl.retryAfter}s.` }, { status: 429 });
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -68,6 +79,7 @@ export async function POST(req: Request) {
   let contextNote = `Current time: ${new Date().toISOString()}.`;
   if (context?.kind === "coin") contextNote += ` The user is viewing the coin with Bajar slug "${context.id}" (use get_coin with it). Questions like "this token" refer to it.`;
   if (context?.kind === "portfolio") contextNote += portfolioNote(context.portfolio);
+  if (proWallets) contextNote += PRO_NOTE;
   if (context?.kind === "token" && getChain(context.chain)) contextNote += ` The user is viewing the DEX token ${context.address} on ${context.chain}. Questions like "this token" refer to it.`;
 
   const encoder = new TextEncoder();
@@ -75,12 +87,13 @@ export async function POST(req: Request) {
     async start(controller) {
       const send = (e: AiEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       const client = new Anthropic();
-      const tools = buildTools({ action: (a) => send({ type: "action", action: a }) });
+      const emit = { action: (a: AiAction) => send({ type: "action", action: a }) };
+      const tools = [...buildTools(emit), ...(proWallets ? buildProTools(proWallets, emit) : [])];
       let runner = client.beta.messages.toolRunner({
         model: AI_MODEL,
         max_tokens: 16000,
-        max_iterations: 8,
-        output_config: { effort: "medium" },
+        max_iterations: proWallets ? 16 : 8,
+        output_config: { effort: proWallets ? "high" : "medium" },
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
         system: [
@@ -98,7 +111,7 @@ export async function POST(req: Request) {
             for await (const messageStream of runner) {
               for await (const event of messageStream) {
                 if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
-                  send({ type: "tool", name: event.content_block.name, label: TOOL_LABELS[event.content_block.name] ?? event.content_block.name });
+                  send({ type: "tool", name: event.content_block.name, label: TOOL_LABELS[event.content_block.name] ?? PRO_TOOL_LABELS[event.content_block.name] ?? event.content_block.name });
                 } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
                   send({ type: "text", text: event.delta.text });
                 }
@@ -119,7 +132,7 @@ export async function POST(req: Request) {
             runner = client.beta.messages.toolRunner({ ...runner.params });
           }
         }
-        send({ type: "done", model: AI_MODEL });
+        send({ type: "done", model: AI_MODEL, pro: !!proWallets });
       } catch (err) {
         let message = "The AI service failed to respond. Please try again.";
         if (err instanceof Anthropic.RateLimitError) message = "The AI service is busy (rate limited). Please retry shortly.";

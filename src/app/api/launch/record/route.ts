@@ -7,6 +7,7 @@ import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
 const B58 = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,90}$/);
 const Body = z.object({ signature: B58, mint: B58 });
+const EvmBody = z.object({ chain: z.enum(["ethereum", "base", "bsc"]), hash: z.string().regex(/^0x[0-9a-fA-F]{64}$/) });
 
 interface MintParsed { value: { owner: string; data: { parsed: { type: string; info: { decimals: number; supply: string; mintAuthority: string | null; freezeAuthority: string | null } } } } | null }
 
@@ -20,7 +21,18 @@ export async function POST(req: Request) {
   if (blocked) return blocked;
   const rl = rateLimit(`launchrec:${clientIp(req)}`, 10, 10);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  const p = Body.safeParse(await req.json().catch(() => null));
+  const raw = await req.json().catch(() => null);
+  const evm = EvmBody.safeParse(raw);
+  if (evm.success) {
+    try {
+      const { recordEvmLaunch } = await import("@/lib/launch/evmRecord");
+      const r = await recordEvmLaunch(evm.data.chain, evm.data.hash);
+      return NextResponse.json(r.ok ? r : { error: r.error }, { status: r.ok ? 200 : r.status });
+    } catch (e) {
+      return NextResponse.json({ error: String(e instanceof Error ? e.message : e).slice(0, 200) }, { status: 503 });
+    }
+  }
+  const p = Body.safeParse(raw);
   if (!p.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { signature, mint } = p.data;
   try {
@@ -49,9 +61,14 @@ export async function POST(req: Request) {
 }
 
 /** Recent launches made through Bajar. */
-export async function GET() {
+export async function GET(req: Request) {
+  const creator = new URL(req.url).searchParams.get("creator");
+  if (creator && !/^([1-9A-HJ-NP-Za-km-z]{32,44}|0x[0-9a-fA-F]{40})$/.test(creator)) return NextResponse.json({ error: "Invalid creator" }, { status: 400 });
   try {
-    const rows = await q("select mint, chain, name, symbol, creator, signature, fixed_supply, freeze_revoked, supply, decimals, created_at from token_launches order by created_at desc limit 50");
+    const cols = "mint, chain, name, symbol, creator, signature, fixed_supply, freeze_revoked, supply, decimals, created_at";
+    const rows = creator
+      ? await q(`select ${cols} from token_launches where lower(creator) = lower($1) order by created_at desc limit 50`, [creator])
+      : await q(`select ${cols} from token_launches order by created_at desc limit 50`);
     return NextResponse.json({ launches: rows }, { headers: { "cache-control": "public, max-age=15" } });
   } catch {
     return NextResponse.json({ launches: [], unavailable: true });

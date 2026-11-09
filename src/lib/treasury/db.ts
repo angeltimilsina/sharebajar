@@ -194,6 +194,30 @@ create table if not exists token_launches (
   decimals int not null,
   created_at timestamptz not null default now()
 );
+create table if not exists profiles (
+  id text primary key,
+  created_at timestamptz not null default now()
+);
+create table if not exists profile_wallets (
+  address text primary key,
+  profile_id text not null,
+  chain_type text not null,
+  label text,
+  verified_at timestamptz not null default now()
+);
+create index if not exists profile_wallets_profile on profile_wallets (profile_id);
+create table if not exists subscriptions (
+  id text primary key,
+  profile_id text not null,
+  plan text not null,
+  period_end timestamptz not null,
+  chain text not null,
+  signature text not null unique,
+  payer text not null,
+  amount_raw text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists subscriptions_profile on subscriptions (profile_id);
 `;
 
 const g = globalThis as unknown as { __sbDb?: Promise<Db> };

@@ -3,11 +3,17 @@ import { useEffect } from "react";
 import { useWallet } from "../wallet/WalletProvider";
 import { useBajar } from "../bajar/useBajar";
 import { registry } from "@/lib/wallets/registry";
+import { useProfile } from "@/hooks/useProfile";
 
 /** Keeps the wallet registry up to date with whatever is connected or unlocked. */
 export function WalletSync() {
   const { wallet } = useWallet();
   const { unlocked, accounts } = useBajar();
+  const { profile } = useProfile();
+  // Wallets proven on the signed-in profile follow you to every device.
+  useEffect(() => {
+    for (const w of profile?.wallets ?? []) registry.upsert({ address: w.address, chain: w.chainType, label: w.label && w.label !== "Sign-in wallet" ? w.label : `${w.chainType === "evm" ? "EVM" : "Solana"} ${w.address.slice(0, 4)}…${w.address.slice(-4)}`, source: "linked", verified: true });
+  }, [profile]);
   useEffect(() => {
     if (!wallet) return;
     registry.upsert({ address: wallet.address, chain: wallet.chainType === "solana" ? "solana" : "evm", label: wallet.walletName, source: "connected", walletId: wallet.walletId });

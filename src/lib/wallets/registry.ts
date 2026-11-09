@@ -7,7 +7,7 @@ import { isValidAddressFor, getChain } from "../chains";
  * addresses only; nothing here can sign. Stored in this browser.
  */
 export type WalletChain = "solana" | "evm" | "bitcoin";
-export type WalletSource = "connected" | "bajar" | "watch";
+export type WalletSource = "connected" | "bajar" | "watch" | "linked";
 
 export interface TrackedWallet {
   id: string;            // `${chain}:${address}` (EVM lowercased)
@@ -17,6 +17,8 @@ export interface TrackedWallet {
   source: WalletSource;
   /** Provider id for connected wallets (to know which one can sign). */
   walletId?: string;
+  /** Proven by signature and saved to the user's Bajar profile. */
+  verified?: boolean;
   addedAt: number;
 }
 
@@ -46,7 +48,8 @@ export const registry = {
     const s = load();
     const id = walletId(w.chain, w.address);
     const prev = s.wallets.find((x) => x.id === id);
-    const entry: TrackedWallet = { ...w, id, label: prev?.label ?? w.label, addedAt: prev?.addedAt ?? w.addedAt ?? Date.now(), source: prev?.source === "watch" && w.source !== "watch" ? w.source : prev?.source ?? w.source };
+    const entry: TrackedWallet = { ...w, id, label: prev?.label ?? w.label, addedAt: prev?.addedAt ?? w.addedAt ?? Date.now(), source: (prev?.source === "watch" || prev?.source === "linked") && w.source !== "watch" && w.source !== "linked" ? w.source : prev?.source === "watch" && w.source === "linked" ? "linked" : prev?.source ?? w.source, verified: w.verified ?? prev?.verified };
+    if (entry.verified === undefined) delete entry.verified;
     if (prev && JSON.stringify(prev) === JSON.stringify(entry)) return;
     save({ ...s, wallets: prev ? s.wallets.map((x) => (x.id === id ? entry : x)) : [...s.wallets, entry] });
   },

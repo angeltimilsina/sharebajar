@@ -24,6 +24,7 @@ export const MORE: { href: string; label: string; ai?: boolean; hint: string }[]
   { href: "/trade", label: "Trade", hint: "Swap with your wallet" },
   { href: "/discover", label: "Discover", hint: "Trending pools on every chain" },
   { href: "/intelligence", label: "Bajar Intelligence", ai: true, hint: "Ask about any market" },
+  { href: "/pro", label: "Bajar Pro", hint: "One profile for all your wallets" },
   { href: "/status", label: "System status", hint: "Live data sources" },
 ];
 

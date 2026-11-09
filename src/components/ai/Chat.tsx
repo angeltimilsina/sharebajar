@@ -8,6 +8,7 @@ import { Badge, Button, Card, Notice } from "../ui/primitives";
 import { Markdown } from "./Markdown";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { readAgentPortfolio, type AgentPortfolio } from "@/lib/wallets/agent";
+import { useProfile } from "@/hooks/useProfile";
 
 const AGENT_SUGGESTIONS = [
   "How diversified is my portfolio, and what's my biggest risk?",
@@ -32,6 +33,7 @@ export function Chat() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [portfolio, setPortfolio] = useState<AgentPortfolio | null>(null);
+  const { isPro } = useProfile();
   // Prefill from ?q= (suggested prompts on the home page). Never auto-sends.
   // ?agent=portfolio: investment agent mode with the portfolio summary from the Market dashboard.
   useEffect(() => {
@@ -94,8 +96,9 @@ export function Chat() {
               <div className="mb-5" data-testid="agent-portfolio">
                 <div className="text-center">
                   <span className="mx-auto h-11 w-11 rounded-full grid place-items-center text-white" style={{ background: "linear-gradient(135deg,#bf5af2,#0a84ff)" }}><Sparkles size={20} /></span>
-                  <h2 className="mt-2 font-semibold text-lg">Investment agent</h2>
+                  <h2 className="mt-2 font-semibold text-lg">Investment agent{isPro && <span className="ml-2 align-middle rounded-full bg-brand-soft text-brand text-[11px] font-semibold px-2 py-0.5">Pro</span>}</h2>
                   <p className="text-xs text-muted mt-1 max-w-md mx-auto">Analyses your portfolio with live market data and proposes steps. It never executes anything — you approve every trade or transfer in your own wallet.</p>
+                  {isPro ? <p className="text-[12px] text-brand mt-1.5">Pro: reads all your linked wallets live, runs a risk report and drafts trade steps.</p> : <a href="/pro" className="inline-block text-[12px] text-brand mt-1.5 underline-offset-2 hover:underline">Pro adds live reads of every linked wallet, risk reports and trade plans →</a>}
                 </div>
                 <div className="mt-4 rounded-2xl bg-surface-2 p-4">
                   <div className="flex items-baseline justify-between gap-3">
@@ -172,6 +175,17 @@ function ActionCard({ action }: { action: AiAction }) {
           wl.addMany(action.items.map((i) => (i.kind === "token" && i.chain && i.address ? { kind: "token" as const, id: i.address, chain: i.chain, address: i.address, label: i.label } : { kind: "coin" as const, id: i.id, label: i.label })));
           setDone(true);
         }}>{done ? <><Check size={13} /> Added to watchlist</> : "Add to my watchlist"}</Button>
+      </div>
+    );
+  }
+  if (action.kind === "trade") {
+    const href = action.network && action.address ? `/token/${action.network}/${action.address}?mode=swap` : `/trade?symbol=${encodeURIComponent(action.symbol.toUpperCase())}USDT`;
+    return (
+      <div className="mt-2 rounded-xl border border-brand/30 bg-brand-soft p-3 text-sm" data-testid="trade-card">
+        <div className="font-semibold flex items-center gap-1.5"><span className={action.side === "buy" ? "text-up" : "text-down"}>{action.side === "buy" ? "Buy" : "Sell"}</span> {action.symbol} · ≈ {formatPrice(action.amountUsd)}{action.network ? <span className="text-muted font-normal"> on {action.network}</span> : null}</div>
+        <div className="text-xs text-muted my-1.5">{action.reason}</div>
+        <a href={href}><Button size="sm">Open in Trade</Button></a>
+        <span className="ml-2 text-[11px] text-faint">You review and approve it in your wallet.</span>
       </div>
     );
   }

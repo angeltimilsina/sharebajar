@@ -9,7 +9,7 @@ test.describe("journey", () => {
     const nav = page.getByRole("navigation", { name: "Main" });
     await expect(nav.getByRole("link")).toHaveText(["Tokens", "Launchpad"]);
     await page.getByTestId("more-menu").click();
-    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/Markets/, /Trade/, /Discover/, /Bajar Intelligence/, /System status/]);
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/Markets/, /Trade/, /Discover/, /Bajar Intelligence/, /Bajar Pro/, /System status/]);
     const side = page.getByTestId("wallet-sidebar");
     await expect(side.getByTestId("menu-connect")).toBeVisible();
     await expect(side.getByRole("link", { name: "Portfolio" })).toBeVisible();

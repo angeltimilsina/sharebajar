@@ -24,7 +24,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
  * Launch an SPL token on Solana from your own wallet. Built and simulated in
  * the browser; you sign once. Bajar keeps no authority over the token.
  */
-export function TokenLauncher() {
+export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void } = {}) {
   const { wallet, openModal, solana } = useWallet();
   const [cfg, setCfg] = useState<Config | null>(null);
   const [f, setF] = useState({ name: "", symbol: "", supply: "1000000000", decimals: "6", description: "", image: "", website: "", twitter: "", telegram: "", uri: "" });
@@ -120,7 +120,8 @@ export function TokenLauncher() {
           <li className="rounded-xl bg-surface-2 p-3"><b>3. Keep your wallet safe</b> — it holds the full supply{opts.revokeMint ? "" : " and the mint authority"}.</li>
         </ol>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/token/solana/${result.mint}`}><Button>Open token page</Button></Link>
+          {onManage && <Button onClick={() => onManage(result.mint)}>Manage token</Button>}
+          <Link href={`/token/solana/${result.mint}`}><Button variant="outline">Open token page</Button></Link>
           <a href={`https://solscan.io/tx/${result.signature}`} target="_blank" rel="noopener noreferrer"><Button variant="outline">View transaction <ExternalLink size={13} /></Button></a>
           <Link href="/portfolio"><Button variant="ghost">Portfolio</Button></Link>
         </div>
@@ -130,7 +131,7 @@ export function TokenLauncher() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs"><img src="/logos/networks/solana.svg" alt="" width={16} height={16} /> <span className="font-medium">Solana</span><span className="text-muted">· SPL token + Metaplex metadata</span><Badge tone="neutral" className="ml-auto">EVM soon</Badge></div>
+      <div className="flex items-center gap-2 text-xs"><img src="/logos/networks/solana.svg" alt="" width={16} height={16} /> <span className="font-medium">Solana</span><span className="text-muted">· SPL token + Metaplex metadata</span></div>
       <fieldset disabled={step !== "form"} className="space-y-2.5">
         <div className="grid grid-cols-[1fr_120px] gap-2">
           <input className={input} placeholder="Token name" maxLength={32} value={f.name} onChange={set("name")} aria-label="Token name" />
