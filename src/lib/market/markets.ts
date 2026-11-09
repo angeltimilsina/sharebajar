@@ -52,10 +52,22 @@ function refreshSparklines(pairs: string[]) {
   try { after(job); } catch { void job(); }
 }
 
+/**
+ * Do two quotes describe the same asset? Within 5%, or — for sub-$0.001
+ * prices, which the ranking source rounds to one significant digit — within
+ * that rounding (e.g. 0.000003 vs 0.00000273).
+ */
+export function pricesAgree(a: number, b: number): boolean {
+  const ref = Math.max(a, b);
+  let tol = 0.05 * ref;
+  if (ref < 0.001) tol = Math.max(tol, 0.5 * 10 ** Math.floor(Math.log10(ref)));
+  return Math.abs(a - b) <= tol;
+}
+
 function merge(c: LoreCoin, pair: string | undefined, t: BnTicker | undefined): CoinMarket {
   const bnPrice = t ? Number(t.lastPrice) : null;
   // Only trust the Binance pair when it agrees with the aggregate price (guards symbol collisions).
-  const live = bnPrice && c.price && Math.abs(bnPrice - c.price) / c.price < 0.05 ? t : undefined;
+  const live = bnPrice && c.price && pricesAgree(bnPrice, c.price) ? t : undefined;
   const price = live ? Number(live.lastPrice) : c.price;
   return {
     id: c.slug,

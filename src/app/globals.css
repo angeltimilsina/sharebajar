@@ -225,3 +225,7 @@ html[data-app-view] .site-footer { display: none; }
 .seg-on { background: #ffffff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04); }
 :root[data-theme="dark"] .seg-on { background: #636366; box-shadow: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg-on { background: #636366; box-shadow: none; } }
+/* App pages mark themselves so the footer is hidden from the first paint. */
+html:has([data-app-page]) .site-footer { display: none; }
+/* Inputs that sit inside a styled field (the field shows focus instead). */
+.no-ring:focus-visible { outline: none; }

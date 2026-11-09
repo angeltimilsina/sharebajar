@@ -9,6 +9,7 @@ import { OrderBook } from "./OrderBook";
 import { TradeFeed } from "./TradeFeed";
 import { MarketPicker } from "./MarketPicker";
 import { Card, CardHeader, Notice } from "../ui/primitives";
+import { TradeSideCards } from "./TradeSideCards";
 import { TokenIcon } from "../ui/TokenIcon";
 import { ChainLabel } from "../ui/ChainIcon";
 import { AssetExecution, type ExecAsset, type ExecMode } from "../asset/AssetExecution";
@@ -97,10 +98,14 @@ export function TradeView() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-[30px] sm:text-[34px] leading-tight">Trade</h1>
+        <p className="text-muted text-[14.5px] mt-1">Live charts and order books, with swaps that execute from your own wallet.</p>
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         {dexMode ? (
           pair ? (
-            <div className="flex items-center gap-3 h-12 rounded-2xl border border-line bg-surface px-3">
+            <div className="flex items-center gap-3 h-12 rounded-full bg-surface px-4">
               <TokenIcon src={pair.imageUrl} symbol={pair.base.symbol} size={26} />
               <span><span className="block font-semibold leading-tight">{pair.base.symbol}<span className="text-muted font-medium">/{pair.quote.symbol}</span></span><span className="text-[11px] text-muted inline-flex items-center gap-1">{pair.dex} · <ChainLabel chain={chain!.id} /></span></span>
               <span className="num font-semibold ml-2">{formatPrice(pair.priceUsd)}</span>
@@ -131,6 +136,7 @@ export function TradeView() {
             <AssetExecution asset={execAsset} mode={mode} onMode={(m) => setParams({ mode: m === "trade" ? null : m })} side={side} onSide={(s) => setParams({ side: s === "buy" ? null : s })} />
           ) : <div className="panel h-80 skeleton" />}
           {!dexMode && <Notice>Chart and order book show Binance spot markets for price discovery. Execution happens on-chain from your wallet, so prices can differ slightly.</Notice>}
+          <TradeSideCards />
           <div className="xl:hidden">{mode === "trade" && (dexMode ? <Liquidity pair={pair} /> : <OrderBook symbol={symbol} base={base} rows={10} />)}</div>
         </div>
       </div>

@@ -9,7 +9,8 @@
 export type StreamStatus = "idle" | "connecting" | "open" | "reconnecting";
 type Handler = (data: unknown) => void;
 
-const WS_BASE = process.env.NEXT_PUBLIC_BINANCE_WS_URL || "wss://data-stream.binance.vision";
+/** Primary market-data endpoint, then Binance's main stream host as a backup. */
+const WS_BASES = [process.env.NEXT_PUBLIC_BINANCE_WS_URL || "wss://data-stream.binance.vision", "wss://stream.binance.com:9443"];
 const HEARTBEAT_MS = 25_000;
 
 class BinanceStream {
@@ -18,6 +19,7 @@ class BinanceStream {
   private statusListeners = new Set<() => void>();
   private _status: StreamStatus = "idle";
   private attempts = 0;
+  private base = 0;
   private reqId = 1;
   private lastMessageAt = 0;
   private watchdog: ReturnType<typeof setInterval> | null = null;
@@ -83,7 +85,9 @@ class BinanceStream {
 
   private connect() {
     this.setStatus(this.attempts ? "reconnecting" : "connecting");
-    const ws = new WebSocket(`${WS_BASE}/stream`);
+    // After two failed attempts on one host, try the next.
+    if (this.attempts > 0 && this.attempts % 2 === 0) this.base = (this.base + 1) % WS_BASES.length;
+    const ws = new WebSocket(`${WS_BASES[this.base]}/stream`);
     this.ws = ws;
     ws.onopen = () => {
       this.attempts = 0;

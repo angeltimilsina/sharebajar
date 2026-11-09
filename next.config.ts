@@ -18,7 +18,8 @@ const walletCsp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' ${binanceWs}${isDev ? " ws: http://localhost:*" : ""}`,
+  // Market-data stream plus its backup host (the client rotates if the primary fails).
+  `connect-src 'self' ${binanceWs} wss://stream.binance.com:9443${isDev ? " ws: http://localhost:*" : ""}`,
   "worker-src 'self' blob:",
   "frame-src 'none'",
   baseCsp,

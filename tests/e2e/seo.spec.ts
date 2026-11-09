@@ -57,3 +57,34 @@ test.describe("seo", () => {
     await expect(page.getByTestId("launch-connect")).toBeVisible();
   });
 });
+
+test.describe("app pages", () => {
+  test("portfolio shows feature cards when signed out; app pages have no footer", async ({ page }) => {
+    await page.goto("/portfolio");
+    const intro = page.getByTestId("portfolio-intro");
+    for (const t of ["How Bajar manages your portfolio", "Works with the wallets you use", "Post-quantum signatures", "Everything in Bajar"]) await expect(intro.getByText(t)).toBeVisible();
+    await expect(page.locator(".site-footer")).toBeHidden();
+    await page.goto("/trade");
+    await expect(page.getByTestId("trade-launch")).toBeVisible();
+    await expect(page.getByTestId("trade-connect")).toBeVisible();
+    await expect(page.locator(".site-footer")).toBeHidden();
+    await page.goto("/discover");
+    await expect(page.locator(".site-footer")).toBeHidden();
+    await page.goto("/markets");
+    await expect(page.locator(".site-footer")).toBeVisible();
+  });
+});
+
+test.describe("search @mobile", () => {
+  test("opens full-screen with a 16px field, finds results, cancels @mobile", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Search tokens" }).first().click();
+    const box = page.getByRole("textbox", { name: "Search" });
+    await expect(box).toBeFocused();
+    expect(await box.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await box.fill("solana");
+    await expect(page.getByTestId("search-dialog").getByText("Listed coins")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("search-cancel").click();
+    await expect(page.getByTestId("search-dialog")).toHaveCount(0);
+  });
+});

@@ -77,7 +77,7 @@ test.describe("Bajar Wallet", () => {
     await expect(page.getByTestId("wallet-holdings")).toBeVisible();
 
     await page.getByTestId("bajar-lock").click();
-    await expect(page.locator(".site-footer")).toBeVisible(); // locked: footer returns
+    await expect(page.locator(".site-footer")).toBeHidden(); // the wallet is an app page: no footer even when locked
     for (let i = 0; i < 3; i++) {
       await page.getByTestId("bajar-password").fill(`wrong password ${i}`);
       await page.getByTestId("bajar-unlock").click();

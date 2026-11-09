@@ -32,7 +32,8 @@ const INDICATORS: { id: IndicatorId; label: string; group: string; hint: string 
   { id: "mom", label: "Momentum", group: "Bajar", hint: "Rate of change over 10 candles (%)" },
 ];
 
-const COLORS = { ma20: "#f5b83d", ma50: "#8b7bff", ema21: "#38bdf8", bb: "#64748b", vwap: "#f472b6", rsi: "#a78bfa", macd: "#38bdf8", signal: "#f5b83d", bsr: "#22d3ee", mom: "#fb923c" };
+// iOS system palette for overlays and indicator panes.
+const COLORS = { ma20: "#ff9f0a", ma50: "#bf5af2", ema21: "#64d2ff", bb: "#8e8e93", vwap: "#ff375f", rsi: "#bf5af2", macd: "#0a84ff", signal: "#ff9f0a", bsr: "#5ac8fa", mom: "#ffd60a" };
 
 function cssVar(name: string, fallback: string) {
   if (typeof window === "undefined") return fallback;
@@ -86,6 +87,8 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
   /** Display-only tween of the live bar (see push-data effect). */
   const tweenRef = useRef<{ raf: number | null; time: number; shown: number } | null>(null);
   const [following, setFollowing] = useState(true);
+  /** Last applied direction colour for line/area (Stocks-style green/red). */
+  const dirRef = useRef<"up" | "down" | null>(null);
 
   useEffect(() => {
     const on = () => setTheme((t) => t + 1);
@@ -110,13 +113,17 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     const border = cssVar("--border", "rgba(255,255,255,0.07)");
     const up = cssVar("--up", "#19e07d");
     const down = cssVar("--down", "#ff4d5f");
-    const brand = cssVar("--accent", "#00f53a"); // green accent: price line + live dot
+    const brand = up; // line/area start green; recoloured by the period's direction (see push data)
 
     const chart = createChart(el, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: text, fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui", fontSize: 11, panes: { separatorColor: border, separatorHoverColor: border }, attributionLogo: false },
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: text, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter Variable', Inter, system-ui, sans-serif", fontSize: 11, panes: { separatorColor: border, separatorHoverColor: border }, attributionLogo: false },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
-      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelBackgroundColor: cssVar("--text", "#1f1e1d") }, horzLine: { labelBackgroundColor: cssVar("--text", "#1f1e1d") } },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: cssVar("--faint", "#636366"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: cssVar("--brand", "#0a84ff") },
+        horzLine: { color: cssVar("--faint", "#636366"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: cssVar("--brand", "#0a84ff") },
+      },
       rightPriceScale: { borderColor: border, scaleMargins: { top: 0.08, bottom: ind.has("vol") ? 0.22 : 0.08 } },
       timeScale: { borderColor: border, timeVisible: true, secondsVisible: subSecond, rightOffset: 6, barSpacing: subSecond ? 7 : 8 },
       localization: { priceFormatter: (p: number) => formatPrice(p, { currency: false }) },
@@ -129,7 +136,8 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
     let main: ISeriesApi<SeriesType>;
     if (type === "candles") main = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false, priceFormat });
     else if (type === "line") main = chart.addSeries(LineSeries, { color: brand, lineWidth: 2, priceFormat, lastPriceAnimation: LastPriceAnimationMode.Continuous });
-    else main = chart.addSeries(AreaSeries, { lineColor: brand, topColor: `${brand}55`, bottomColor: `${brand}00`, lineWidth: 2, priceFormat });
+    else main = chart.addSeries(AreaSeries, { lineColor: brand, topColor: `${brand}40`, bottomColor: `${brand}00`, lineWidth: 2, priceFormat, lastPriceAnimation: LastPriceAnimationMode.Continuous });
+    dirRef.current = null;
     mainRef.current = main;
     const s: Record<string, ISeriesApi<SeriesType>> = {};
     if (ind.has("vol")) {
@@ -319,6 +327,20 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
       lastShape.current = null;
       return;
     }
+    // Stocks-style: line/area are green when the shown period is up, red when down;
+    // candles get a price line in the colour of the live bar.
+    if (cs.length > 1) {
+      const last = cs[cs.length - 1];
+      if (type === "candles") main.applyOptions({ priceLineColor: last.close >= last.open ? up : down } as never);
+      else {
+        const dir = last.close >= cs[0].close ? "up" : "down";
+        if (dir !== dirRef.current) {
+          dirRef.current = dir;
+          const c = dir === "up" ? up : down;
+          main.applyOptions((type === "line" ? { color: c } : { lineColor: c, topColor: `${c}40`, bottomColor: `${c}00` }) as never);
+        }
+      }
+    }
     lastShape.current = cs.length ? { len: cs.length, first: cs[0].time, last: cs[cs.length - 1].time } : null;
     (chart as unknown as { __vp?: () => void }).__vp?.();
   }, [candles, type, indKey, theme, subSecond]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -378,17 +400,17 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
   return (
     <div ref={wrapRef} className={clsx("panel flex flex-col overflow-hidden bg-surface", full && "rounded-none", className)}>
       {/* toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-line overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-0.5" role="group" aria-label="Timeframe">
+      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-line overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-0.5 rounded-full bg-surface-2 p-0.5 shrink-0" role="group" aria-label="Timeframe">
           {resList.map((r) => (
-            <button key={r} onClick={() => setRes(r)} aria-pressed={res === r} className={clsx("px-2 h-7 rounded-md text-xs font-semibold num", res === r ? "bg-brand-soft text-brand" : "text-muted hover:text-fg hover:bg-surface-2")}>{r}</button>
+            <button key={r} onClick={() => setRes(r)} aria-pressed={res === r} className={clsx("px-2.5 h-7 rounded-full text-xs font-semibold num transition-colors", res === r ? "seg-on text-fg" : "text-muted hover:text-fg")}>{r}</button>
           ))}
         </div>
         <span className="w-px h-5 bg-line mx-1 shrink-0" />
-        <div className="flex items-center gap-0.5" role="group" aria-label="Chart type">
+        <div className="flex items-center gap-0.5 rounded-full bg-surface-2 p-0.5 shrink-0" role="group" aria-label="Chart type">
           {(["candles", "line", "area"] as ChartType[]).map((t) => {
             const Icon = t === "candles" ? CandlestickChart : t === "line" ? LineChart : AreaChart;
-            return <button key={t} title={t} aria-label={`${t} chart`} aria-pressed={type === t} onClick={() => setPrefs((p) => ({ ...p, type: t }))} className={clsx("h-7 w-7 grid place-items-center rounded-md", type === t ? "bg-surface-3 text-fg" : "text-muted hover:text-fg")}><Icon size={15} /></button>;
+            return <button key={t} title={t} aria-label={`${t} chart`} aria-pressed={type === t} onClick={() => setPrefs((p) => ({ ...p, type: t }))} className={clsx("h-7 w-7 grid place-items-center rounded-full", type === t ? "seg-on text-fg" : "text-muted hover:text-fg")}><Icon size={15} /></button>;
           })}
         </div>
         <span className="w-px h-5 bg-line mx-1 shrink-0" />
@@ -427,7 +449,7 @@ export function ProChart({ feed, label, defaultRes, height = 520, className, com
       <div className={clsx("relative", full ? "flex-1 min-h-0" : "shrink-0")} style={full ? undefined : { height }}>
         <div ref={elRef} className={clsx("absolute inset-0", tool !== "none" && "cursor-crosshair")} />
         {!following && (
-          <button onClick={() => chartRef.current?.timeScale().scrollToRealTime()} className="absolute bottom-8 right-20 z-10 rounded-full bg-surface-3/90 border border-line px-2.5 py-1 text-[11px] font-semibold text-brand shadow" aria-label="Jump to live">Live ›</button>
+          <button onClick={() => chartRef.current?.timeScale().scrollToRealTime()} className="absolute bottom-8 right-20 z-10 rounded-full btn-ink px-3 py-1 text-[12px] font-semibold shadow-[var(--shadow-lg)]" aria-label="Jump to live">Live ›</button>
         )}
         <div className="pointer-events-none absolute left-3 top-2 z-10 text-[11px] num flex flex-wrap gap-x-3 gap-y-0.5 max-w-[calc(100%-80px)]">
           {label && <span className="font-semibold text-fg text-xs">{label} · {res}</span>}

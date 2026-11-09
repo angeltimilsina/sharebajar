@@ -53,7 +53,7 @@ export function Discover() {
   const field = (k: keyof Filters, label: string, placeholder: string) => (
     <label className="text-xs text-muted space-y-1">
       <span>{label}</span>
-      <input inputMode="decimal" value={filters[k] as string} onChange={(e) => setFilters((f) => ({ ...f, [k]: e.target.value.replace(/[^0-9.\-]/g, "") }))} placeholder={placeholder} className="w-full h-9 rounded-lg border border-line bg-surface-2 px-2.5 text-sm text-fg outline-none focus:border-brand/50" />
+      <input inputMode="decimal" value={filters[k] as string} onChange={(e) => setFilters((f) => ({ ...f, [k]: e.target.value.replace(/[^0-9.\-]/g, "") }))} placeholder={placeholder} className="w-full h-10 rounded-xl bg-surface-2 px-3 text-[16px] sm:text-sm text-fg outline-none focus:ring-2 focus:ring-brand/40" />
     </label>
   );
 
@@ -61,16 +61,16 @@ export function Discover() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Token Discovery</h1>
-          <p className="text-sm text-muted">Real-time on-chain pools across {chain ? chain.name : "all supported networks"} — trending, new and high-volume markets.</p>
+          <h1 className="text-[30px] sm:text-[34px] leading-tight">Discover</h1>
+          <p className="text-[14.5px] text-muted mt-1">Live on-chain pools on {chain ? chain.name : "every supported network"} — trending, new and high-volume, with risk signals.</p>
         </div>
         <div className="flex-1" />
         <form onSubmit={lookup} className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-2 h-10 rounded-xl border border-line bg-surface px-3 flex-1 sm:w-[380px]">
-            <Search size={15} className="text-muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Paste a contract address…" className="bg-transparent outline-none text-sm flex-1 num" aria-label="Contract address" />
-          </div>
-          <Button type="submit" variant="subtle">Look up</Button>
+          <label className="flex items-center gap-2 h-11 rounded-xl bg-surface-2 px-3 flex-1 sm:w-[380px]">
+            <Search size={16} className="text-muted shrink-0" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Paste a contract address" className="no-ring bg-transparent outline-none text-[16px] flex-1 min-w-0 num placeholder:text-faint" aria-label="Contract address" inputMode="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
+          </label>
+          <Button type="submit" className="h-11">Look up</Button>
         </form>
       </div>
       <NetworkFilter value={network} onChange={setNetwork} />
@@ -80,7 +80,7 @@ export function Discover() {
           <div className="flex-1" />
           {feed === "trending" && <Tabs size="sm" tabs={(["5m", "1h", "6h", "24h"] as const).map((d) => ({ id: d, label: d }))} value={duration} onChange={setDuration} />}
           {isPoolFeed && (
-            <button onClick={() => setShowFilters((s) => !s)} className={`h-8 px-3 my-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 border ${activeFilters ? "border-brand/50 bg-brand-soft text-brand" : "border-line text-muted hover:text-fg"}`}>
+            <button onClick={() => setShowFilters((s) => !s)} className={`h-8 px-3.5 my-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 ${activeFilters ? "bg-brand-soft text-brand" : "bg-surface-2 text-muted hover:text-fg"}`}>
               <SlidersHorizontal size={13} /> Filters{activeFilters ? ` (${activeFilters})` : ""}
             </button>
           )}

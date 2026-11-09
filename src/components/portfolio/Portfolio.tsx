@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Wallet, RefreshCw, ExternalLink, ShieldCheck, Trash2, BellRing } from "lucide-react";
+import { RefreshCw, ExternalLink, ShieldCheck, Trash2, BellRing } from "lucide-react";
 import { useWallet } from "../wallet/WalletProvider";
 import { useAlerts, useWatchlist, watchKey } from "@/hooks/useWatchlist";
 import { getRecentSignatures, getSolBalance, getSplHoldings, SOL_MINT, type SigInfo } from "@/lib/wallet/rpc";
@@ -12,11 +12,12 @@ import { Badge, Button, Card, CardHeader, Notice } from "../ui/primitives";
 import { TokenIcon } from "../ui/TokenIcon";
 import { DataStatus } from "../ui/DataStatus";
 import { ActivityPanel } from "./ActivityPanel";
+import { PortfolioIntro } from "./PortfolioIntro";
 
 interface Holding { mint: string; symbol: string; name: string; icon: string | null; amount: number; price: number | null; value: number | null; verified: boolean; network?: string; token?: string }
 
 export function Portfolio() {
-  const { wallet, openModal, session, signIn } = useWallet();
+  const { wallet, session, signIn } = useWallet();
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [native, setNative] = useState<number | null>(null);
   const [sigs, setSigs] = useState<SigInfo[] | null>(null);
@@ -56,15 +57,13 @@ export function Portfolio() {
 
   if (!wallet) {
     return (
-      <Card className="p-10 text-center">
-        <Wallet className="mx-auto text-brand" size={36} />
-        <h1 className="text-xl font-semibold mt-3">Connect a wallet to view your portfolio</h1>
-        <p className="text-sm text-muted mt-1 max-w-md mx-auto">See balances, holdings value and recent transactions. Bajar reads public on-chain data only — it never takes custody of your assets.</p>
-        <Button className="mt-5" onClick={openModal}>Connect wallet</Button>
-        <p className="mt-3 text-xs text-muted">or <Link href="/wallet" className="underline underline-offset-2">create a Bajar Wallet</Link> — self-custody for Bitcoin, Ethereum and Solana.</p>
-        <div className="mt-6 text-left"><ActivityPanel /></div>
-        <WatchAndAlerts />
-      </Card>
+      <div className="space-y-6">
+        <PortfolioIntro />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ActivityPanel />
+          <WatchAndAlerts />
+        </div>
+      </div>
     );
   }
   const total = holdings?.reduce((s, h) => s + (h.value ?? 0), 0) ?? null;
@@ -73,10 +72,12 @@ export function Portfolio() {
   const signedIn = session?.address.toLowerCase() === wallet.address.toLowerCase();
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div>
-          <div className="text-xs text-muted">{wallet.walletName} · {chainName}</div>
-          <h1 className="text-2xl font-bold num">{shortAddress(wallet.address, 6, 6)}</h1>
+      <h1 className="text-[30px] sm:text-[34px] leading-tight">Portfolio</h1>
+      <div className="panel p-5 flex flex-wrap items-center gap-4">
+        <div className="min-w-0">
+          <div className="text-[13px] text-muted">Total value</div>
+          <div className="text-[34px] font-semibold num leading-tight" data-testid="portfolio-total">{total !== null ? formatUsd(total) : "—"}</div>
+          <div className="text-[13px] text-muted mt-0.5 flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-accent" />{wallet.walletName} · {chainName} · <span className="num">{shortAddress(wallet.address, 4, 4)}</span></div>
         </div>
         {signedIn ? <Badge tone="up"><ShieldCheck size={11} /> Signed in</Badge> : <Button size="sm" variant="subtle" onClick={signIn}><ShieldCheck size={13} /> Sign in with wallet</Button>}
         <div className="flex-1" />
@@ -88,7 +89,7 @@ export function Portfolio() {
         <div className="space-y-4 min-w-0">
           {holdings !== null || wallet.chainType === "solana" ? (
             <Card>
-              <CardHeader title="Holdings" sub={total !== null ? <span className="text-fg text-lg font-semibold num">{formatUsd(total)}</span> : undefined} />
+              <CardHeader title="Holdings" sub={holdings ? `${holdings.length} asset${holdings.length === 1 ? "" : "s"}` : undefined} />
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[560px]">
                   <thead className="text-xs text-muted border-y border-line"><tr><th className="text-left px-4 py-2 font-medium">Token</th><th className="text-right px-3 font-medium">Balance</th><th className="text-right px-3 font-medium">Price</th><th className="text-right px-4 font-medium">Value</th></tr></thead>
