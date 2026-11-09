@@ -35,6 +35,7 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ mint: string; signature: string } | null>(null);
   const [uri, setUri] = useState<string>("");
+  const [metaNote, setMetaNote] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   useEffect(() => { fetch("/api/launch/config").then((r) => r.json()).then(setCfg).catch(() => setCfg({ fee: null, metadataHosting: false })); }, []);
@@ -54,6 +55,7 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
     const r = await fetch("/api/launch/metadata", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: f.name, symbol: f.symbol, description: f.description, image: f.image || undefined, website: f.website || undefined, twitter: f.twitter || undefined, telegram: f.telegram || undefined }) });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error ?? "Couldn't host metadata");
+    setMetaNote(b.dropped?.length ? `Saved without ${b.dropped.join(", ")} to fit the 200-byte limit. Add them later with Edit metadata, or use your own metadata URI.` : null);
     return b.uri;
   };
 
@@ -158,7 +160,6 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
         </div>
         <details className="text-xs"><summary className="cursor-pointer text-muted">Advanced: use my own metadata URI (IPFS / Arweave)</summary>
           <input className={clsx(input, "mt-2")} placeholder="ipfs://… or https://… JSON" value={f.uri} onChange={set("uri")} aria-label="Metadata URI" />
-          {cfg && !cfg.metadataHosting && <p className="mt-1 text-warn">Metadata hosting isn&apos;t available on this deployment — provide a URI to show a logo and links.</p>}
         </details>
       </fieldset>
 
@@ -171,6 +172,7 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
 
       {formErr && (f.name || f.symbol) && <p className="text-xs text-down">{formErr}</p>}
       {err && <Notice tone="down">{err}</Notice>}
+      {metaNote && step === "review" && <Notice tone="warn">{metaNote}</Notice>}
       {step === "review" && sim && (
         <Notice tone={sim.ok ? "info" : "down"} title={sim.ok ? "Simulation passed" : "Simulation failed"}>
           {sim.ok ? <>All instructions executed successfully in simulation ({sim.units?.toLocaleString()} compute units). Your wallet will ask you to approve one transaction.</> : sim.error}

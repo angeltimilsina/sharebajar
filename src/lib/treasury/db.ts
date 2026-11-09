@@ -234,7 +234,16 @@ async function open(): Promise<Db> {
   const url = process.env.DATABASE_URL;
   if (url) {
     const { Pool } = await import("pg");
-    const pool = new Pool({ connectionString: url, max: 5, ssl: /sslmode=require|neon|supabase|amazonaws/.test(url) ? { rejectUnauthorized: false } : undefined });
+    // pg >= 8.16 reads sslmode from the URL and lets it override the `ssl`
+    // option below (sslmode=require now means verify-full), which made the
+    // connection fail for providers with their own CA. TLS is configured
+    // here instead. Set DATABASE_CA_CERT (PEM) to verify the server certificate.
+    const u = new URL(url);
+    const wantsTls = /^(require|verify-ca|verify-full|prefer)$/.test(u.searchParams.get("sslmode") ?? "") || /neon|supabase|amazonaws/.test(url);
+    for (const k of ["sslmode", "sslrootcert", "uselibpqcompat"]) u.searchParams.delete(k);
+    const ca = process.env.DATABASE_CA_CERT?.replace(/\\n/g, "\n");
+    const ssl = ca ? { ca, rejectUnauthorized: true } : wantsTls ? { rejectUnauthorized: false } : undefined;
+    const pool = new Pool({ connectionString: u.toString(), max: 5, connectionTimeoutMillis: 10_000, ssl });
     const db: Db = { kind: "postgres", query: async (sql, params) => (await pool.query(sql, params as unknown[])).rows };
     await pool.query(SCHEMA);
     return db;
@@ -264,4 +273,16 @@ export const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replac
 export function __useMemoryDb() {
   process.env.TREASURY_PGLITE_DIR = "memory://";
   g.__sbDb = undefined;
+}
+
+/** Database health for /api/health: connects or not, with a short error (no URL or host). */
+export async function dbHealth(): Promise<{ ok: boolean; kind?: string; error?: string }> {
+  try {
+    const d = await db();
+    await d.query("select 1");
+    return { ok: true, kind: d.kind };
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e);
+    return { ok: false, error: m.replace(/postgres(ql)?:\/\/\S+/gi, "[url]").replace(/\b[\w-]+(\.[\w-]+)+\.(com|net|io|co|tech|app|cloud|dev)\b/gi, "[host]").slice(0, 160) };
+  }
 }

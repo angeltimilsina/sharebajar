@@ -3,6 +3,8 @@ import { z } from "zod";
 import { q, newId } from "@/lib/treasury/db";
 import { crossSiteRejection, requestHost } from "@/lib/server/guard";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
+import { encodeCompact, toMetaplex } from "@/lib/launch/compactMetadata";
+import { log } from "@/lib/server/log";
 
 const httpsUrl = z.string().url().max(300).refine((u) => /^https:\/\//.test(u), "Must be an https URL");
 const Body = z.object({
@@ -24,17 +26,18 @@ export async function POST(req: Request) {
   const p = Body.safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ error: p.error.issues[0]?.message ?? "Invalid metadata" }, { status: 400 });
   const d = p.data;
-  const json = {
-    name: d.name, symbol: d.symbol, description: d.description, ...(d.image ? { image: d.image } : {}),
-    extensions: { ...(d.website ? { website: d.website } : {}), ...(d.twitter ? { twitter: d.twitter } : {}), ...(d.telegram ? { telegram: d.telegram } : {}) },
-    ...(d.image ? { properties: { files: [{ uri: d.image, type: "image/png" }], category: "image" } } : {}),
-  };
+  const json = toMetaplex(d);
+  const proto = new URL(req.url).protocol === "http:" && /^localhost|^127\./.test(requestHost(req)) ? "http" : "https";
+  const base = `${proto}://${requestHost(req)}`;
   try {
     const id = newId("tm").slice(3, 19);
     await q("insert into token_metadata (id, json) values ($1, $2)", [id, JSON.stringify(json)]);
-    const proto = new URL(req.url).protocol === "http:" && /^localhost|^127\./.test(requestHost(req)) ? "http" : "https";
-    return NextResponse.json({ uri: `${proto}://${requestHost(req)}/api/launch/metadata/${id}`, json });
+    return NextResponse.json({ uri: `${base}/api/launch/metadata/${id}`, json });
   } catch (e) {
-    return NextResponse.json({ error: "Metadata hosting is unavailable on this deployment (no database). Provide your own metadata URI (IPFS/Arweave).", detail: String(e).slice(0, 120) }, { status: 503 });
+    log("warn", "metadata hosting: database unavailable, using in-URL metadata", { error: String(e).slice(0, 160) });
+    // No database: put the (compressed) metadata in the URL itself.
+    const c = encodeCompact(d, base);
+    if (c) return NextResponse.json({ uri: c.uri, json: toMetaplex({ ...d, ...Object.fromEntries(c.dropped.map((k) => [k, undefined])) }), dropped: c.dropped, mode: "in-url" });
+    return NextResponse.json({ error: "The logo link is too long to store without hosting. Use a shorter image URL, or your own metadata URI (IPFS/Arweave) under Advanced." }, { status: 503 });
   }
 }

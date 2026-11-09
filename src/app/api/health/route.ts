@@ -2,6 +2,7 @@ import { getHostStats } from "@/lib/server/http";
 import { aiConfigured } from "@/lib/ai/config";
 import { NextResponse } from "next/server";
 import { feeCandidates, treasuryStatus } from "@/lib/treasury/service";
+import { dbHealth } from "@/lib/treasury/db";
 
 /** Integration status for monitoring dashboards and the /status page. */
 export async function GET() {
@@ -11,6 +12,7 @@ export async function GET() {
     if ((await feeCandidates(chain).catch(() => [])).some((c) => c.status === "active")) feeNetworks.push(chain);
   }
   const store = treasuryStatus();
+  const database = await dbHealth();
   return NextResponse.json(
     {
       status: "ok",
@@ -18,6 +20,7 @@ export async function GET() {
       uptimeSec: Math.round(process.uptime()),
       integrations: {
         ai: { configured: aiConfigured(), provider: "Anthropic" },
+        database,
         marketData: "CoinLore + Binance (keyless)",
         networks: "mempool.space + public JSON-RPC",
         solanaRpc: process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL ? "custom" : "public (rate-limited)",

@@ -5,8 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { Rocket } from "lucide-react";
 import { usePoll } from "@/hooks/usePoll";
 import { getChain } from "@/lib/chains";
-import { timeAgo } from "@/lib/format";
-import { TokenIcon } from "../ui/TokenIcon";
 import { TokenLauncher } from "./TokenLauncher";
 import { EvmTokenLauncher } from "./EvmTokenLauncher";
 import { ManageTokens } from "./ManageTokens";
@@ -14,9 +12,8 @@ import { EVM_LAUNCH_CHAINS } from "@/lib/launch/evmToken";
 import { ChainIcon } from "../ui/ChainIcon";
 import clsx from "clsx";
 
-interface Launch { mint: string; chain: string; name: string; symbol: string; creator: string; fixed_supply: boolean; freeze_revoked: boolean; created_at: string }
 import type { Pool } from "@/lib/types";
-import { Badge, Card, CardHeader, Notice } from "../ui/primitives";
+import { Card, CardHeader, Notice } from "../ui/primitives";
 import { DataStatus } from "../ui/DataStatus";
 import { NetworkFilter } from "../market/NetworkFilter";
 import { PoolTable } from "../market/PoolTable";
@@ -26,12 +23,10 @@ export function Launchpad() {
   const [network, setNetwork] = useState(sp.get("network") ?? "all");
   const chain = getChain(network);
   const pools = usePoll<Pool[]>(`/api/dex/pools?feed=new${chain ? `&network=${chain.id}` : ""}`, 15_000);
-  const [launches, setLaunches] = useState<Launch[] | null>(null);
   const [launchChain, setLaunchChain] = useState<string>(["solana", "ethereum", "base", "bsc"].includes(sp.get("chain") ?? "") ? sp.get("chain")! : "solana");
   const [focus, setFocus] = useState<{ chain: string; token: string } | null>(null);
   const manage = (chain: string) => (token: string) => { setFocus({ chain, token }); setTimeout(() => document.getElementById("manage")?.scrollIntoView({ behavior: "smooth" }), 50); };
   const evmChain = EVM_LAUNCH_CHAINS.find((c) => c.id === launchChain);
-  useEffect(() => { fetch("/api/launch/record").then((r) => r.json()).then((b) => setLaunches(b.launches ?? [])).catch(() => setLaunches([])); }, []);
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[1fr_440px]">
@@ -44,25 +39,6 @@ export function Launchpad() {
               {["Your wallet signs; Bajar holds no authority", "Simulated before you sign", "Costs shown up front"].map((t) => <li key={t} className="rounded-xl bg-surface-2 px-3 py-2">{t}</li>)}
             </ul>
           </div>
-          <Card>
-            <CardHeader title="Launched on Bajar" sub="Verified on-chain after creation" />
-            {launches === null ? <div className="px-5 pb-5"><div className="h-16 skeleton" /></div> : launches.length === 0 ? (
-              <p className="px-5 pb-5 text-sm text-muted">No launches yet. Yours could be the first.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {launches.slice(0, 10).map((l) => (
-                  <li key={l.mint}>
-                    <Link href={`/token/${l.chain ?? "solana"}/${l.mint}`} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-surface-2/70">
-                      <span className="relative"><TokenIcon symbol={l.symbol} size={28} /><span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1.5px]"><ChainIcon chain={l.chain ?? "solana"} size={12} /></span></span>
-                      <span className="min-w-0 flex-1"><span className="block font-semibold truncate">{l.symbol} <span className="text-muted font-normal">· {l.name}</span></span><span className="block text-[11px] text-muted">{timeAgo(new Date(l.created_at).getTime())}</span></span>
-                      {l.fixed_supply && <Badge tone="up">Fixed supply</Badge>}
-                      {l.freeze_revoked && <Badge tone="up" className="hidden sm:inline-flex">No freeze</Badge>}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
         </div>
         <Card id="create" className="p-5 h-fit">
           <h2 className="text-[22px] mb-3">Create a token</h2>

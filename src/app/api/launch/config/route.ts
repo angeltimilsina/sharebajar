@@ -5,12 +5,13 @@ import { listTreasuries } from "@/lib/treasury/store";
 export async function GET() {
   const feeUsdc = Math.max(0, Number(process.env.TOKEN_LAUNCH_FEE_USDC ?? 0)) || 0;
   let recipient: string | null = null;
-  let hosting = true;
+  // Metadata is hosted in the database, or stored in the URL itself when there's none.
+  const hosting = true;
   try {
     // The fee is only charged if an active, verified Solana treasury exists to receive it.
     const t = (await listTreasuries()).find((x) => x.chain === "solana" && x.status === "active" && x.integrityOk && x.ownership && x.environment === "mainnet" && x.kind !== "jupiter_referral");
     recipient = t?.address ?? null;
-  } catch { hosting = false; }
+  } catch { /* no treasury: no launch fee */ }
   const fee = feeUsdc > 0 && recipient ? { amountUsdc: feeUsdc, recipient } : null;
   return NextResponse.json({ fee, metadataHosting: hosting, chains: ["solana", "ethereum", "base", "bsc"] }, { headers: { "cache-control": "no-store" } });
 }
