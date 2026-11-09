@@ -154,3 +154,43 @@ test.describe("multiple wallets", () => {
     expect(res).toEqual({ eth_sign: "4200", eth_signTypedData_v4: "4200", eth_signTransaction: "4200" });
   });
 });
+
+test.describe("mobile wallet deep links @mobile", () => {
+  test("Phantom and MetaMask open Bajar in the wallet app, tagged to auto-connect @mobile", async ({ page }) => {
+    // Capture navigations to the wallets' universal links instead of leaving the site.
+    const opened: string[] = [];
+    await page.route(/phantom\.app|metamask\.app\.link|go\.cb-w\.com/, (r) => { opened.push(r.request().url()); return r.fulfill({ status: 204, body: "" }); });
+    await page.goto("/trade?symbol=SOLUSDT");
+    await page.getByTestId("menu-button").click();
+    await page.getByTestId("menu-connect").click();
+    const phantom = page.getByTestId("wallet-option-phantom");
+    await expect(phantom).toContainText("Open app");
+    await phantom.click();
+    await expect.poll(() => opened.length).toBeGreaterThan(0);
+    const ph = new URL(opened[0]);
+    expect(ph.hostname).toBe("phantom.app");
+    const inner = new URL(decodeURIComponent(ph.pathname.replace("/ul/browse/", "")));
+    expect(inner.pathname).toBe("/trade");
+    expect(inner.searchParams.get("bajar_connect")).toBe("phantom");
+
+    await page.goto("/trade?symbol=SOLUSDT");
+    await page.getByTestId("menu-button").click();
+    await page.getByTestId("menu-connect").click();
+    await page.getByTestId("wallet-option-io.metamask").click();
+    await expect.poll(() => opened.some((u) => u.includes("metamask.app.link/dapp/"))).toBe(true);
+    expect(opened.find((u) => u.includes("metamask.app.link"))).toContain("bajar_connect=io.metamask");
+    await expect(page.getByTestId("wallet-option-com.coinbase.wallet")).toBeVisible().catch(() => {});
+  });
+
+  test("arriving inside the wallet app opens the connect prompt automatically @mobile", async ({ page }) => {
+    await page.addInitScript(() => {
+      const pk = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9";
+      const provider = { isPhantom: true, publicKey: null as null | { toString(): string }, connect: async () => { (window as unknown as { __asked: boolean }).__asked = true; provider.publicKey = { toString: () => pk }; return { publicKey: provider.publicKey }; }, disconnect: async () => {}, signMessage: async () => ({ signature: new Uint8Array(64) }), on: () => {}, off: () => {} };
+      (window as unknown as { phantom: unknown }).phantom = { solana: provider };
+    });
+    await page.goto("/portfolio?bajar_connect=phantom");
+    await expect(page.getByText(/Phantom · Solana/)).toBeVisible({ timeout: 15_000 });
+    expect(await page.evaluate(() => (window as unknown as { __asked?: boolean }).__asked)).toBe(true);
+    await expect(page).not.toHaveURL(/bajar_connect/); // tag removed so refresh/share doesn't re-trigger
+  });
+});

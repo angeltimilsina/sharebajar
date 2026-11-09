@@ -46,6 +46,10 @@ export function getEvmProvider(id: string): Eip1193 | undefined {
   if (d) return d.provider;
   if (id === "io.metamask" && typeof window !== "undefined" && window.ethereum?.isMetaMask) return window.ethereum;
   if (id === "injected" && typeof window !== "undefined") return window.ethereum;
+  // Inside Coinbase / Trust in-app browsers the wallet may only inject window.ethereum.
+  const eth = typeof window !== "undefined" ? (window.ethereum as (Eip1193 & { isCoinbaseWallet?: boolean; isTrust?: boolean; isTrustWallet?: boolean }) | undefined) : undefined;
+  if (id === "com.coinbase.wallet" && eth?.isCoinbaseWallet) return eth;
+  if (id === "com.trustwallet.app" && (eth?.isTrust || eth?.isTrustWallet)) return eth;
   return undefined;
 }
 

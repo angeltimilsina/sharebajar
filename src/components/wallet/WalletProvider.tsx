@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { getSolanaProvider, solanaSignMessage, SOLANA_WALLETS, type InjectedSolana } from "@/lib/wallet/solana";
 import { evmDiscovery, evmSignMessage, getEvmProvider, startEvmDiscovery, type Eip1193 } from "@/lib/wallet/evm";
 import type { ConnectedWallet } from "@/lib/wallet/types";
+import { takeConnectRequest } from "@/lib/wallet/mobile";
 import type { ChainType } from "@/lib/types";
 
 interface Session { address: string; chainType: ChainType; exp: number }
@@ -111,6 +112,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setConnecting(null);
     }
   }, [attachListeners]);
+
+  // Arrived from a mobile deep link (opened inside the wallet's app browser):
+  // open that wallet's connect prompt once its provider has been injected.
+  useEffect(() => {
+    const id = takeConnectRequest();
+    if (!id) return;
+    const solana = ["phantom", "solflare", "backpack"].includes(id);
+    const name = ({ phantom: "Phantom", solflare: "Solflare", backpack: "Backpack", "io.metamask": "MetaMask", "com.coinbase.wallet": "Coinbase Wallet", "com.trustwallet.app": "Trust Wallet" } as Record<string, string>)[id] ?? id;
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      const ready = solana ? getSolanaProvider(id) : getEvmProvider(id);
+      if (ready) { clearInterval(t); connect(id, solana ? "solana" : "evm", name); }
+      else if (tries > 20) { clearInterval(t); setError(`${name} wasn't detected. Open this page from the ${name} app's browser to connect.`); setModalOpen(true); }
+    }, 200);
+    return () => clearInterval(t);
+  }, [connect]);
 
   // Eager reconnect for previously-approved wallets (no popup).
   useEffect(() => {

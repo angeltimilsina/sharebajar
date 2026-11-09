@@ -7,6 +7,8 @@ import { useEvmWallets, useWallet } from "./WalletProvider";
 import { SOLANA_WALLETS } from "@/lib/wallet/solana";
 import { ICONS } from "@/lib/wallet/icons";
 import type { ChainType } from "@/lib/types";
+import { hasDeepLink, isMobileBrowser, MOBILE_ONLY_EVM, walletDeepLink } from "@/lib/wallet/mobile";
+import { walletLogo } from "@/lib/logos";
 
 interface Row { id: string; name: string; icon: string; chainType: ChainType | "native"; installed: boolean; installUrl?: string; soon?: boolean; note?: string }
 
@@ -16,11 +18,13 @@ export function WalletModal() {
   const [solInstalled, setSolInstalled] = useState<Record<string, boolean>>({});
   const [legacyEth, setLegacyEth] = useState(false);
   const [bajarReady, setBajarReady] = useState(false);
+  const [mobile, setMobile] = useState(false);
 
   useEffect(() => {
     if (!modalOpen) return;
     setSolInstalled(Object.fromEntries(SOLANA_WALLETS.map((w) => [w.id, Boolean(w.get())])));
     setLegacyEth(Boolean(window.ethereum));
+    setMobile(isMobileBrowser());
     // Unlocked state lives in memory, so it can only be true once the wallet modules are loaded.
     let vault = false;
     try { vault = !!localStorage.getItem("bajar.vault.v1"); } catch { /* ignore */ }
@@ -36,18 +40,25 @@ export function WalletModal() {
     ...evm.filter((w) => w.info.rdns !== "io.metamask").map((w) => ({ id: w.info.rdns, name: w.info.name, icon: w.info.icon, chainType: "evm" as const, installed: true })),
   ];
   if (!evm.length && legacyEth && !hasMetaMask) rows.push({ id: "injected", name: "Browser wallet", icon: ICONS.evm, chainType: "evm", installed: true });
+  // Phones: wallets without an extension are reached through their app's browser.
+  if (mobile) for (const w of MOBILE_ONLY_EVM) if (!rows.some((r) => r.id === w.id)) rows.push({ id: w.id, name: w.name, icon: walletLogo(w.id) ?? ICONS.evm, chainType: "evm", installed: false });
+  const viaApp = (r: Row) => mobile && !r.installed && hasDeepLink(r.id);
 
   return (
     <Modal open={modalOpen} onClose={closeModal} title="Connect a wallet">
       <div className="px-5 pb-5">
         <p className="text-xs text-muted mb-3">Connect to view balances, sign in and trade. Bajar never takes custody of your funds.</p>
+        {mobile && <p className="text-xs text-muted mb-3 -mt-1">On your phone, choosing Phantom, MetaMask or another app opens Bajar inside that wallet, then asks you to connect.</p>}
         <ul className="space-y-1.5">
           {rows.map((r) => (
             <li key={r.id}>
               <button
-                disabled={r.soon || (!r.installed && !r.installUrl) || !!connecting}
+                disabled={r.soon || (!r.installed && !r.installUrl && !viaApp(r)) || !!connecting}
+                data-testid={`wallet-option-${r.id}`}
                 onClick={() => {
                   if (r.soon) return;
+                  // Phone without the extension: open this page inside the wallet app (same tab = universal link).
+                  if (viaApp(r)) { const link = walletDeepLink(r.id); if (link) { window.location.href = link; return; } }
                   if (!r.installed && r.installUrl) { if (r.installUrl.startsWith("/")) { closeModal(); window.location.href = r.installUrl; } else window.open(r.installUrl, "_blank", "noopener,noreferrer"); return; }
                   connect(r.id, r.chainType as ChainType, r.name);
                 }}
@@ -57,11 +68,12 @@ export function WalletModal() {
                 <img src={r.icon} alt="" width={32} height={32} className="rounded-lg" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold">{r.name}</span>
-                  <span className="block text-[11px] text-muted">{r.note ?? (r.chainType === "solana" ? "Solana" : "Ethereum & EVM chains")}</span>
+                  <span className="block text-[11px] text-muted">{viaApp(r) ? `Opens Bajar in the ${r.name} app` : r.note ?? (r.chainType === "solana" ? "Solana" : "Ethereum & EVM chains")}</span>
                 </span>
                 {connecting === r.id ? <Loader2 size={16} className="animate-spin text-muted" />
                   : r.soon ? <Badge tone="brand">Coming soon</Badge>
                   : r.installed ? <Badge tone="up">Detected</Badge>
+                  : viaApp(r) ? <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand">Open app <ExternalLink size={11} /></span>
                   : <span className="inline-flex items-center gap-1 text-[11px] text-muted">Install <ExternalLink size={11} /></span>}
               </button>
             </li>
