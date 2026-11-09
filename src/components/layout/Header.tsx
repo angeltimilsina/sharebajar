@@ -6,7 +6,6 @@ import clsx from "clsx";
 import { Logo } from "../ui/Logo";
 import { GlobalSearch, SearchTrigger } from "./CommandSearch";
 import { ThemeToggle } from "./ThemeToggle";
-import { ConnectButton } from "../wallet/ConnectButton";
 import { AccountMenu } from "./AccountMenu";
 import { useConnected } from "@/hooks/useConnected";
 
@@ -51,9 +50,7 @@ export function Header() {
         <SearchTrigger className="hidden 2xl:flex items-center gap-2 h-10 w-[340px] rounded-full bg-surface-2 px-4 text-muted hover:bg-surface-3" />
         <SearchTrigger className="2xl:hidden h-10 w-10 grid place-items-center rounded-full text-muted hover:text-fg hover:bg-surface-2 [&>span]:hidden [&>kbd]:hidden" />
         <div className="hidden sm:block"><ThemeToggle /></div>
-        {/* Once connected, wallet controls live in the menu (Wallet section), not the header. */}
-        {!connected && <div className="hidden sm:block"><ConnectButton /></div>}
-        {!connected && <div className="sm:hidden"><ConnectButton compact /></div>}
+        {/* No Connect button in the bar: connect from the menu, or when you trade. */}
       </div>
       <GlobalSearch />
       {open && (

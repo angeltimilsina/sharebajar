@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Lock, LogOut, PieChart, Repeat2, ShieldCheck, Wallet } from "lucide-react";
+import { Check, Copy, Lock, LogOut, PieChart, Plug, Repeat2, ShieldCheck, Wallet } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
 import { useWallet } from "../wallet/WalletProvider";
 import { lock } from "@/lib/bajar/session";
@@ -10,12 +10,19 @@ import { chainFromEvmId } from "@/lib/chains";
 
 const row = "w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[15px] text-muted hover:text-fg hover:bg-surface-2";
 
-/** Wallet settings inside the menu: who's connected, switch, sign in, disconnect. */
+/** Wallet settings inside the menu: connect, or who's connected, switch, sign in, disconnect. */
 export function AccountMenu({ onDone }: { onDone: () => void }) {
   const { wallet, bajarUnlocked } = useConnected();
   const { openModal, disconnect, session, signIn, signOut, error } = useWallet();
   const [copied, setCopied] = useState(false);
-  if (!wallet && !bajarUnlocked) return null;
+  if (!wallet && !bajarUnlocked) {
+    return (
+      <div data-testid="account-menu">
+        <div className="px-3.5 pt-3 pb-1 text-[11px] uppercase tracking-wider text-faint">Wallet</div>
+        <button className={row} data-testid="menu-connect" onClick={() => { onDone(); openModal(); }}><Plug size={16} /> Connect wallet</button>
+      </div>
+    );
+  }
   const chainName = wallet ? (wallet.chainType === "solana" ? "Solana" : chainFromEvmId(wallet.chainId ?? 0)?.name ?? `Chain ${wallet.chainId}`) : "";
   const signedIn = wallet && session && session.address.toLowerCase() === wallet.address.toLowerCase();
   return (

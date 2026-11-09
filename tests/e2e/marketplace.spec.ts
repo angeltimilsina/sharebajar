@@ -100,7 +100,9 @@ test.describe("charts", () => {
 test.describe("wallet", () => {
   test("wallet picker never asks for a seed phrase and offers Bajar Wallet", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Connect wallet" }).first().click();
+    await expect(page.getByRole("banner").getByRole("button", { name: /Connect/ })).toHaveCount(0); // not in the top bar
+    await page.getByTestId("menu-button").click();
+    await page.getByTestId("menu-connect").click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByText("Bajar Wallet · Solana")).toBeVisible();
     await expect(dialog.getByText("Bajar Wallet · EVM")).toBeVisible();
@@ -123,18 +125,20 @@ test.describe("wallet", () => {
       (window as unknown as { phantom: unknown }).phantom = { solana: provider };
     });
     await page.goto("/");
-    await page.getByRole("button", { name: "Connect wallet" }).first().click();
+    await page.getByTestId("menu-button").click();
+    await page.getByTestId("menu-connect").click();
     await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
     // Connected: no Connect button, no footer; wallet controls live in the menu.
-    await expect(page.getByRole("button", { name: "Connect wallet" })).toHaveCount(0);
+    await expect(page.getByTestId("menu-connect")).toHaveCount(0);
     await expect(page.locator(".site-footer")).toBeHidden();
     await page.getByTestId("menu-button").click();
     const menu = page.getByTestId("account-menu");
     await expect(menu.getByText("9WzD…AWWM")).toBeVisible();
     await expect(page.getByTestId("account-switch")).toBeVisible();
     await page.getByTestId("account-disconnect").click();
-    await expect(page.getByRole("button", { name: "Connect wallet" }).first()).toBeVisible();
     await expect(page.locator(".site-footer")).toBeVisible();
+    await page.getByTestId("menu-button").click();
+    await expect(page.getByTestId("menu-connect")).toBeVisible();
   });
 });
 
