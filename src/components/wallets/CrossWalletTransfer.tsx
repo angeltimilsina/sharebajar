@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowLeftRight, ExternalLink, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowDownUp, Check, ExternalLink, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import clsx from "clsx";
 import type { WalletBalance, WalletHolding } from "@/hooks/useWallets";
-import type { TrackedWallet, WalletMap } from "@/lib/wallets/registry";
+import type { TrackedWallet } from "@/lib/wallets/registry";
 import { shortAddr } from "@/lib/wallets/registry";
 import { buildSolanaTransfer, evmTransferTx, toBaseUnits } from "@/lib/wallets/transfer";
 import { inspectSolanaTx } from "@/lib/wallet/txguard";
@@ -14,14 +15,33 @@ import { getChain } from "@/lib/chains";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { useWallet } from "../wallet/WalletProvider";
 import { useBajar } from "../bajar/useBajar";
-import { Button, Card, CardHeader, Notice } from "../ui/primitives";
+import { Button, Notice } from "../ui/primitives";
 import { Modal } from "../ui/Modal";
+import { ChainIcon } from "../ui/ChainIcon";
+import { TokenIcon } from "../ui/TokenIcon";
 import type { Eip1193 } from "@/lib/wallet/evm";
 import type { InjectedSolana } from "@/lib/wallet/solana";
 
 interface Risk { flags: { severity: "info" | "warn" | "danger"; message: string }[] }
+type Holding = WalletHolding & { decimals?: number };
+const CHAIN_ICON: Record<string, string> = { solana: "solana", evm: "ethereum", bitcoin: "bitcoin" };
 const NATIVE_RESERVE: Record<string, number> = { solana: 0.003 };
 const hex = (n: number) => `0x${n.toString(16)}`;
+
+/** Tap-to-select wallet card. */
+function WalletCard({ w, value, selected, onClick, testid, note }: { w: TrackedWallet; value: number | null | undefined; selected: boolean; onClick: () => void; testid?: string; note?: string }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={selected} data-testid={testid}
+      className={clsx("shrink-0 min-w-[156px] text-left rounded-2xl px-3.5 py-3 transition-all active:scale-[0.98]", selected ? "bg-brand-soft ring-2 ring-brand" : "bg-surface-2 hover:bg-surface-3")}>
+      <span className="flex items-center gap-2 text-[13px] font-semibold">
+        <ChainIcon chain={CHAIN_ICON[w.chain]} size={15} /><span className="truncate max-w-[104px]">{w.label}</span>
+        {selected && <Check size={13} className="ml-auto text-brand shrink-0" />}
+      </span>
+      <span className="block text-[16px] font-semibold num mt-1">{value === undefined || value === null ? "—" : formatUsd(value)}</span>
+      <span className="block text-[11px] text-faint num">{shortAddr(w.address)}{note ? ` · ${note}` : ""}</span>
+    </button>
+  );
+}
 
 /**
  * Move assets between your own wallets. The sender must be able to sign now
@@ -29,22 +49,19 @@ const hex = (n: number) => `0x${n.toString(16)}`;
  * plain transfer built in this browser, the recipient is screened, and the
  * sending wallet asks you to approve it.
  */
-export function CrossWalletTransfer({ wallets, balances, maps }: { wallets: TrackedWallet[]; balances: WalletBalance[]; maps: WalletMap[] }) {
+export function CrossWalletTransfer({ wallets, balances, className }: { wallets: TrackedWallet[]; balances: WalletBalance[]; className?: string }) {
   const { wallet, solana, evm, openModal } = useWallet();
   const { unlocked } = useBajar();
-  const [mapId, setMapId] = useState<string | null>(null);
-  useEffect(() => { setMapId(new URLSearchParams(window.location.search).get("map")); }, []);
-  const map = maps.find((m) => m.id === mapId) ?? null;
-  const scope = map ? wallets.filter((w) => map.walletIds.includes(w.id)) : wallets;
+  const value = (id: string) => balances.find((b) => b.wallet.id === id)?.totalUsd;
 
   const canSign = (w: TrackedWallet) => w.chain !== "bitcoin" && (w.source === "bajar" ? unlocked : !!wallet && wallet.address.toLowerCase() === w.address.toLowerCase());
-  const senders = scope.filter(canSign);
+  const senders = wallets.filter(canSign);
   const [fromId, setFromId] = useState("");
   const from = senders.find((w) => w.id === fromId) ?? senders[0] ?? null;
-  const recipients = scope.filter((w) => from && w.chain === from.chain && w.id !== from.id);
+  const recipients = wallets.filter((w) => from && w.chain === from.chain && w.id !== from.id);
   const [toId, setToId] = useState("");
   const to = recipients.find((w) => w.id === toId) ?? recipients[0] ?? null;
-  const holdings: (WalletHolding & { decimals?: number; amountRaw?: string })[] = useMemo(() => (balances.find((b) => b.wallet.id === from?.id)?.holdings ?? []) as never, [balances, from?.id]);
+  const holdings: Holding[] = useMemo(() => (balances.find((b) => b.wallet.id === from?.id)?.holdings ?? []) as Holding[], [balances, from?.id]);
   const [hKey, setHKey] = useState("");
   const h = holdings.find((x) => `${x.network}:${x.token}` === hKey) ?? holdings[0] ?? null;
   const [amount, setAmount] = useState("");
@@ -57,8 +74,15 @@ export function CrossWalletTransfer({ wallets, balances, maps }: { wallets: Trac
   const decimals = h?.decimals ?? (h?.network === "solana" ? 9 : 18);
   const base = h ? toBaseUnits(amount, decimals) : null;
   const tooMuch = !!h && !!base && Number(amount) > h.amount;
+  const usd = h?.usdPrice && Number(amount) ? h.usdPrice * Number(amount) : null;
   const network = h?.network ?? (from?.chain === "solana" ? "solana" : "ethereum");
   const summary = h && from && to ? `Moved ${amount} ${h.symbol} · ${from.label} → ${to.label}` : "";
+  const setPct = (p: number) => {
+    if (!h) return;
+    const max = Math.max(0, h.amount - (p === 1 && h.native ? NATIVE_RESERVE[h.network] ?? 0.0005 : 0));
+    setAmount(String(Number((max * p).toFixed(Math.min(decimals, 8)))));
+  };
+  const flip = () => { if (to && canSign(to) && from) { setFromId(to.id); setToId(from.id); setHKey(""); setAmount(""); } };
 
   const openReview = async () => {
     if (!to) return;
@@ -103,65 +127,71 @@ export function CrossWalletTransfer({ wallets, balances, maps }: { wallets: Trac
     }
   };
 
-  const select = "no-ring w-full h-11 rounded-xl bg-surface-2 px-3 text-[16px] sm:text-sm outline-none";
   return (
-    <Card data-testid="cross-transfer">
-      <CardHeader title={<span className="inline-flex items-center gap-2"><ArrowLeftRight size={17} className="text-brand" />Move between wallets</span>} sub={map ? `Within “${map.name}”` : "Between any of your wallets on the same network"} />
-      <div className="px-4 sm:px-5 pb-5 space-y-3">
-        {maps.length > 0 && (
-          <select className={select} value={mapId ?? ""} onChange={(e) => setMapId(e.target.value || null)} aria-label="Limit to map">
-            <option value="">All wallets</option>
-            {maps.map((m) => <option key={m.id} value={m.id}>Map: {m.name}</option>)}
-          </select>
-        )}
-        {!senders.length ? (
-          <Notice title="Connect the wallet you want to send from">
-            Transfers are signed by the sending wallet. Connect it (or unlock the <Link href="/wallet" className="underline">Bajar Wallet</Link>) and it will appear here.{" "}
-            <button className="underline" onClick={openModal}>Connect wallet</button>
-          </Notice>
-        ) : (
-          <>
-            <label className="block text-[12px] text-muted">From
-              <select className={select} value={from?.id ?? ""} onChange={(e) => { setFromId(e.target.value); setHKey(""); setAmount(""); }} aria-label="From wallet" data-testid="move-from">
-                {senders.map((w) => <option key={w.id} value={w.id}>{w.label} · {shortAddr(w.address)}</option>)}
-              </select>
-            </label>
-            <div className="flex justify-center -my-1"><ArrowDown size={16} className="text-faint" /></div>
-            <label className="block text-[12px] text-muted">To
-              {recipients.length ? (
-                <select className={select} value={to?.id ?? ""} onChange={(e) => setToId(e.target.value)} aria-label="To wallet" data-testid="move-to">
-                  {recipients.map((w) => <option key={w.id} value={w.id}>{w.label} · {shortAddr(w.address)}{w.source === "watch" ? " (watch-only)" : ""}</option>)}
-                </select>
-              ) : <div className="text-[13px] text-muted mt-1">No other {from?.chain === "solana" ? "Solana" : "EVM"} wallet {map ? "in this map" : "yet"} — add one above.</div>}
-            </label>
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <label className="block text-[12px] text-muted">Asset
-                <select className={select} value={h ? `${h.network}:${h.token}` : ""} onChange={(e) => { setHKey(e.target.value); setAmount(""); }} aria-label="Asset" data-testid="move-asset">
-                  {holdings.map((x) => <option key={`${x.network}:${x.token}`} value={`${x.network}:${x.token}`}>{x.symbol} · {x.networkName} — {formatNumber(x.amount, 6)}</option>)}
-                  {!holdings.length && <option value="">No balances</option>}
-                </select>
-              </label>
-              <label className="block text-[12px] text-muted w-[140px]">Amount
-                <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.0" aria-label="Amount to move" className={`${select} num`} data-testid="move-amount" />
-              </label>
+    <div className={clsx("space-y-4", className)} data-testid="cross-transfer">
+      {!senders.length ? (
+        <Notice title="Connect the wallet you want to send from">
+          Transfers are signed by the sending wallet. Connect it (or unlock the <Link href="/wallet" className="underline">Bajar Wallet</Link>) and it will appear here.{" "}
+          <button className="underline" onClick={openModal}>Connect wallet</button>
+        </Notice>
+      ) : (
+        <>
+          <div>
+            <div className="text-[12px] font-medium text-muted mb-2">From</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 py-1" role="radiogroup" aria-label="From wallet">
+              {senders.map((w) => <WalletCard key={w.id} w={w} value={value(w.id)} selected={from?.id === w.id} onClick={() => { setFromId(w.id); setHKey(""); setAmount(""); }} testid="move-from-card" />)}
             </div>
-            {h && (
-              <div className="flex justify-between text-[12px] text-muted">
-                <span>Balance {formatNumber(h.amount, 6)} {h.symbol}{h.usdValue !== null ? ` · ${formatUsd(h.usdValue)}` : ""}</span>
-                <button className="text-brand" onClick={() => setAmount(String(Math.max(0, h.amount - (h.native ? NATIVE_RESERVE[h.network] ?? 0.0005 : 0))).slice(0, 20))}>Max</button>
+          </div>
+          <div className="flex justify-center -my-2">
+            <button type="button" onClick={flip} disabled={!to || !canSign(to)} aria-label="Swap direction" className="h-9 w-9 rounded-full bg-surface-3 grid place-items-center disabled:opacity-40"><ArrowDownUp size={16} /></button>
+          </div>
+          <div>
+            <div className="text-[12px] font-medium text-muted mb-2">To</div>
+            {recipients.length ? (
+              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 py-1" role="radiogroup" aria-label="To wallet">
+                {recipients.map((w) => <WalletCard key={w.id} w={w} value={value(w.id)} selected={to?.id === w.id} onClick={() => setToId(w.id)} testid="move-to-card" note={w.source === "watch" ? "watch-only" : undefined} />)}
               </div>
-            )}
-            {tooMuch && <p className="text-[12px] text-down">More than this wallet holds.</p>}
-            <Button size="lg" className="w-full" disabled={!to || !h || !base || tooMuch} onClick={openReview} data-testid="move-review">Review transfer</Button>
-          </>
-        )}
-      </div>
+            ) : <p className="text-[13.5px] text-muted">No other {from?.chain === "solana" ? "Solana" : "EVM"} wallet yet. <Link href="/wallets#add" className="text-brand">Add one</Link></p>}
+          </div>
+          <div>
+            <div className="text-[12px] font-medium text-muted mb-2">Asset</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 py-1" role="radiogroup" aria-label="Asset" data-testid="move-assets">
+              {holdings.length ? holdings.map((x) => {
+                const k = `${x.network}:${x.token}`, on = h && `${h.network}:${h.token}` === k;
+                return (
+                  <button key={k} type="button" onClick={() => { setHKey(k); setAmount(""); }} aria-pressed={!!on}
+                    className={clsx("shrink-0 flex items-center gap-2 rounded-full pl-1.5 pr-3 py-1.5 text-[13px] transition-colors", on ? "bg-brand-soft ring-2 ring-brand" : "bg-surface-2 hover:bg-surface-3")}>
+                    <TokenIcon symbol={x.symbol} size={22} canonical /><span className="font-semibold">{x.symbol}</span><span className="text-muted num">{formatNumber(x.amount, 4)}</span>
+                  </button>
+                );
+              }) : <span className="text-[13px] text-muted">No balances in this wallet</span>}
+            </div>
+          </div>
+          {h && (
+            <div className="rounded-2xl bg-surface-2 p-4">
+              <div className="flex items-baseline gap-2">
+                <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0" aria-label="Amount to move" data-testid="move-amount"
+                  className="no-ring min-w-0 flex-1 bg-transparent outline-none text-[32px] font-semibold num" />
+                <span className="text-[17px] font-semibold text-muted">{h.symbol}</span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-1 text-[12.5px] text-muted">
+                <span className="num">{usd !== null ? `≈ ${formatUsd(usd)} · ` : ""}Balance {formatNumber(h.amount, 6)} {h.symbol}</span>
+                <span className="flex gap-1.5">
+                  {[0.25, 0.5, 0.75, 1].map((p) => <button key={p} type="button" onClick={() => setPct(p)} className="rounded-full bg-surface px-2.5 py-1 font-medium hover:text-fg">{p === 1 ? "Max" : `${p * 100}%`}</button>)}
+                </span>
+              </div>
+              {tooMuch && <p className="text-[12px] text-down mt-1">More than this wallet holds.</p>}
+            </div>
+          )}
+          <Button size="lg" className="w-full" disabled={!to || !h || !base || tooMuch} onClick={openReview} data-testid="move-review">Review transfer</Button>
+        </>
+      )}
 
       <Modal open={review} onClose={() => step !== "signing" && setReview(false)} title="Review transfer">
         <div className="px-5 pb-5 space-y-3" data-testid="move-modal">
           {from && to && h && (
             <dl className="rounded-xl bg-surface-2 divide-y divide-line text-[13.5px]">
-              {[["From", `${from.label} · ${shortAddr(from.address)}`], ["To", `${to.label} · ${shortAddr(to.address)}`], ["Amount", `${amount} ${h.symbol}`], ["Network", h.networkName], ["Network fee", "Shown by your wallet before you approve"]].map(([k, v]) => (
+              {[["From", `${from.label} · ${shortAddr(from.address)}`], ["To", `${to.label} · ${shortAddr(to.address)}`], ["Amount", `${amount} ${h.symbol}${usd !== null ? ` (≈ ${formatUsd(usd)})` : ""}`], ["Network", h.networkName], ["Network fee", "Shown by your wallet before you approve"], ["Bajar fee", "None on transfers"]].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-3 px-3 py-2.5"><dt className="text-muted">{k}</dt><dd className="text-right num">{v}</dd></div>
               ))}
             </dl>
@@ -175,13 +205,13 @@ export function CrossWalletTransfer({ wallets, balances, maps }: { wallets: Trac
             <Notice title="Transfer submitted">Tracking it in <Link href="/portfolio" className="underline">Portfolio</Link>. <a className="underline inline-flex items-center gap-1" href={`${getChain(network)?.explorer.tx ?? ""}${hash}`} target="_blank" rel="noopener noreferrer">Explorer <ExternalLink size={11} /></a></Notice>
           )}
           {step !== "done" && (
-            <Button size="lg" className="w-full" disabled={step !== "idle" && step !== "failed" || blocked} onClick={execute} data-testid="move-confirm">
+            <Button size="lg" className="w-full" disabled={(step !== "idle" && step !== "failed") || blocked} onClick={execute} data-testid="move-confirm">
               {step === "signing" ? <><Loader2 size={16} className="animate-spin" /> Approve in your wallet…</> : blocked ? "Blocked: risky recipient" : "Approve in wallet"}
             </Button>
           )}
           <p className="text-[11px] text-faint">A plain transfer built in your browser. Your wallet shows the exact transaction and fee before you approve; transfers can&apos;t be reversed.</p>
         </div>
       </Modal>
-    </Card>
+    </div>
   );
 }

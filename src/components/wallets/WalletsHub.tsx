@@ -1,10 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowLeftRight, Check, Network, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
-import clsx from "clsx";
+import { ArrowLeftRight, Check, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
 import { useRegistry, useWalletBalances, type WalletBalance } from "@/hooks/useWallets";
-import { detectWatchAddress, registry, shortAddr, type TrackedWallet, type WalletMap } from "@/lib/wallets/registry";
+import { detectWatchAddress, registry, shortAddr, type TrackedWallet } from "@/lib/wallets/registry";
 import { formatUsd } from "@/lib/format";
 import { Button, Card, CardHeader, Notice } from "../ui/primitives";
 import { ChainIcon } from "../ui/ChainIcon";
@@ -17,7 +15,7 @@ const SOURCE: Record<string, string> = { connected: "Connected", bajar: "Bajar W
 
 /** Wallets you track, wallet maps (named groups) and moving assets between them. */
 export function WalletsHub() {
-  const { wallets, maps } = useRegistry();
+  const { wallets } = useRegistry();
   const bal = useWalletBalances(wallets);
   const byId = useMemo(() => new Map(bal.balances.map((b) => [b.wallet.id, b])), [bal.balances]);
   const { openModal } = useWallet();
@@ -26,7 +24,7 @@ export function WalletsHub() {
     <div className="space-y-6" data-testid="wallets-hub">
       <div>
         <h1 className="text-[30px] sm:text-[34px] leading-tight">Wallets</h1>
-        <p className="text-muted text-[14.5px] mt-1">Every wallet you use, in one place. Group them into maps and move assets between them — you approve each transfer in the sending wallet.</p>
+        <p className="text-muted text-[14.5px] mt-1">Every wallet you use, in one place. Move assets between them — you approve each transfer in the sending wallet.</p>
       </div>
 
       <div className="panel p-5 flex flex-wrap items-end gap-4">
@@ -40,11 +38,11 @@ export function WalletsHub() {
 
       <WalletList wallets={wallets} byId={byId} />
       <AddWatch />
-      <Maps maps={maps} wallets={wallets} byId={byId} />
-      <section id="move" className="scroll-mt-24">
-        <CrossWalletTransfer wallets={wallets} balances={bal.balances} maps={maps} />
-      </section>
-      <p className="text-[12px] text-faint">Wallets and maps are stored only in this browser. Balances are read from each network using public addresses — Bajar can&apos;t move anything without your wallet&apos;s approval.</p>
+      <Card id="move" className="scroll-mt-24">
+        <CardHeader title={<span className="inline-flex items-center gap-2"><ArrowLeftRight size={17} className="text-brand" />Move between wallets</span>} sub="Pick a source and destination on the same network" />
+        <CrossWalletTransfer wallets={wallets} balances={bal.balances} className="px-4 sm:px-5 pb-5" />
+      </Card>
+      <p className="text-[12px] text-faint">Wallets are stored only in this browser. Balances are read from each network using public addresses — Bajar can&apos;t move anything without your wallet&apos;s approval.</p>
     </div>
   );
 }
@@ -107,93 +105,5 @@ function AddWatch() {
         {err && <p className="w-full text-[12px] text-down">{err}</p>}
       </form>
     </Card>
-  );
-}
-
-/** Wallet map: a named group of wallets, drawn as a hub with spokes sized by value. */
-function MapGraph({ map, wallets, byId }: { map: WalletMap; wallets: TrackedWallet[]; byId: Map<string, WalletBalance> }) {
-  const members = wallets.filter((w) => map.walletIds.includes(w.id));
-  const W = 320, H = 200, cx = W / 2, cy = H / 2, R = 72;
-  const values = members.map((w) => byId.get(w.id)?.totalUsd ?? 0);
-  const max = Math.max(1, ...values);
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={`${map.name}: ${members.length} wallets`}>
-      {members.map((w, i) => {
-        const a = (i / Math.max(1, members.length)) * Math.PI * 2 - Math.PI / 2;
-        const x = cx + Math.cos(a) * R * 1.45, y = cy + Math.sin(a) * R;
-        const r = 9 + 11 * Math.sqrt((values[i] || 0) / max);
-        return (
-          <g key={w.id}>
-            <line x1={cx} y1={cy} x2={x} y2={y} stroke={map.color} strokeOpacity="0.45" strokeWidth="1.5" />
-            <circle cx={x} cy={y} r={r} fill="var(--surface-3)" stroke={map.color} strokeWidth="1.5" />
-            <text x={x} y={y + r + 12} textAnchor="middle" fontSize="10" fill="var(--muted)">{w.label.slice(0, 16)}</text>
-          </g>
-        );
-      })}
-      <circle cx={cx} cy={cy} r={22} fill={map.color} />
-      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff">{members.length}</text>
-    </svg>
-  );
-}
-
-function Maps({ maps, wallets, byId }: { maps: WalletMap[]; wallets: TrackedWallet[]; byId: Map<string, WalletBalance> }) {
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
-  const [editing, setEditing] = useState<string | null>(null);
-  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const picker = (
-    <ul className="grid gap-1.5 sm:grid-cols-2">
-      {wallets.map((w) => (
-        <li key={w.id}>
-          <label className={clsx("flex items-center gap-2.5 rounded-xl px-3 py-2 cursor-pointer text-[13.5px]", picked.includes(w.id) ? "bg-brand-soft" : "bg-surface-2")}>
-            <input type="checkbox" className="accent-[var(--brand)]" checked={picked.includes(w.id)} onChange={() => toggle(w.id)} />
-            <ChainIcon chain={CHAIN_ICON[w.chain]} size={15} /><span className="truncate">{w.label}</span>
-          </label>
-        </li>
-      ))}
-    </ul>
-  );
-  return (
-    <section aria-labelledby="maps-h">
-      <div className="flex items-center justify-between mb-3">
-        <h2 id="maps-h" className="text-[22px] flex items-center gap-2"><Network size={20} className="text-brand" />Wallet maps</h2>
-        {!creating && <Button size="sm" onClick={() => { setCreating(true); setName(""); setPicked([]); }} data-testid="map-new"><Plus size={14} /> New map</Button>}
-      </div>
-      {creating && (
-        <Card className="p-4 mb-3 space-y-3" data-testid="map-form">
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Map name, e.g. Long-term, Trading, Family" aria-label="Map name" className="no-ring w-full h-11 rounded-xl bg-surface-2 px-3 text-[16px] sm:text-sm outline-none" />
-          {picker}
-          <div className="flex gap-2">
-            <Button disabled={!picked.length} onClick={() => { registry.addMap(name, picked); setCreating(false); }} data-testid="map-save">Create map</Button>
-            <Button variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
-          </div>
-        </Card>
-      )}
-      {!maps.length && !creating && <p className="text-[14px] text-muted">Group wallets by purpose — long-term, trading, family — to see each group&apos;s value and move assets within it.</p>}
-      <div className="grid gap-3 md:grid-cols-2">
-        {maps.map((m) => {
-          const members = wallets.filter((w) => m.walletIds.includes(w.id));
-          const total = members.reduce((s, w) => s + (byId.get(w.id)?.totalUsd ?? 0), 0);
-          return (
-            <Card key={m.id} className="p-4" data-testid="map-card">
-              <div className="flex items-start gap-2">
-                <span className="h-3 w-3 rounded-full mt-1.5" style={{ background: m.color }} />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-[16px] truncate">{m.name}</div>
-                  <div className="text-[12.5px] text-muted">{members.length} wallet{members.length === 1 ? "" : "s"} · <span className="num">{formatUsd(total)}</span></div>
-                </div>
-                <button onClick={() => { setEditing(editing === m.id ? null : m.id); setPicked(m.walletIds); }} className="text-faint hover:text-fg" aria-label="Edit map"><Pencil size={14} /></button>
-                <button onClick={() => registry.removeMap(m.id)} className="text-faint hover:text-down" aria-label="Delete map"><Trash2 size={14} /></button>
-              </div>
-              {editing === m.id ? (
-                <div className="mt-3 space-y-2">{picker}<Button size="sm" onClick={() => { registry.updateMap(m.id, { walletIds: picked }); setEditing(null); }}>Save</Button></div>
-              ) : <MapGraph map={m} wallets={wallets} byId={byId} />}
-              <Link href={`/wallets?map=${m.id}#move`} className="mt-1 inline-flex items-center gap-1.5 text-[13px] text-brand"><ArrowLeftRight size={13} />Move within this map</Link>
-            </Card>
-          );
-        })}
-      </div>
-    </section>
   );
 }

@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { registry, type TrackedWallet } from "@/lib/wallets/registry";
 
-const EMPTY = { wallets: [] as TrackedWallet[], maps: [] };
+const EMPTY = { wallets: [] as TrackedWallet[] };
 
-/** Live view of tracked wallets and wallet maps on this device. */
+/** Live view of tracked wallets on this device. */
 export function useRegistry() {
   return useSyncExternalStore(registry.subscribe, registry.snapshot, () => EMPTY);
 }

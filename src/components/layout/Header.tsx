@@ -25,7 +25,7 @@ export const NAV: { href: string; label: string; match: RegExp }[] = [
 export const MORE: { href: string; label: string; ai?: boolean; hint: string }[] = [
   { href: "/intelligence", label: "Bajar Intelligence", ai: true, hint: "Ask about any market" },
   { href: "/launchpad", label: "New launches", hint: "Pools created minutes ago" },
-  { href: "/wallets", label: "Wallets & maps", hint: "All your wallets, maps and transfers" },
+  { href: "/wallets", label: "Wallets", hint: "Your wallets, watch addresses and transfers" },
   { href: "/wallet", label: "Bajar Wallet", hint: "Self-custody BTC · EVM · Solana" },
   { href: "/status", label: "System status", hint: "Live data sources" },
 ];

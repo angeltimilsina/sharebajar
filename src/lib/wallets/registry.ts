@@ -3,9 +3,8 @@ import { isValidAddressFor, getChain } from "../chains";
 
 /**
  * Every wallet the user has brought to Bajar on this device — connected
- * wallets, the Bajar Wallet's addresses, and watch-only addresses — plus
- * user-defined wallet maps (named groups). Public addresses only; nothing
- * here can sign. Stored in this browser.
+ * wallets, the Bajar Wallet's addresses, and watch-only addresses. Public
+ * addresses only; nothing here can sign. Stored in this browser.
  */
 export type WalletChain = "solana" | "evm" | "bitcoin";
 export type WalletSource = "connected" | "bajar" | "watch";
@@ -21,22 +20,19 @@ export interface TrackedWallet {
   addedAt: number;
 }
 
-export interface WalletMap { id: string; name: string; color: string; walletIds: string[]; createdAt: number }
-
 const KEY = "bajar.wallets.v1";
-const MAP_KEY = "bajar.walletmaps.v1";
 const subs = new Set<() => void>();
-let cache: { wallets: TrackedWallet[]; maps: WalletMap[] } | null = null;
+let cache: { wallets: TrackedWallet[] } | null = null;
 
 const load = () => {
   if (cache) return cache;
-  let wallets: TrackedWallet[] = [], maps: WalletMap[] = [];
-  try { wallets = JSON.parse(localStorage.getItem(KEY) ?? "[]"); maps = JSON.parse(localStorage.getItem(MAP_KEY) ?? "[]"); } catch { /* blocked */ }
-  return (cache = { wallets: Array.isArray(wallets) ? wallets : [], maps: Array.isArray(maps) ? maps : [] });
+  let wallets: TrackedWallet[] = [];
+  try { wallets = JSON.parse(localStorage.getItem(KEY) ?? "[]"); localStorage.removeItem("bajar.walletmaps.v1"); } catch { /* blocked */ }
+  return (cache = { wallets: Array.isArray(wallets) ? wallets : [] });
 };
-const save = (next: { wallets: TrackedWallet[]; maps: WalletMap[] }) => {
+const save = (next: { wallets: TrackedWallet[] }) => {
   cache = next;
-  try { localStorage.setItem(KEY, JSON.stringify(next.wallets)); localStorage.setItem(MAP_KEY, JSON.stringify(next.maps)); } catch { /* blocked */ }
+  try { localStorage.setItem(KEY, JSON.stringify(next.wallets)); } catch { /* blocked */ }
   subs.forEach((f) => f());
 };
 
@@ -55,16 +51,7 @@ export const registry = {
     save({ ...s, wallets: prev ? s.wallets.map((x) => (x.id === id ? entry : x)) : [...s.wallets, entry] });
   },
   rename(id: string, label: string) { const s = load(); save({ ...s, wallets: s.wallets.map((w) => (w.id === id ? { ...w, label: label.slice(0, 40) || w.label } : w)) }); },
-  remove(id: string) { const s = load(); save({ wallets: s.wallets.filter((w) => w.id !== id), maps: s.maps.map((m) => ({ ...m, walletIds: m.walletIds.filter((x) => x !== id) })) }); },
-  addMap(name: string, walletIds: string[]) {
-    const s = load();
-    const colors = ["#0a84ff", "#30d158", "#ff9f0a", "#bf5af2", "#ff375f", "#64d2ff"];
-    const m: WalletMap = { id: `map_${Date.now().toString(36)}`, name: name.slice(0, 40) || "Untitled map", color: colors[s.maps.length % colors.length], walletIds, createdAt: Date.now() };
-    save({ ...s, maps: [...s.maps, m] });
-    return m;
-  },
-  updateMap(id: string, patch: Partial<Pick<WalletMap, "name" | "walletIds">>) { const s = load(); save({ ...s, maps: s.maps.map((m) => (m.id === id ? { ...m, ...patch } : m)) }); },
-  removeMap(id: string) { const s = load(); save({ ...s, maps: s.maps.filter((m) => m.id !== id) }); },
+  remove(id: string) { const s = load(); save({ wallets: s.wallets.filter((w) => w.id !== id) }); },
 };
 
 /** Validate a pasted address and work out which chain family it belongs to. */
