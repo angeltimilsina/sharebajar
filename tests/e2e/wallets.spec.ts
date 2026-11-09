@@ -121,14 +121,16 @@ test.describe("multiple wallets", () => {
     await expect(page.getByTestId("portfolio-intro")).toBeVisible();
     await page.getByTestId("portfolio-connect").click();
     await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-    const main = page.locator("main");
-    await expect(main.getByText(/Phantom · Solana/)).toBeVisible();
-    await expect(page.getByRole("row", { name: /SOL/ }).first()).toBeVisible({ timeout: 45_000 });
+    const side = page.getByTestId("wallet-sidebar");
+    await expect(side.getByText(/Phantom · Solana/)).toBeVisible();
+    await expect(page.getByTestId("connected-dashboard")).toBeVisible();
+    await expect(page.getByTestId("asset-row").filter({ hasText: "SOL" }).first()).toBeVisible({ timeout: 45_000 });
     // Switch wallet from the sidebar: Solana → EVM.
     await page.getByTestId("account-switch").click();
     await page.getByRole("dialog").getByRole("button", { name: /MetaMask/ }).click();
-    await expect(main.getByText(/MetaMask · /)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(/Phantom · Solana/)).toHaveCount(0);
+    await expect(side.getByText(/MetaMask · /)).toBeVisible({ timeout: 20_000 });
+    await expect(side.getByText(/Phantom · Solana/)).toHaveCount(0);
+    await expect(page.getByTestId("connected-dashboard")).toBeVisible();
   });
 
   test("Solana wallet on an EVM asset is asked for an EVM wallet (and vice versa)", async ({ page }) => {
@@ -189,7 +191,9 @@ test.describe("mobile wallet deep links @mobile", () => {
       (window as unknown as { phantom: unknown }).phantom = { solana: provider };
     });
     await page.goto("/portfolio?bajar_connect=phantom");
-    await expect(page.getByText(/Phantom · Solana/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("connected-dashboard")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("mobile-wallet").click();
+    await expect(page.getByTestId("wallet-drawer").getByText(/Phantom · Solana/)).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { __asked?: boolean }).__asked)).toBe(true);
     await expect(page).not.toHaveURL(/bajar_connect/); // tag removed so refresh/share doesn't re-trigger
   });

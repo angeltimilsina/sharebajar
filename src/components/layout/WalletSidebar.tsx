@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  Activity, ArrowLeftRight, Check, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
+  Activity, Check, Loader2, Sparkles, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
 } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
 import { useWallet } from "../wallet/WalletProvider";
@@ -13,10 +13,13 @@ import { shortAddress } from "@/lib/format";
 import { chainFromEvmId } from "@/lib/chains";
 import { sidebar, useSidebar } from "@/lib/ui/sidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { registry } from "@/lib/wallets/registry";
+import { readExcluded } from "@/lib/wallets/selection";
+import { buildAgentPortfolio, stashAgentPortfolio } from "@/lib/wallets/agent";
+import { fetchBalances } from "@/hooks/useWallets";
 
 const LINKS = [
   { href: "/portfolio", label: "Portfolio", Icon: PieChart },
-  { href: "/wallets", label: "Wallets & transfers", Icon: ArrowLeftRight },
   { href: "/wallet", label: "Bajar Wallet", Icon: Wallet },
   { href: "/portfolio#activity", label: "Activity", Icon: Activity },
 ];
@@ -177,6 +180,9 @@ function Body({ compact }: { compact: boolean }) {
         </div>
       )}
 
+      {/* Investment agent: its own entry, separate from the wallet pages */}
+      <AgentLink compact={compact} />
+
       {/* Wallet pages */}
       <nav aria-label="Wallet pages" className="space-y-0.5">
         {!compact && <div className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-faint">Your money</div>}
@@ -198,5 +204,36 @@ function Body({ compact }: { compact: boolean }) {
         <p className="px-3 text-[12px] leading-relaxed text-faint">Bajar never asks for your recovery phrase. You approve every transaction in your own wallet.</p>
       )}
     </div>
+  );
+}
+
+/**
+ * Opens the investment agent with a summary of the wallets selected on
+ * Portfolio: assets, values and allocation only, never addresses.
+ */
+function AgentLink({ compact }: { compact: boolean }) {
+  const router = useRouter();
+  const path = usePathname();
+  const [busy, setBusy] = useState(false);
+  const on = path === "/intelligence";
+  const open = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const excluded = readExcluded();
+      const wallets = registry.snapshot().wallets.filter((w) => !excluded.includes(w.id));
+      if (wallets.length) stashAgentPortfolio(buildAgentPortfolio(await fetchBalances(wallets)));
+    } catch { /* agent still opens; it asks for holdings instead */ }
+    setBusy(false);
+    sidebar.setDrawer(false);
+    router.push("/intelligence?agent=portfolio");
+  };
+  return (
+    <button type="button" onClick={open} data-testid="open-agent" title={compact ? "Investment agent" : undefined} aria-current={on ? "page" : undefined}
+      className={clsx("w-full flex items-center rounded-2xl text-white font-semibold text-[14px] transition-opacity hover:opacity-95", compact ? "justify-center h-11" : "gap-2.5 px-3 py-2.5")}
+      style={{ background: "linear-gradient(135deg,#bf5af2,#0a84ff)" }}>
+      {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+      {compact ? <span className="sr-only">Investment agent</span> : <span className="flex-1 text-left">Investment agent<span className="block text-[11.5px] font-normal opacity-85">Ideas for your portfolio</span></span>}
+    </button>
   );
 }

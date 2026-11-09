@@ -13,6 +13,7 @@ test.describe("journey", () => {
     const side = page.getByTestId("wallet-sidebar");
     await expect(side.getByTestId("menu-connect")).toBeVisible();
     await expect(side.getByRole("link", { name: "Portfolio" })).toBeVisible();
+    await expect(side.getByTestId("open-agent")).toBeVisible();
     // Collapses to an icon rail and remembers it.
     await page.getByTestId("sidebar-collapse").click();
     await expect(page.locator("html")).toHaveAttribute("data-sb", "collapsed");

@@ -7,6 +7,7 @@ import { ata, srpc, TOKEN_2022_PROGRAM, TOKEN_PROGRAM } from "../../treasury/sol
 import { priceAt } from "../../treasury/prices";
 import { btcSummary } from "./bitcoin";
 import { get24hTickers } from "../../market/binance";
+import { getTokensInfo } from "../../trading/jupiter";
 
 /**
  * Multi-chain holdings for public addresses (no keys involved). Every number is
@@ -16,6 +17,8 @@ export interface Holding {
   network: string; networkName: string; token: string; symbol: string; name: string; decimals: number;
   amountRaw: string; amount: number; usdPrice: number | null; usdValue: number | null; priceSource: string;
   native: boolean; wrappedBtc?: boolean; custom?: boolean;
+  /** Token logo when the token list has one. */
+  icon?: string | null;
   /** 24h price change in %, from the same Binance market as the price (null when not available). */
   change24h?: number | null;
 }
@@ -63,6 +66,29 @@ async function solanaHoldings(address: string, custom: CustomToken[]): Promise<H
       out.push({ network: "solana", networkName: "Solana", token: m.token, symbol: m.symbol, name: m.symbol, decimals: info.tokenAmount.decimals, amountRaw: info.tokenAmount.amount, amount: Number(info.tokenAmount.amount) / 10 ** info.tokenAmount.decimals, usdPrice: null, usdValue: null, priceSource: "", native: false, custom: custom.some((x) => x.token === m.token) });
     });
   }
+  // Every other token the wallet holds, where the RPC node allows the full lookup.
+  try {
+    type Acc = { account: { data: { parsed?: { info: { mint: string; tokenAmount: { amount: string; decimals: number } } } } } };
+    const lists = await Promise.all([TOKEN_PROGRAM, TOKEN_2022_PROGRAM].map((programId) => srpc<{ value: Acc[] }>("getTokenAccountsByOwner", [address, { programId }, { encoding: "jsonParsed" }])));
+    const have = new Set(out.map((h) => h.token));
+    const extra = new Map<string, { amount: string; decimals: number }>();
+    for (const l of lists) for (const a of l.value) {
+      const i = a.account.data.parsed?.info;
+      if (!i || have.has(i.mint) || i.tokenAmount.amount === "0") continue;
+      const prev = extra.get(i.mint);
+      extra.set(i.mint, { amount: (BigInt(prev?.amount ?? "0") + BigInt(i.tokenAmount.amount)).toString(), decimals: i.tokenAmount.decimals });
+    }
+    const mintsExtra = [...extra.keys()].slice(0, 40);
+    if (mintsExtra.length) {
+      const meta = new Map((await getTokensInfo(mintsExtra)).data.map((t) => [t.address, t]));
+      for (const mint of mintsExtra) {
+        const m = meta.get(mint);
+        if (!m?.verified) continue; // unverified tokens are often spam with fake prices: leave them out of totals
+        const e = extra.get(mint)!;
+        out.push({ network: "solana", networkName: "Solana", token: mint, symbol: m.symbol, name: m.name, decimals: e.decimals, amountRaw: e.amount, amount: Number(e.amount) / 10 ** e.decimals, usdPrice: null, usdValue: null, priceSource: "", native: false, icon: m.icon });
+      }
+    }
+  } catch { /* node refuses the full lookup: known tokens only */ }
   return out;
 }
 

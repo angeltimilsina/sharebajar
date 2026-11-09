@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   // Charts live inside the Trade workspace now; query (symbol/chain/token) is preserved.
   async redirects() {
-    return [{ source: "/charts", destination: "/trade", permanent: false }];
+    return [{ source: "/charts", destination: "/trade", permanent: false }, { source: "/wallets", destination: "/portfolio", permanent: false }];
   },
   async headers() {
     return [

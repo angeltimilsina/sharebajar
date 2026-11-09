@@ -14,7 +14,8 @@ const priceSymbol = (s: string) => {
   return u;
 };
 
-export interface Asset { key: string; symbol: string; amount: number; value: number; change24h: number | null; wallets: { id: string; label: string; chain: string; value: number }[] }
+export interface AssetLot { id: string; label: string; chain: string; address: string; network: string; networkName: string; token: string; symbol: string; native: boolean; amount: number; value: number }
+export interface Asset { key: string; symbol: string; name: string; icon: string | null; price: number | null; amount: number; value: number; change24h: number | null; wrappedBtc: boolean; wallets: { id: string; label: string; chain: string; value: number }[]; lots: AssetLot[] }
 export interface HistoryPoint { t: number; v: number }
 
 /** Merge holdings from the selected wallets into one row per asset (by price ticker). */
@@ -23,9 +24,12 @@ export function mergeAssets(balances: WalletBalance[]): Asset[] {
   for (const b of balances) for (const h of b.holdings) {
     if (!h.usdValue || h.usdValue < 0.01) continue;
     const key = priceSymbol(h.symbol);
-    const a = m.get(key) ?? { key, symbol: key, amount: 0, value: 0, change24h: h.change24h ?? null, wallets: [] };
+    const a = m.get(key) ?? { key, symbol: key, name: h.name, icon: h.icon ?? null, price: h.usdPrice, amount: 0, value: 0, change24h: h.change24h ?? null, wrappedBtc: false, wallets: [], lots: [] };
     a.amount += h.amount;
     a.value += h.usdValue;
+    if (h.wrappedBtc) a.wrappedBtc = true;
+    if (!a.icon && h.icon) a.icon = h.icon;
+    a.lots.push({ id: b.wallet.id, label: b.wallet.label, chain: b.wallet.chain, address: b.wallet.address, network: h.network, networkName: h.networkName, token: h.token, symbol: h.symbol, native: h.native, amount: h.amount, value: h.usdValue });
     const w = a.wallets.find((x) => x.id === b.wallet.id);
     if (w) w.value += h.usdValue; else a.wallets.push({ id: b.wallet.id, label: b.wallet.label, chain: b.wallet.chain, value: h.usdValue });
     m.set(key, a);

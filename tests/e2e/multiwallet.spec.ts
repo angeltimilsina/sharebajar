@@ -33,30 +33,41 @@ async function connect(page: Page) {
 test.describe("multi-wallet", () => {
   test.setTimeout(120_000);
 
-  test("market dashboard: wallet sources, holdings chart, allocation, agent hand-off", async ({ page }) => {
+  test("portfolio: wallet picker, holdings chart, asset details, agent in the sidebar", async ({ page }) => {
     await stubPhantom(page);
     await page.addInitScript((addr) => localStorage.setItem("bajar.wallets.v1", JSON.stringify([{ id: `evm:${addr.toLowerCase()}`, address: addr, chain: "evm", label: "Cold storage", source: "watch", addedAt: 1 }])), EVM_WATCH);
     await page.goto("/portfolio");
     await expect(page.getByTestId("connected-dashboard")).toHaveCount(0); // only once connected
     await connect(page);
     await expect(page.getByTestId("connected-dashboard")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio", level: 1 })).toHaveCount(0);
+    await expect(page.getByText("Move between wallets")).toHaveCount(0);
     await expect(page.getByTestId("dashboard-wallet-count")).toContainText("1 wallet connected · 1 watch-only");
     const total = page.getByTestId("dashboard-total");
     await expect(total).toContainText("$", { timeout: 45_000 });
     await expect(page.getByTestId("holdings-chart")).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId("allocation")).toBeVisible();
-    await expect(page.getByTestId("asset-list")).toBeVisible();
 
-    // Toggling a source changes what's counted; the last source can't be turned off.
+    // Asset details: price, amounts, per-wallet holdings, first received.
+    await page.getByTestId("asset-row").first().getByRole("button").click();
+    const details = page.getByTestId("asset-details");
+    await expect(details).toBeVisible();
+    await expect(details.getByText("Held in")).toBeVisible();
+    await expect(details.getByTestId("asset-acquired")).toBeVisible();
+
+    // Picker: toggling a source changes the total; the last source can't be turned off.
+    const before = await total.innerText();
+    await page.getByTestId("wallet-picker").click();
     const sources = page.getByTestId("wallet-source");
     await expect(sources).toHaveCount(2);
-    const before = await total.innerText();
     await sources.filter({ hasText: "Cold storage" }).click();
-    await expect(sources.filter({ hasText: "Cold storage" })).toHaveAttribute("aria-pressed", "false");
-    await expect(total).not.toHaveText(before);
+    await expect(sources.filter({ hasText: "Cold storage" })).toHaveAttribute("aria-checked", "false");
     await sources.filter({ hasText: "Phantom" }).click(); // would leave nothing selected → ignored
-    await expect(sources.filter({ hasText: "Phantom" })).toHaveAttribute("aria-pressed", "true");
+    await expect(sources.filter({ hasText: "Phantom" })).toHaveAttribute("aria-checked", "true");
+    await page.getByTestId("wallet-sheet").getByRole("button", { name: "Done" }).click();
+    await expect(total).not.toHaveText(before);
 
+    // The agent lives in the sidebar and gets values, never addresses.
     await page.getByTestId("open-agent").click();
     await expect(page).toHaveURL(/\/intelligence\?agent=portfolio/);
     await expect(page.getByTestId("agent-portfolio")).toBeVisible();
@@ -65,40 +76,19 @@ test.describe("multi-wallet", () => {
     expect(stash.toLowerCase()).not.toContain(EVM_WATCH.toLowerCase());
   });
 
-  test("dashboard transfer: pick wallets as cards, choose asset, % amount, recipient check, signed once by the sender", async ({ page }) => {
+  test("portfolio: + adds a watch-only address; /wallets goes to Portfolio", async ({ page }) => {
     await stubPhantom(page);
-    await page.addInitScript((dest) => localStorage.setItem("bajar.wallets.v1", JSON.stringify([{ id: `solana:${dest}`, address: dest, chain: "solana", label: "Savings", source: "watch", addedAt: 1 }])), SOL_DEST);
-    let sent = 0;
-    await page.route("**/api/wallet/rpc", async (r) => {
-      const b = JSON.parse(r.request().postData() ?? "{}");
-      if (b.method === "sendTransaction") { sent++; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ result: "5".repeat(88) }) }); }
-      return r.continue();
-    });
-    await page.goto("/portfolio");
-    await connect(page);
-    await page.getByTestId("open-move").click();
-    const move = page.getByTestId("cross-transfer");
-    await expect(move.getByTestId("move-from-card").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(move.getByTestId("move-to-card").filter({ hasText: "Savings" })).toHaveAttribute("aria-pressed", "true");
-    await expect(move.getByTestId("move-assets").getByRole("button", { name: /SOL/ }).first()).toBeVisible({ timeout: 45_000 });
-    await move.getByTestId("move-assets").getByRole("button", { name: /SOL/ }).first().click();
-    await move.getByTestId("move-amount").fill("0.001");
-    await move.getByTestId("move-review").click();
-    const modal = page.getByTestId("move-modal");
-    await expect(modal.getByText(/Recipient check passed|Recipient check unavailable|watch-only/).first()).toBeVisible({ timeout: 20_000 });
-    await modal.getByTestId("move-confirm").click();
-    await expect(modal.getByText("Transfer submitted")).toBeVisible({ timeout: 30_000 });
-    expect(await page.evaluate(() => (window as unknown as { __signed: string[] }).__signed)).toEqual([SOL_ADDR]);
-    expect(sent).toBe(1);
-  });
-
-  test("wallets page: add a watch-only address", async ({ page }) => {
     await page.goto("/wallets");
+    await expect(page).toHaveURL(/\/portfolio$/);
+    await connect(page);
+    await page.getByTestId("add-wallet").click();
     await page.getByLabel("Watch address").fill(SOL_DEST);
     await page.getByLabel("Watch name").fill("Savings");
     await page.getByTestId("watch-add").click();
-    await expect(page.getByTestId("hub-wallets").getByText("Savings")).toBeVisible();
-    await expect(page.getByText("Wallet maps")).toHaveCount(0);
+    await expect(page.getByTestId("dashboard-wallet-count")).toContainText("1 watch-only");
+    await page.getByTestId("wallet-picker").click();
+    await expect(page.getByTestId("wallet-source").filter({ hasText: "Savings" })).toBeVisible();
+    await expect(page.getByTestId("wallet-sidebar").getByText("Wallets & transfers")).toHaveCount(0);
   });
 });
 
