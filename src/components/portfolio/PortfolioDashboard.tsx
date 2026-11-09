@@ -1,220 +1,198 @@
 "use client";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Eye, EyeOff, Plug, Plus, RefreshCw, X, ChevronRight } from "lucide-react";
+import { ChevronDown, Compass, Eye, EyeOff, Link2, RefreshCw, Rocket, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { useRegistry, useWalletBalances } from "@/hooks/useWallets";
+import { useWalletBalances } from "@/hooks/useWallets";
 import { useBinanceSymbols } from "@/hooks/useBinanceSymbols";
 import { mergeAssets, useHoldingsHistory, type Asset, type AssetLot, type HistoryPoint, type Range } from "@/hooks/useHoldingsHistory";
-import { detectWatchAddress, registry, shortAddr, type TrackedWallet } from "@/lib/wallets/registry";
-import { readExcluded, writeExcluded } from "@/lib/wallets/selection";
+import type { TrackedWallet } from "@/lib/wallets/registry";
+import { buildAgentPortfolio, stashAgentPortfolio } from "@/lib/wallets/agent";
 import { assetHref } from "@/lib/bajar/insights";
 import { formatNumber, formatPct, formatPrice, formatUsd, pctClass, timeAgo } from "@/lib/format";
-import { Badge, Card, Skeleton } from "../ui/primitives";
+import { Badge, Card, CardHeader, Skeleton } from "../ui/primitives";
+import { LogoMark } from "../ui/Logo";
 import { ChainIcon } from "../ui/ChainIcon";
 import { TokenIcon } from "../ui/TokenIcon";
-import { useWallet } from "../wallet/WalletProvider";
 import { ActivityPanel } from "./ActivityPanel";
 
 const CHAIN_ICON: Record<string, string> = { solana: "solana", evm: "ethereum", bitcoin: "bitcoin" };
-const CHAIN_NAME: Record<string, string> = { solana: "Solana", evm: "EVM", bitcoin: "Bitcoin" };
 const SLICE = ["#0a84ff", "#30d158", "#ff9f0a", "#bf5af2", "#ff375f", "#8e8e93"];
 const HIDE_KEY = "bajar.hideBalances"; // shared with Bajar Wallet
 const readHidden = () => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } };
 const fmtDate = (t: number) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
+export interface PortfolioSource { title: string; subtitle: string; manageHref?: string; manageLabel?: string }
+
 /**
- * Portfolio once connected, in the Bajar Wallet's style: one balance card
- * with the chart, a minimal wallet picker and "+", then every asset with its
- * details (price, holdings per wallet, first received, price then).
+ * Portfolio for one wallet: Bajar Wallet (with the wallets connected to it)
+ * or the single wallet connected in the browser. One balance card with the
+ * chart, then every asset with its details, then research, discovery and
+ * the launchpad.
  */
-export function PortfolioDashboard({ side }: { side?: ReactNode }) {
-  const { wallets } = useRegistry();
+export function PortfolioDashboard({ wallets, source, side }: { wallets: TrackedWallet[]; source: PortfolioSource; side?: ReactNode }) {
   const bal = useWalletBalances(wallets);
   const symbols = useBinanceSymbols();
-  const [excluded, setExcluded] = useState<string[]>([]);
+  const router = useRouter();
   const [hidden, setHidden] = useState(false);
-  useEffect(() => { setExcluded(readExcluded()); setHidden(readHidden()); }, []);
+  useEffect(() => { setHidden(readHidden()); }, []);
   const [range, setRange] = useState<Range>("7d");
 
-  // Ignore stale exclusions (wallets that were removed).
-  const ex = excluded.filter((id) => wallets.some((w) => w.id === id));
-  const selectedBalances = useMemo(() => bal.balances.filter((b) => !ex.includes(b.wallet.id)), [bal.balances, ex.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const assets = useMemo(() => mergeAssets(selectedBalances), [selectedBalances]);
+  const assets = useMemo(() => mergeAssets(bal.balances), [bal.balances]);
   const total = assets.reduce((s, a) => s + a.value, 0);
   const hist = useHoldingsHistory(assets, range, symbols);
   const first = hist.points[0]?.v ?? null;
   const change = first && hist.points.length > 1 ? total - first : null;
   const changePct = first && change !== null ? (change / first) * 100 : null;
   const mask = (s: string) => (hidden ? "••••" : s);
-
-  const setEx = (next: string[]) => { setExcluded(next); writeExcluded(next); };
-  const toggle = (id: string) => {
-    const next = ex.includes(id) ? ex.filter((x) => x !== id) : [...ex, id];
-    if (next.length >= wallets.length) return; // keep at least one
-    setEx(next);
-  };
+  const ask = (q?: string) => { stashAgentPortfolio(buildAgentPortfolio(bal.balances)); router.push(`/intelligence?agent=portfolio${q ? `&q=${encodeURIComponent(q)}` : ""}`); };
+  const chains = [...new Set(wallets.map((w) => w.chain))];
 
   return (
-    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start" data-testid="connected-dashboard">
-      <div className="contents lg:block lg:space-y-4 min-w-0">
-        <Card className="p-4 sm:p-5 order-1">
-          <div className="flex items-center gap-2">
-            <WalletPicker wallets={wallets} values={new Map(bal.balances.map((b) => [b.wallet.id, b.error ? null : b.totalUsd]))} excluded={ex} onToggle={toggle} onAll={() => setEx([])} />
-            <div className="flex-1" />
-            <button onClick={bal.refresh} disabled={bal.loading} className="h-9 w-9 grid place-items-center rounded-full text-muted hover:text-fg hover:bg-surface-2" aria-label="Refresh balances" title={bal.at ? `Updated ${timeAgo(bal.at)}` : undefined}>
-              <RefreshCw size={15} className={bal.loading ? "animate-spin" : ""} />
-            </button>
-            <AddWallet />
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted">
-            Total balance
-            <button onClick={() => { setHidden(!hidden); try { localStorage.setItem(HIDE_KEY, hidden ? "0" : "1"); } catch { /* ignore */ } }} aria-label={hidden ? "Show balances" : "Hide balances"} className="hover:text-fg">{hidden ? <EyeOff size={13} /> : <Eye size={13} />}</button>
-          </div>
-          <div className="mt-0.5 text-[36px] sm:text-[40px] leading-tight font-semibold num" data-testid="dashboard-total">{bal.at === null && bal.loading ? <Skeleton className="h-11 w-48" /> : mask(formatUsd(total))}</div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-0.5">
-            {change !== null && changePct !== null
-              ? <span className={clsx("text-[14px] num", pctClass(change))}>{mask(`${change >= 0 ? "+" : "−"}${formatUsd(Math.abs(change))}`)} ({formatPct(changePct)}) <span className="text-muted">past {range}</span></span>
-              : <span className="text-[14px] text-muted">&nbsp;</span>}
-            <div className="flex-1" />
-            <div role="radiogroup" aria-label="Chart range" className="flex rounded-full bg-surface-2 p-0.5">
-              {(["24h", "7d", "30d"] as Range[]).map((r) => (
-                <button key={r} role="radio" aria-checked={range === r} onClick={() => setRange(r)} className={clsx("h-7 px-3 rounded-full text-[12.5px] font-medium", range === r ? "seg-on text-fg" : "text-muted")}>{r}</button>
-              ))}
-            </div>
-          </div>
-          <div className="mt-3"><HoldingsChart points={hist.points} loading={hist.loading || (bal.loading && !bal.at)} up={(change ?? 0) >= 0} range={range} hidden={hidden} /></div>
-          <p className="text-[11px] text-faint mt-1.5">Today&apos;s holdings priced over the period (Binance){hist.flat.length ? `; ${hist.flat.slice(0, 3).join(", ")}${hist.flat.length > 3 ? "…" : ""} at today's value` : ""}. Not past balances.</p>
-        </Card>
-
-        <div className="order-2"><AssetList assets={assets} total={total} hidden={hidden} loaded={bal.at !== null} /></div>
-      </div>
-
-      <div className="contents lg:block lg:space-y-4 min-w-0">
-        <div className="order-3"><Allocation assets={assets} total={total} /></div>
-        <div className="order-4 scroll-mt-24" id="activity"><ActivityPanel /></div>
-        {side && <div className="order-5">{side}</div>}
-      </div>
-    </div>
-  );
-}
-
-/* ── Wallet picker ─────────────────────────────────────────────────────── */
-
-function WalletPicker({ wallets, values, excluded, onToggle, onAll }: { wallets: TrackedWallet[]; values: Map<string, number | null>; excluded: string[]; onToggle: (id: string) => void; onAll: () => void }) {
-  const [open, setOpen] = useState(false);
-  const selected = wallets.filter((w) => !excluded.includes(w.id));
-  const live = wallets.filter((w) => w.source !== "watch").length;
-  const title = excluded.length === 0 ? "All wallets" : selected.length === 1 ? selected[0].label : `${selected.length} of ${wallets.length} wallets`;
-  const chains = [...new Set(selected.map((w) => w.chain))];
-  return (
-    <>
-      <button onClick={() => setOpen(true)} data-testid="wallet-picker" aria-haspopup="dialog" className="min-w-0 flex items-center gap-2 rounded-full bg-surface-2 hover:bg-surface-3 pl-1.5 pr-3 h-10 transition-colors">
-        <span className="flex -space-x-1.5 shrink-0">
-          {chains.slice(0, 3).map((c) => <span key={c} className="h-7 w-7 rounded-full bg-surface grid place-items-center ring-2 ring-[var(--surface-2)]"><ChainIcon chain={CHAIN_ICON[c]} size={15} /></span>)}
-        </span>
-        <span className="min-w-0 text-left leading-tight">
-          <span className="block text-[13.5px] font-semibold truncate max-w-[150px] sm:max-w-[220px]">{title}</span>
-          <span className="block text-[11px] text-muted truncate" data-testid="dashboard-wallet-count">{live} wallet{live === 1 ? "" : "s"} connected{wallets.length > live ? ` · ${wallets.length - live} watch-only` : ""}</span>
-        </span>
-        <ChevronDown size={15} className="text-muted shrink-0" />
-      </button>
-      {open && (
-        <Sheet title="Wallets" onClose={() => setOpen(false)} testid="wallet-sheet">
-          <ul className="space-y-1" role="group" aria-label="Wallet sources" data-testid="wallet-sources">
-            <li>
-              <button onClick={onAll} role="checkbox" aria-checked={excluded.length === 0} className="w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-surface-2">
-                <Tick on={excluded.length === 0} />
-                <span className="flex-1 text-left text-[15px] font-medium">All wallets</span>
+    <div className="space-y-4" data-testid="connected-dashboard">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className="contents lg:block lg:space-y-4 min-w-0">
+          <Card className="p-4 sm:p-5 order-1">
+            <div className="flex items-center gap-2.5">
+              <LogoMark size={30} />
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="text-[15px] font-semibold truncate" data-testid="portfolio-source">{source.title}</div>
+                <div className="text-[12px] text-muted truncate flex items-center gap-1" data-testid="dashboard-wallet-count">{chains.map((c) => <ChainIcon key={c} chain={CHAIN_ICON[c]} size={12} />)}<span className="ml-0.5">{source.subtitle}</span></div>
+              </div>
+              <button onClick={bal.refresh} disabled={bal.loading} className="h-9 w-9 grid place-items-center rounded-full text-muted hover:text-fg hover:bg-surface-2" aria-label="Refresh balances" title={bal.at ? `Updated ${timeAgo(bal.at)}` : undefined}>
+                <RefreshCw size={15} className={bal.loading ? "animate-spin" : ""} />
               </button>
-            </li>
-            {wallets.map((w) => {
-              const on = !excluded.includes(w.id);
-              const v = values.get(w.id);
-              return (
-                <li key={w.id} className="flex items-center gap-1">
-                  <button onClick={() => onToggle(w.id)} role="checkbox" aria-checked={on} aria-pressed={on} data-testid="wallet-source" className="flex-1 min-w-0 flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-surface-2">
-                    <Tick on={on} />
-                    <span className="h-8 w-8 rounded-full bg-surface-2 grid place-items-center shrink-0"><ChainIcon chain={CHAIN_ICON[w.chain]} size={16} /></span>
-                    <span className="min-w-0 flex-1 text-left">
-                      <span className="block text-[14.5px] font-semibold truncate">{w.label}</span>
-                      <span className="block text-[12px] text-muted"><span className="num">{shortAddr(w.address)}</span> · {w.source === "watch" ? "Watch-only" : w.source === "bajar" ? "Bajar Wallet" : CHAIN_NAME[w.chain]}</span>
-                    </span>
-                    <span className="num text-[13.5px] shrink-0">{v === undefined ? "…" : v === null ? <span className="text-down text-[12px]">Unavailable</span> : formatUsd(v)}</span>
-                  </button>
-                  {w.source === "watch" && <button onClick={() => registry.remove(w.id)} aria-label={`Remove ${w.label}`} className="h-9 w-9 grid place-items-center rounded-full text-faint hover:text-down hover:bg-surface-2"><X size={15} /></button>}
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-3 px-3 text-[12px] text-faint">Pick which wallets count toward your portfolio. Saved on this device only.</p>
-        </Sheet>
-      )}
-    </>
-  );
-}
+              {source.manageHref && <Link href={source.manageHref} className="h-9 px-3 rounded-full bg-surface-2 hover:bg-surface-3 text-[13px] font-medium inline-flex items-center gap-1.5" data-testid="portfolio-manage"><Link2 size={14} />{source.manageLabel ?? "Manage"}</Link>}
+            </div>
 
-const Tick = ({ on }: { on: boolean }) => <span className={clsx("h-5 w-5 rounded-full grid place-items-center shrink-0 transition-colors", on ? "bg-brand text-white" : "ring-1 ring-line-strong")}>{on && <Check size={12} strokeWidth={3} />}</span>;
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted">
+              Total balance
+              <button onClick={() => { setHidden(!hidden); try { localStorage.setItem(HIDE_KEY, hidden ? "0" : "1"); } catch { /* ignore */ } }} aria-label={hidden ? "Show balances" : "Hide balances"} className="hover:text-fg">{hidden ? <EyeOff size={13} /> : <Eye size={13} />}</button>
+            </div>
+            <div className="mt-0.5 text-[36px] sm:text-[40px] leading-tight font-semibold num" data-testid="dashboard-total">{bal.at === null && bal.loading ? <Skeleton className="h-11 w-48" /> : mask(formatUsd(total))}</div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-0.5">
+              {change !== null && changePct !== null
+                ? <span className={clsx("text-[14px] num", pctClass(change))}>{mask(`${change >= 0 ? "+" : "−"}${formatUsd(Math.abs(change))}`)} ({formatPct(changePct)}) <span className="text-muted">past {range}</span></span>
+                : <span className="text-[14px] text-muted">&nbsp;</span>}
+              <div className="flex-1" />
+              <div role="radiogroup" aria-label="Chart range" className="flex rounded-full bg-surface-2 p-0.5">
+                {(["24h", "7d", "30d"] as Range[]).map((r) => (
+                  <button key={r} role="radio" aria-checked={range === r} onClick={() => setRange(r)} className={clsx("h-7 px-3 rounded-full text-[12.5px] font-medium", range === r ? "seg-on text-fg" : "text-muted")}>{r}</button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3"><HoldingsChart points={hist.points} loading={hist.loading || (bal.loading && !bal.at)} up={(change ?? 0) >= 0} range={range} hidden={hidden} /></div>
+            <p className="text-[11px] text-faint mt-1.5">Today&apos;s holdings priced over the period (Binance){hist.flat.length ? `; ${hist.flat.slice(0, 3).join(", ")}${hist.flat.length > 3 ? "…" : ""} at today's value` : ""}. Not past balances.</p>
+          </Card>
 
-/* ── Add a wallet or a watch-only address ──────────────────────────────── */
-
-function AddWallet() {
-  const [open, setOpen] = useState(false);
-  const { openModal } = useWallet();
-  const [addr, setAddr] = useState("");
-  const [label, setLabel] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  return (
-    <>
-      <button onClick={() => setOpen(true)} data-testid="add-wallet" aria-label="Add a wallet or watch-only address" className="h-9 w-9 grid place-items-center rounded-full btn-ink"><Plus size={18} /></button>
-      {open && (
-        <Sheet title="Add a wallet" onClose={() => setOpen(false)} testid="add-sheet">
-          <button onClick={() => { setOpen(false); openModal(); }} className="w-full flex items-center gap-3 rounded-2xl px-3 py-3 hover:bg-surface-2">
-            <span className="h-9 w-9 rounded-full bg-brand-soft text-brand grid place-items-center"><Plug size={17} /></span>
-            <span className="flex-1 text-left"><span className="block text-[15px] font-semibold">Connect a wallet</span><span className="block text-[12.5px] text-muted">Phantom, MetaMask, Solflare and more</span></span>
-            <ChevronRight size={16} className="text-faint" />
-          </button>
-          <div className="my-2 h-px bg-line" />
-          <form className="px-3 pt-1 space-y-2" onSubmit={(e) => {
-            e.preventDefault();
-            const d = detectWatchAddress(addr);
-            if (!d) { setErr("That doesn't look like a Bitcoin, EVM or Solana address."); return; }
-            registry.upsert({ address: d.address, chain: d.chain, label: label.trim() || `${CHAIN_NAME[d.chain]} ${shortAddr(d.address)}`, source: "watch" });
-            setAddr(""); setLabel(""); setErr(null); setOpen(false);
-          }}>
-            <div className="text-[15px] font-semibold">Watch an address</div>
-            <p className="text-[12.5px] text-muted">Track any Bitcoin, EVM or Solana address. Watch-only: nothing can be sent from it here.</p>
-            <input value={addr} onChange={(e) => setAddr(e.target.value.trim())} placeholder="Address" aria-label="Watch address" className="no-ring w-full h-11 rounded-xl bg-surface-2 px-3 text-[16px] num outline-none" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Name (optional)" aria-label="Watch name" maxLength={40} className="no-ring w-full h-11 rounded-xl bg-surface-2 px-3 text-[16px] outline-none" />
-            {err && <p className="text-[12px] text-down">{err}</p>}
-            <button type="submit" className="btn-ink w-full h-11 rounded-xl font-semibold text-[15px]" data-testid="watch-add">Add address</button>
-          </form>
-        </Sheet>
-      )}
-    </>
-  );
-}
-
-/** Bottom sheet on phones, centred card on larger screens. */
-function Sheet({ title, onClose, children, testid }: { title: string; onClose: () => void; children: ReactNode; testid?: string }) {
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", k);
-    return () => document.removeEventListener("keydown", k);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label={title} data-testid={testid}>
-      <div className="absolute inset-0 bg-black/45" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 sm:inset-x-auto sm:left-1/2 sm:top-24 sm:bottom-auto sm:-translate-x-1/2 sm:w-[440px] max-h-[85vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] bg-[var(--surface)] p-3 pb-[calc(env(safe-area-inset-bottom)+16px)] sm:pb-4 rise">
-        <div className="sm:hidden mx-auto mb-2 h-1.5 w-10 rounded-full bg-line-strong" />
-        <div className="flex items-center justify-between px-3 py-1.5">
-          <h2 className="text-[18px] font-semibold">{title}</h2>
-          <button onClick={onClose} className="text-[15px] font-semibold text-brand">Done</button>
+          <div className="order-2"><AssetList assets={assets} total={total} hidden={hidden} loaded={bal.at !== null} /></div>
         </div>
-        {children}
+
+        <div className="contents lg:block lg:space-y-4 min-w-0">
+          <div className="order-3"><Allocation assets={assets} total={total} /></div>
+          <div className="order-4"><Research assets={assets} onAsk={ask} /></div>
+          <div className="order-6 scroll-mt-24" id="activity"><ActivityPanel /></div>
+          {side && <div className="order-7">{side}</div>}
+        </div>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Discover />
+        <LaunchpadCard addresses={wallets.filter((w) => w.chain !== "bitcoin").map((w) => w.address)} />
       </div>
     </div>
+  );
+}
+
+/* ── Market research ───────────────────────────────────────────────────── */
+
+function Research({ assets, onAsk }: { assets: Asset[]; onAsk: (q?: string) => void }) {
+  const movers = [...assets].filter((a) => a.change24h !== null).sort((a, b) => Math.abs(b.change24h!) - Math.abs(a.change24h!)).slice(0, 3);
+  const top = assets[0]?.symbol;
+  const prompts = [
+    "Review my portfolio: concentration, risk and what to change",
+    top ? `What's the outlook for ${top} this week?` : "What's moving the market today?",
+    "Which of my holdings look weakest technically?",
+  ];
+  return (
+    <Card className="p-4" data-testid="portfolio-research">
+      <div className="flex items-center gap-2"><Sparkles size={16} className="text-ai" /><h2 className="text-base">Market research</h2></div>
+      {movers.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {movers.map((a) => (
+            <li key={a.key} className="flex items-center gap-2 text-[13px]">
+              <TokenIcon src={a.icon} symbol={a.symbol} size={20} canonical />
+              <span className="flex-1 font-medium">{a.symbol}</span>
+              <span className={clsx("num", pctClass(a.change24h))}>{formatPct(a.change24h)}</span>
+              <span className="text-faint text-[11px]">24h</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 flex flex-col gap-1.5">
+        {prompts.map((q) => (
+          <button key={q} onClick={() => onAsk(q)} className="text-left rounded-xl bg-surface-2 hover:bg-surface-3 px-3 py-2 text-[13px]">{q}</button>
+        ))}
+      </div>
+      <button onClick={() => onAsk()} className="mt-3 w-full h-10 rounded-xl text-white text-[13.5px] font-semibold inline-flex items-center justify-center gap-1.5" style={{ background: "linear-gradient(135deg,#bf5af2,#0a84ff)" }}><Sparkles size={14} />Open investment agent</button>
+    </Card>
+  );
+}
+
+/* ── Asset discovery ───────────────────────────────────────────────────── */
+
+interface DiscoverPool { id: string; network: string; base: { address: string; symbol: string; image: string | null }; priceUsd: number | null; reserveUsd: number | null; change: { h1: number | null; h24: number | null } }
+
+function Discover() {
+  const [pools, setPools] = useState<DiscoverPool[] | null>(null);
+  useEffect(() => {
+    fetch("/api/dex/pools?feed=trending&duration=1h").then((r) => r.json()).then((b) => setPools(((b.data ?? []) as DiscoverPool[]).filter((p) => (p.reserveUsd ?? 0) >= 10_000).slice(0, 6))).catch(() => setPools([]));
+  }, []);
+  return (
+    <Card data-testid="portfolio-discover">
+      <CardHeader title={<span className="inline-flex items-center gap-2"><Compass size={16} className="text-brand" />Discover assets</span>} sub="Trending on Solana, Base and EVM right now" action={<Link href="/tokens" className="text-[13px] text-brand font-medium">Tokens</Link>} />
+      <ul className="px-2 pb-2">
+        {pools === null && Array.from({ length: 4 }, (_, i) => <li key={i} className="px-2 py-2"><Skeleton className="h-9 w-full" /></li>)}
+        {pools?.length === 0 && <li className="px-3 py-4 text-[13px] text-muted">Trending data unavailable — try Tokens.</li>}
+        {pools?.map((p) => (
+          <li key={p.id}>
+            <Link href={`/token/${p.network}/${p.base.address}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface-2/70">
+              <span className="relative"><TokenIcon src={p.base.image} symbol={p.base.symbol} size={30} /><span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1.5px]"><ChainIcon chain={p.network} size={12} /></span></span>
+              <span className="min-w-0 flex-1"><span className="block text-[14px] font-semibold truncate">{p.base.symbol}</span><span className="block text-[11.5px] text-muted">Liq {formatUsd(p.reserveUsd, 1)}</span></span>
+              <span className="text-right"><span className="block text-[13.5px] num">{formatPrice(p.priceUsd)}</span><span className={clsx("block text-[12px] num", pctClass(p.change.h1))}>{formatPct(p.change.h1)} 1h</span></span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/* ── Launchpad ─────────────────────────────────────────────────────────── */
+
+function LaunchpadCard({ addresses }: { addresses: string[] }) {
+  const [mine, setMine] = useState<{ mint: string; chain: string; symbol: string }[] | null>(null);
+  const key = addresses.join(",");
+  useEffect(() => {
+    Promise.all(addresses.slice(0, 6).map((a) => fetch(`/api/launch/record?creator=${encodeURIComponent(a)}`).then((r) => r.json()).then((b) => (b.launches ?? []) as { mint: string; chain: string; symbol: string }[]).catch(() => [])))
+      .then((l) => setMine(l.flat()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return (
+    <Card className="p-4 sm:p-5" data-testid="portfolio-launchpad">
+      <div className="flex items-center gap-2"><Rocket size={16} className="text-ai" /><h2 className="text-base">Launchpad</h2></div>
+      <p className="text-[13px] text-muted mt-1">Create a token on Solana, Ethereum, Base or BNB Chain from your wallet, then manage it: revoke authorities, burn, lock metadata, add liquidity.</p>
+      <div className="mt-3 flex items-center gap-1.5">{["solana", "ethereum", "base", "bsc"].map((c) => <span key={c} className="h-8 w-8 rounded-full bg-surface-2 grid place-items-center"><ChainIcon chain={c} size={16} /></span>)}</div>
+      {mine && mine.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {mine.slice(0, 6).map((t) => <li key={t.mint}><Link href={`/token/${t.chain}/${t.mint}`} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[12.5px] font-medium"><ChainIcon chain={t.chain} size={12} />{t.symbol}</Link></li>)}
+        </ul>
+      )}
+      <div className="mt-4 flex gap-2">
+        <Link href="/launchpad#create" className="btn-ink h-10 px-4 rounded-full inline-flex items-center gap-1.5 text-[13.5px] font-semibold"><Rocket size={14} />Launch a token</Link>
+        {mine && mine.length > 0 && <Link href="/launchpad#manage" className="h-10 px-4 rounded-full bg-surface-2 hover:bg-surface-3 inline-flex items-center text-[13.5px] font-medium">Manage {mine.length}</Link>}
+      </div>
+    </Card>
   );
 }
 

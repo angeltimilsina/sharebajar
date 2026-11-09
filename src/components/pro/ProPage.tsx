@@ -2,20 +2,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { BadgeCheck, Check, Crown, Link2, Loader2, Minus, Plug, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Check, Crown, Link2, Loader2, Minus, ShieldCheck, Sparkles } from "lucide-react";
 import { useWallet } from "../wallet/WalletProvider";
 import { useProfile } from "@/hooks/useProfile";
-import { Badge, Button, Card, CardHeader, Notice } from "../ui/primitives";
-import { ChainIcon } from "../ui/ChainIcon";
+import { Button, Card, CardHeader, Notice } from "../ui/primitives";
 import { shortAddress } from "@/lib/format";
 import { buildProPayment, sendAndConfirm } from "@/lib/pro/checkout";
 
 const ROWS: [string, string | boolean, string | boolean][] = [
-  ["Wallets in one verified profile", "3", "25"],
-  ["Profile wallets on every device you sign in on", true, true],
-  ["Portfolio across all wallets", true, true],
+  ["Bajar Wallet with post-quantum sign-in", true, true],
+  ["Connect other wallets with a connection token", true, true],
   ["Investment agent", "Standard", "Advanced"],
-  ["Agent reads every linked wallet live", false, true],
+  ["Agent reads Bajar Wallet and connected wallets live", false, true],
   ["Risk report: volatility, drawdown, concentration", false, true],
   ["Step-by-step trade plans, one tap to open in Trade", false, true],
   ["Agent messages", "8 per 10 min", "30 per 10 min"],
@@ -31,8 +29,8 @@ export function ProPage() {
       <span data-app-page hidden />
       <div className="rounded-[28px] p-6 sm:p-8 text-white" style={{ background: "linear-gradient(135deg,#5e2bd8,#0a84ff)" }}>
         <div className="flex items-center gap-2 text-[13px] font-semibold opacity-90"><Crown size={16} /> Bajar Pro</div>
-        <h1 className="mt-2 text-[30px] sm:text-[40px] leading-tight text-white">All your wallets, one profile, a smarter agent.</h1>
-        <p className="mt-2 text-[15px] opacity-90 max-w-xl">Prove each wallet once by signature and manage them together. Pro adds an advanced investment agent that reads every linked wallet, measures risk and drafts trade plans you approve yourself.</p>
+        <h1 className="mt-2 text-[30px] sm:text-[40px] leading-tight text-white">An investment agent that knows your wallet.</h1>
+        <p className="mt-2 text-[15px] opacity-90 max-w-xl">Pro adds an advanced agent that reads your Bajar Wallet and the wallets connected to it, measures risk and drafts trade plans you approve yourself.</p>
         <div className="mt-4 flex flex-wrap items-baseline gap-x-2"><span className="text-[34px] font-semibold num whitespace-nowrap">{price} USDC</span><span className="opacity-85 text-[14px]">/ {days} days · paid on Solana · no auto-renew</span></div>
       </div>
 
@@ -50,7 +48,7 @@ export function ProPage() {
           </div>
         </Card>
         <div className="space-y-4">
-          <ProfileCard />
+          <WalletsCard />
           <Checkout />
         </div>
       </div>
@@ -65,73 +63,15 @@ function Cell({ v, pro }: { v: string | boolean; pro?: boolean }) {
   return <span className={clsx("text-center num", pro && "font-semibold text-brand")}>{v}</span>;
 }
 
-/** Signed-in profile: proven wallets, link the connected one, remove. */
-export function ProfileCard() {
-  const { wallet, session, openModal, signIn, signMessage } = useWallet();
+/** Wallets live in Bajar Wallet; Pro uses its sign-in. */
+function WalletsCard() {
   const p = useProfile();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const wallets = p.profile?.wallets ?? [];
-  const norm = (a: string) => (a.startsWith("0x") ? a.toLowerCase() : a);
-  const linked = wallet ? wallets.some((w) => w.address === norm(wallet.address)) : false;
-  const limit = p.profile ? p.pricing?.limits[p.profile.plan.tier] ?? 3 : 3;
-
-  const link = async () => {
-    if (!wallet) return;
-    setBusy(true); setErr(null);
-    try {
-      const s = await fetch("/api/profile/link/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: wallet.address, chainType: wallet.chainType }) }).then((r) => r.json());
-      if (!s.message) throw new Error(s.error ?? "Couldn't start linking");
-      const signature = await signMessage(s.message);
-      const v = await fetch("/api/profile/link/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature, label: wallet.walletName }) }).then((r) => r.json());
-      if (!v.ok) throw new Error(v.error ?? "Linking failed");
-      await p.refresh();
-    } catch (e) {
-      const m = (e as Error).message;
-      setErr(/reject|denied|cancel/i.test(m) ? "You cancelled the signature. Nothing was linked." : m);
-    } finally { setBusy(false); }
-  };
-  const remove = async (address: string) => {
-    setErr(null);
-    const r = await fetch(`/api/profile/wallets?address=${encodeURIComponent(address)}`, { method: "DELETE" }).then((x) => x.json());
-    if (!r.ok) setErr(r.error ?? "Couldn't remove"); else await p.refresh();
-  };
-
+  const count = p.profile?.wallets.length ?? 0;
   return (
-    <Card data-testid="profile-card">
-      <CardHeader title={<span className="inline-flex items-center gap-2">Your profile {p.isPro && <Badge tone="brand"><Crown size={11} /> Pro</Badge>}</span>} sub={p.profile ? `${wallets.length} of ${limit} wallets · proven by signature` : "One profile for all your wallets"} />
-      <div className="px-4 sm:px-5 pb-4 space-y-2">
-        {!wallet && <Button className="w-full" onClick={openModal}><Plug size={15} /> Connect a wallet</Button>}
-        {wallet && !session && (
-          <>
-            <p className="text-[13px] text-muted">Sign in with your wallet to create your profile. Signing a message is free and allows no transactions.</p>
-            <Button className="w-full" onClick={signIn} data-testid="profile-signin"><ShieldCheck size={15} /> Sign in with {wallet.walletName}</Button>
-          </>
-        )}
-        {session && p.profile && (
-          <>
-            <ul className="space-y-1.5" data-testid="profile-wallets">
-              {wallets.map((w) => (
-                <li key={w.address} className="flex items-center gap-2.5 rounded-xl bg-surface-2 px-3 py-2">
-                  <ChainIcon chain={w.chainType === "evm" ? "ethereum" : "solana"} size={16} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-medium truncate flex items-center gap-1">{w.label ?? (w.chainType === "evm" ? "EVM wallet" : "Solana wallet")}<BadgeCheck size={13} className="text-brand shrink-0" /></div>
-                    <div className="text-[11.5px] text-muted num">{shortAddress(w.address)}{norm(session.address) === w.address ? " · signed in" : ""}</div>
-                  </div>
-                  {norm(session.address) !== w.address && <button onClick={() => remove(w.address)} aria-label={`Remove ${w.address}`} className="text-faint hover:text-down"><Trash2 size={14} /></button>}
-                </li>
-              ))}
-            </ul>
-            {wallet && !linked && (
-              <Button className="w-full" onClick={link} disabled={busy} data-testid="profile-link">{busy ? <Loader2 size={15} className="animate-spin" /> : <Link2 size={15} />} Link {wallet.walletName} {shortAddress(wallet.address)}</Button>
-            )}
-            {wallet && linked && <Button variant="outline" className="w-full" onClick={openModal}><Plug size={15} /> Connect another wallet to link it</Button>}
-            <p className="text-[11.5px] text-faint">To add a wallet: connect it (or switch account in your wallet), then link it here. You sign a message, never a transaction.</p>
-          </>
-        )}
-        {p.error && session && <Notice tone="down">{p.error}</Notice>}
-        {err && <Notice tone="down">{err}</Notice>}
-      </div>
+    <Card className="p-4 sm:p-5" data-testid="pro-wallets">
+      <div className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand" /><h2 className="text-[17px] font-semibold">Your wallet</h2></div>
+      <p className="text-[13px] text-muted mt-1">{p.signedIn && p.profile ? `Signed in with Bajar Wallet · ${Math.max(0, count - 1)} connected wallet${count === 2 ? "" : "s"}.` : "Pro works with Bajar Wallet. Create or unlock it and sign in once; connect other wallets to it with a connection token."}</p>
+      <Link href="/wallet#connections" className="mt-3 inline-flex"><Button variant="outline"><Link2 size={15} /> Open Bajar Wallet</Button></Link>
     </Card>
   );
 }
@@ -187,7 +127,7 @@ function Checkout() {
             <li className="flex justify-between"><span className="text-muted">Paid to</span><span className="num">{recipient ? `Bajar treasury ${shortAddress(recipient)}` : "—"}</span></li>
           </ul>
           {!recipient && <Notice className="mt-3" title="Checkout opens soon">Pro payments go only to Bajar&apos;s verified, multisig-controlled treasury, which isn&apos;t active yet. You can set up your profile and link wallets now.</Notice>}
-          {recipient && !ready && <p className="mt-3 text-[12.5px] text-muted">{!session ? "Sign in first (above)." : wallet?.chainType !== "solana" ? "Connect a Solana wallet with USDC to pay." : "Link this wallet to your profile first (above)."}</p>}
+          {recipient && !ready && <p className="mt-3 text-[12.5px] text-muted">{!session ? "Sign in with Bajar Wallet first." : wallet?.chainType !== "solana" ? "Connect Bajar Wallet or a connected Solana wallet with USDC to pay." : "Pay from Bajar Wallet or a wallet connected to it."}</p>}
           {step === "review" && (
             <Notice tone="warn" className="mt-3" title="Approve one payment in your wallet">You&apos;ll send exactly {price} USDC from {shortAddress(wallet!.address)} to Bajar&apos;s treasury {shortAddress(recipient!)}, plus a small Solana network fee. It&apos;s checked on-chain before Pro turns on.</Notice>
           )}

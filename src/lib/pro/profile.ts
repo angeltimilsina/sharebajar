@@ -5,14 +5,16 @@ import { SESSION_COOKIE, unseal, type Session } from "@/lib/server/auth";
 import { listTreasuries } from "@/lib/treasury/store";
 
 /**
- * A Bajar profile groups wallets the user has proven they control (each one
- * signed a link message). Only public addresses are stored. Pro is a 30-day
+ * A profile belongs to a Bajar Wallet (created by its hybrid Ed25519 +
+ * ML-DSA-65 sign-in). Other wallets join it with a one-time connection
+ * token and a signed message proving control. Only public addresses are stored. Pro is a 30-day
  * plan paid in USDC on Solana to Bajar's verified treasury, checked on-chain.
  */
 export const PRO = {
   priceUsdc: Math.max(1, Number(process.env.PRO_PRICE_USDC ?? 19)) || 19,
   periodDays: Math.max(1, Number(process.env.PRO_PERIOD_DAYS ?? 30)) || 30,
-  limits: { free: 3, pro: 25 },
+  /** Wallets that can be connected to one Bajar Wallet (same for every plan; Pro is the agent). */
+  linkLimit: 10,
 };
 export const USDC_SOLANA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
@@ -51,10 +53,8 @@ export async function linkWallet(profileId: string, chainType: ChainType, addres
   const existing = (await q<{ profile_id: string }>("select profile_id from profile_wallets where address = $1", [addr]))[0];
   if (existing?.profile_id === profileId) return { ok: true };
   if (existing) return { ok: false, error: "This wallet is already linked to another Bajar profile. Remove it there first." };
-  const plan = await planOf(profileId);
   const count = (await walletsOf(profileId)).length;
-  const limit = PRO.limits[plan.tier];
-  if (count >= limit) return { ok: false, error: plan.tier === "free" ? `Free profiles can link ${limit} wallets. Upgrade to Pro to link up to ${PRO.limits.pro}.` : `Profiles can link up to ${limit} wallets.` };
+  if (count >= PRO.linkLimit + 1) return { ok: false, error: `A Bajar Wallet can connect up to ${PRO.linkLimit} other wallets.` };
   await q("insert into profile_wallets (address, profile_id, chain_type, label) values ($1,$2,$3,$4)", [addr, profileId, chainType, label]);
   return { ok: true };
 }
@@ -74,4 +74,30 @@ export async function proRecipient(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/* ── Connection tokens ─────────────────────────────────────────────────── */
+
+const TOKEN_TTL_MS = 15 * 60_000;
+const sha256 = async (s: string) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))).toString("hex");
+
+/** A one-time token another wallet uses to join this Bajar Wallet. Only its hash is stored. */
+export async function createConnectToken(profileId: string, bajarAddress: string) {
+  const { default: bs58 } = await import("bs58");
+  const token = bs58.encode(crypto.getRandomValues(new Uint8Array(24)));
+  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
+  await q("delete from connect_tokens where expires_at < now() - interval '1 day'");
+  await q("insert into connect_tokens (token_hash, profile_id, bajar_address, expires_at) values ($1,$2,$3,$4)", [await sha256(token), profileId, bajarAddress, expiresAt.toISOString()]);
+  return { token, expiresAt: expiresAt.toISOString() };
+}
+
+export async function peekConnectToken(token: string): Promise<{ bajarAddress: string; expiresAt: string } | null> {
+  const r = (await q<{ bajar_address: string; expires_at: string | Date }>("select bajar_address, expires_at from connect_tokens where token_hash = $1 and used_at is null and expires_at > now()", [await sha256(token)]))[0];
+  return r ? { bajarAddress: r.bajar_address, expiresAt: new Date(r.expires_at).toISOString() } : null;
+}
+
+/** Marks the token used (single use) and returns its profile, or null if expired/used. */
+export async function consumeConnectToken(token: string): Promise<string | null> {
+  const r = await q<{ profile_id: string }>("update connect_tokens set used_at = now() where token_hash = $1 and used_at is null and expires_at > now() returning profile_id", [await sha256(token)]);
+  return r[0]?.profile_id ?? null;
 }

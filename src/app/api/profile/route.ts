@@ -3,7 +3,7 @@ import { PRO, currentSession, planOf, proRecipient, profileForSession, walletsOf
 
 /** The signed-in wallet's profile: linked wallets, plan, limits and Pro pricing. */
 export async function GET() {
-  const pricing = { priceUsdc: PRO.priceUsdc, periodDays: PRO.periodDays, limits: PRO.limits, recipient: await proRecipient(), token: "USDC", chain: "solana" };
+  const pricing = { priceUsdc: PRO.priceUsdc, periodDays: PRO.periodDays, linkLimit: PRO.linkLimit, recipient: await proRecipient(), token: "USDC", chain: "solana" };
   const s = await currentSession();
   if (!s) return NextResponse.json({ signedIn: false, pricing }, { headers: { "cache-control": "no-store" } });
   try {

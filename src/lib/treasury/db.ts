@@ -218,6 +218,14 @@ create table if not exists subscriptions (
   created_at timestamptz not null default now()
 );
 create index if not exists subscriptions_profile on subscriptions (profile_id);
+create table if not exists connect_tokens (
+  token_hash text primary key,
+  profile_id text not null,
+  bajar_address text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
 `;
 
 const g = globalThis as unknown as { __sbDb?: Promise<Db> };

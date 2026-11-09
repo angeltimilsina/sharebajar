@@ -5,25 +5,70 @@ import { useWallet } from "../wallet/WalletProvider";
 import { useAlerts, useWatchlist, watchKey } from "@/hooks/useWatchlist";
 import { getChain } from "@/lib/chains";
 import { formatPrice } from "@/lib/format";
-import { Badge, Card, CardHeader } from "../ui/primitives";
+import { useMemo } from "react";
+import { Badge, Button, Card, CardHeader, Notice } from "../ui/primitives";
+import { useBajar } from "../bajar/useBajar";
+import { useProfile } from "@/hooks/useProfile";
+import type { TrackedWallet } from "@/lib/wallets/registry";
 import { ActivityPanel } from "./ActivityPanel";
 import { PortfolioIntro } from "./PortfolioIntro";
 import { PortfolioDashboard } from "./PortfolioDashboard";
 
+/**
+ * One wallet: Bajar Wallet (its Bitcoin, EVM and Solana accounts plus the
+ * wallets connected to it with a connection token) or, without it, the
+ * wallet connected in this browser.
+ */
 export function Portfolio() {
   const { wallet } = useWallet();
-  if (!wallet) {
+  const { hasVault, unlocked, accounts } = useBajar();
+  const p = useProfile();
+  const linkedToBajar = !!accounts && p.signedIn && p.address === accounts.solana.address;
+
+  const wallets = useMemo<TrackedWallet[]>(() => {
+    if (unlocked && accounts) {
+      const own = [
+        { id: `bitcoin:${accounts.bitcoin.address}`, address: accounts.bitcoin.address, chain: "bitcoin" as const, label: "Bajar Wallet", source: "bajar" as const, addedAt: 0 },
+        { id: `evm:${accounts.evm.address.toLowerCase()}`, address: accounts.evm.address, chain: "evm" as const, label: "Bajar Wallet", source: "bajar" as const, addedAt: 0 },
+        { id: `solana:${accounts.solana.address}`, address: accounts.solana.address, chain: "solana" as const, label: "Bajar Wallet", source: "bajar" as const, addedAt: 0 },
+      ];
+      const ownIds = new Set(own.map((w) => w.id));
+      const connected = linkedToBajar ? (p.profile?.wallets ?? []).map((w) => ({ id: `${w.chainType}:${w.address}`, address: w.address, chain: w.chainType, label: w.label ?? (w.chainType === "evm" ? "EVM wallet" : "Solana wallet"), source: "linked" as const, verified: true, addedAt: 1 })).filter((w) => !ownIds.has(w.id)) : [];
+      return [...own, ...connected];
+    }
+    if (wallet) return [{ id: `${wallet.chainType}:${wallet.chainType === "evm" ? wallet.address.toLowerCase() : wallet.address}`, address: wallet.address, chain: wallet.chainType, label: wallet.walletName, source: "connected" as const, addedAt: 0 }];
+    return [];
+  }, [unlocked, accounts, wallet, linkedToBajar, p.profile]);
+
+  if (unlocked && accounts) {
+    const n = wallets.filter((w) => w.source === "linked").length;
+    return <PortfolioDashboard wallets={wallets} side={<WatchAndAlerts />} source={{ title: "Bajar Wallet", subtitle: n ? `${n} connected wallet${n === 1 ? "" : "s"}` : "Bitcoin · EVM · Solana", manageHref: "/wallet#connections", manageLabel: "Connect" }} />;
+  }
+  if (wallet) {
     return (
-      <div className="space-y-6">
-        <PortfolioIntro />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div id="activity" className="scroll-mt-24"><ActivityPanel /></div>
-          <WatchAndAlerts />
-        </div>
+      <div className="space-y-4">
+        <Notice title={hasVault ? "Unlock Bajar Wallet to see everything in one place" : "Bring this wallet into Bajar Wallet"}>
+          {hasVault ? "Your Bajar Wallet and the wallets connected to it show here once it's unlocked." : "Create a Bajar Wallet, then connect this and your other wallets to it with a one-time connection token."} <Link href="/wallet" className="underline">Open Bajar Wallet</Link>
+        </Notice>
+        <PortfolioDashboard wallets={wallets} side={<WatchAndAlerts />} source={{ title: wallet.walletName, subtitle: "This wallet" }} />
       </div>
     );
   }
-  return <PortfolioDashboard side={<WatchAndAlerts />} />;
+  return (
+    <div className="space-y-6">
+      {hasVault && (
+        <Card className="p-5 flex flex-wrap items-center gap-3" data-testid="portfolio-unlock">
+          <span className="flex-1 min-w-0"><span className="block text-[16px] font-semibold">Unlock Bajar Wallet</span><span className="block text-[13px] text-muted">Your portfolio, connected wallets and activity are one unlock away.</span></span>
+          <Link href="/wallet"><Button>Unlock</Button></Link>
+        </Card>
+      )}
+      <PortfolioIntro />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div id="activity" className="scroll-mt-24"><ActivityPanel /></div>
+        <WatchAndAlerts />
+      </div>
+    </div>
+  );
 }
 
 function WatchAndAlerts() {

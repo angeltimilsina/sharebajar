@@ -1,14 +1,15 @@
 import Link from "next/link";
 import clsx from "clsx";
 
-/** Three bars: ink, green signal, ink. Doubles as the menu icon on smaller screens. */
+/** Bajar's mark: three rounded bars, red, green and blue. Morphs into a close icon on the menu button. */
+export const LOGO_COLORS = { red: "#FF0000", green: "#00E833", blue: "#0057FF" };
 export function LogoMark({ size = 28, open = false }: { size?: number; open?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
       <g className="transition-transform duration-200 origin-center" style={{ transformBox: "fill-box" }}>
-        <rect x="7" y="9" width="26" height="5.5" rx="2.75" fill="currentColor" className="transition-all duration-200" style={open ? { transform: "translate(0px, 8.25px) rotate(45deg)", transformOrigin: "20px 11.75px" } : undefined} />
-        <rect x="7" y="17.25" width="26" height="5.5" rx="2.75" fill="var(--accent)" className="transition-opacity duration-200" style={{ opacity: open ? 0 : 1 }} />
-        <rect x="7" y="25.5" width="26" height="5.5" rx="2.75" fill="currentColor" className="transition-all duration-200" style={open ? { transform: "translate(0px, -8.25px) rotate(-45deg)", transformOrigin: "20px 28.25px" } : undefined} />
+        <rect x="6" y="8" width="28" height="7" rx="3.5" fill={LOGO_COLORS.red} className="transition-all duration-200" style={open ? { transform: "translate(0px, 8.5px) rotate(45deg)", transformOrigin: "20px 11.5px" } : undefined} />
+        <rect x="6" y="16.5" width="28" height="7" rx="3.5" fill={LOGO_COLORS.green} className="transition-opacity duration-200" style={{ opacity: open ? 0 : 1 }} />
+        <rect x="6" y="25" width="28" height="7" rx="3.5" fill={LOGO_COLORS.blue} className="transition-all duration-200" style={open ? { transform: "translate(0px, -8.5px) rotate(-45deg)", transformOrigin: "20px 28.5px" } : undefined} />
       </g>
     </svg>
   );

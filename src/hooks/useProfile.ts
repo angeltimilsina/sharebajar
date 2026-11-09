@@ -8,7 +8,7 @@ export interface ProfileState {
   signedIn: boolean;
   address?: string;
   profile?: { id: string; wallets: ProfileWallet[]; plan: { tier: "free" | "pro"; until: string | null } };
-  pricing?: { priceUsdc: number; periodDays: number; limits: { free: number; pro: number }; recipient: string | null; token: string; chain: string };
+  pricing?: { priceUsdc: number; periodDays: number; linkLimit: number; recipient: string | null; token: string; chain: string };
   error?: string;
 }
 

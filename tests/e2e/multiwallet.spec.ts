@@ -2,7 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const SOL_ADDR = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9";
 const SOL_DEST = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-const EVM_WATCH = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 
 async function stubPhantom(page: Page) {
   await page.addInitScript(({ pk }) => {
@@ -33,62 +32,38 @@ async function connect(page: Page) {
 test.describe("multi-wallet", () => {
   test.setTimeout(120_000);
 
-  test("portfolio: wallet picker, holdings chart, asset details, agent in the sidebar", async ({ page }) => {
+  test("portfolio: one wallet, chart, asset details, research, discovery, launchpad; agent in the sidebar", async ({ page }) => {
     await stubPhantom(page);
-    await page.addInitScript((addr) => localStorage.setItem("bajar.wallets.v1", JSON.stringify([{ id: `evm:${addr.toLowerCase()}`, address: addr, chain: "evm", label: "Cold storage", source: "watch", addedAt: 1 }])), EVM_WATCH);
     await page.goto("/portfolio");
     await expect(page.getByTestId("connected-dashboard")).toHaveCount(0); // only once connected
     await connect(page);
     await expect(page.getByTestId("connected-dashboard")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Portfolio", level: 1 })).toHaveCount(0);
-    await expect(page.getByText("Move between wallets")).toHaveCount(0);
-    await expect(page.getByTestId("dashboard-wallet-count")).toContainText("1 wallet connected · 1 watch-only");
+    await expect(page.getByTestId("portfolio-source")).toHaveText("Phantom");
+    await expect(page.getByTestId("wallet-picker")).toHaveCount(0);
+    await expect(page.getByTestId("add-wallet")).toHaveCount(0);
     const total = page.getByTestId("dashboard-total");
     await expect(total).toContainText("$", { timeout: 45_000 });
     await expect(page.getByTestId("holdings-chart")).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByTestId("allocation")).toBeVisible();
+    await expect(page.getByTestId("portfolio-research")).toBeVisible();
+    await expect(page.getByTestId("portfolio-discover")).toBeVisible();
+    await expect(page.getByTestId("portfolio-launchpad")).toBeVisible();
 
-    // Asset details: price, amounts, per-wallet holdings, first received.
     await page.getByTestId("asset-row").first().getByRole("button").click();
     const details = page.getByTestId("asset-details");
-    await expect(details).toBeVisible();
     await expect(details.getByText("Held in")).toBeVisible();
     await expect(details.getByTestId("asset-acquired")).toBeVisible();
 
-    // Picker: toggling a source changes the total; the last source can't be turned off.
-    const before = await total.innerText();
-    await page.getByTestId("wallet-picker").click();
-    const sources = page.getByTestId("wallet-source");
-    await expect(sources).toHaveCount(2);
-    await sources.filter({ hasText: "Cold storage" }).click();
-    await expect(sources.filter({ hasText: "Cold storage" })).toHaveAttribute("aria-checked", "false");
-    await sources.filter({ hasText: "Phantom" }).click(); // would leave nothing selected → ignored
-    await expect(sources.filter({ hasText: "Phantom" })).toHaveAttribute("aria-checked", "true");
-    await page.getByTestId("wallet-sheet").getByRole("button", { name: "Done" }).click();
-    await expect(total).not.toHaveText(before);
-
-    // The agent lives in the sidebar and gets values, never addresses.
+    // The agent gets values, never addresses.
     await page.getByTestId("open-agent").click();
     await expect(page).toHaveURL(/\/intelligence\?agent=portfolio/);
     await expect(page.getByTestId("agent-portfolio")).toBeVisible();
     const stash = await page.evaluate(() => sessionStorage.getItem("bajar.agent.portfolio") ?? "");
     expect(stash).not.toContain(SOL_ADDR);
-    expect(stash.toLowerCase()).not.toContain(EVM_WATCH.toLowerCase());
   });
 
-  test("portfolio: + adds a watch-only address; /wallets goes to Portfolio", async ({ page }) => {
-    await stubPhantom(page);
+  test("/wallets goes to Portfolio", async ({ page }) => {
     await page.goto("/wallets");
     await expect(page).toHaveURL(/\/portfolio$/);
-    await connect(page);
-    await page.getByTestId("add-wallet").click();
-    await page.getByLabel("Watch address").fill(SOL_DEST);
-    await page.getByLabel("Watch name").fill("Savings");
-    await page.getByTestId("watch-add").click();
-    await expect(page.getByTestId("dashboard-wallet-count")).toContainText("1 watch-only");
-    await page.getByTestId("wallet-picker").click();
-    await expect(page.getByTestId("wallet-source").filter({ hasText: "Savings" })).toBeVisible();
-    await expect(page.getByTestId("wallet-sidebar").getByText("Wallets & transfers")).toHaveCount(0);
   });
 });
 

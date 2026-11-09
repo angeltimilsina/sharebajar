@@ -13,8 +13,8 @@ import { shortAddress } from "@/lib/format";
 import { chainFromEvmId } from "@/lib/chains";
 import { sidebar, useSidebar } from "@/lib/ui/sidebar";
 import { ThemeToggle } from "./ThemeToggle";
-import { registry } from "@/lib/wallets/registry";
-import { readExcluded } from "@/lib/wallets/selection";
+import type { TrackedWallet } from "@/lib/wallets/registry";
+import { bajar } from "@/lib/bajar/session";
 import { buildAgentPortfolio, stashAgentPortfolio } from "@/lib/wallets/agent";
 import { fetchBalances } from "@/hooks/useWallets";
 
@@ -209,20 +209,33 @@ function Body({ compact }: { compact: boolean }) {
 }
 
 /**
- * Opens the investment agent with a summary of the wallets selected on
- * Portfolio: assets, values and allocation only, never addresses.
+ * Opens the investment agent with a summary of the Portfolio wallet:
+ * assets, values and allocation only, never addresses.
  */
 function AgentLink({ compact }: { compact: boolean }) {
   const router = useRouter();
   const path = usePathname();
   const [busy, setBusy] = useState(false);
   const on = path === "/intelligence";
+  const { wallet } = useWallet();
   const open = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const excluded = readExcluded();
-      const wallets = registry.snapshot().wallets.filter((w) => !excluded.includes(w.id));
+      // Same wallet as Portfolio: Bajar Wallet (+ wallets connected to it), else the connected wallet.
+      const a = bajar.isUnlocked() ? bajar.accounts() : null;
+      let wallets: TrackedWallet[] = [];
+      if (a) {
+        wallets = [
+          { id: `bitcoin:${a.bitcoin.address}`, address: a.bitcoin.address, chain: "bitcoin", label: "Bajar Wallet", source: "bajar", addedAt: 0 },
+          { id: `evm:${a.evm.address.toLowerCase()}`, address: a.evm.address, chain: "evm", label: "Bajar Wallet", source: "bajar", addedAt: 0 },
+          { id: `solana:${a.solana.address}`, address: a.solana.address, chain: "solana", label: "Bajar Wallet", source: "bajar", addedAt: 0 },
+        ];
+        const prof = await fetch("/api/profile", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as { address?: string; profile?: { wallets: { address: string; chainType: "solana" | "evm" }[] } } | null;
+        if (prof?.address === a.solana.address) for (const w of prof.profile?.wallets ?? []) if (!wallets.some((x) => x.address.toLowerCase() === w.address.toLowerCase())) wallets.push({ id: `${w.chainType}:${w.address}`, address: w.address, chain: w.chainType, label: "Connected", source: "linked", addedAt: 1 });
+      } else if (wallet) {
+        wallets = [{ id: `${wallet.chainType}:${wallet.address}`, address: wallet.address, chain: wallet.chainType, label: wallet.walletName, source: "connected", addedAt: 0 }];
+      }
       if (wallets.length) stashAgentPortfolio(buildAgentPortfolio(await fetchBalances(wallets)));
     } catch { /* agent still opens; it asks for holdings instead */ }
     setBusy(false);

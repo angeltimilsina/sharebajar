@@ -42,39 +42,63 @@ test.describe("Bajar Pro", () => {
 
   test("pricing page: Free vs Pro, checkout only to a verified treasury", async ({ page }) => {
     await page.goto("/pro");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("one profile");
-    await expect(page.getByText("Wallets in one verified profile")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("investment agent");
+    await expect(page.getByText("Connect other wallets with a connection token")).toBeVisible();
     await expect(page.getByTestId("pro-checkout")).toContainText("USDC");
     // No active treasury in tests: checkout stays closed rather than paying anywhere else.
     await expect(page.getByTestId("pro-checkout")).toContainText("Checkout opens soon");
     await expect(page.getByTestId("pro-pay")).toBeDisabled();
   });
 
-  test("profile: sign in, then link a second wallet by signature", async ({ page }) => {
-    await stubPhantom(page);
-    await page.goto("/pro");
-    await connectPhantom(page);
-    await page.getByTestId("profile-signin").click();
-    const list = page.getByTestId("profile-wallets");
-    await expect(list.getByText(/signed in/)).toBeVisible({ timeout: 20_000 });
-    await expect(list.locator("li")).toHaveCount(1);
+  test("connection token: Bajar Wallet creates it, another wallet signs and joins", async ({ page, context }) => {
+    // Bajar Wallet: import the public test phrase, hybrid sign-in.
+    await page.goto("/wallet");
+    await page.getByRole("tab", { name: "Import", exact: true }).click();
+    await page.getByTestId("bajar-import-phrase").fill("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+    await page.getByTestId("bajar-ack-public").check();
+    await page.getByTestId("bajar-import-next").click();
+    await page.getByTestId("bajar-accounts-next").click();
+    await page.getByTestId("bajar-password").fill("orbit-lantern-quiet-maple-29");
+    await page.getByTestId("bajar-password2").fill("orbit-lantern-quiet-maple-29");
+    await page.getByTestId("bajar-pw-ack").check();
+    await page.getByTestId("bajar-pw-next").click();
+    await expect(page.getByTestId("bajar-done")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("bajar-done-signin").click();
+    await page.getByTestId("bajar-approve").click();
+    await expect(page.getByTestId("bajar-signin-ok")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("bajar-open").click();
 
-    // Switch the wallet's account to B and link it.
-    await page.evaluate((b) => { (window as unknown as { __pk: string }).__pk = b; }, addr(B));
-    // Connect the other account from the profile card (keeps the sign-in), then link it.
-    await page.getByTestId("profile-card").getByRole("button", { name: /Connect another wallet/ }).click();
-    await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-    await page.getByTestId("profile-link").click();
-    await expect(list.locator("li")).toHaveCount(2, { timeout: 20_000 });
-    // The linked wallet is now in the registry, marked as verified.
-    const reg = await page.evaluate(() => JSON.parse(localStorage.getItem("bajar.wallets.v1") ?? "[]") as { address: string; verified?: boolean }[]);
-    expect(reg.find((w) => w.address === addr(B))?.verified ?? reg.some((w) => w.address === addr(B))).toBeTruthy();
-    // Forged link attempts are rejected by the server.
-    const forged = await page.evaluate(async () => {
-      const r = await fetch("/api/profile/link/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature: "1".repeat(88) }) });
-      return r.status;
-    });
-    expect([400, 401]).toContain(forged);
+    const card = page.getByTestId("connected-wallets");
+    await card.getByTestId("create-connect-token").click();
+    const link = await card.getByTestId("connect-link").inputValue();
+    expect(link).toMatch(/\/connect\/[1-9A-HJ-NP-Za-km-z]{20,40}$/);
+
+    // The other wallet opens the link (no Bajar session needed there) and signs.
+    const other = await context.browser()!.newContext();
+    const p2 = await other.newPage();
+    await stubPhantom(p2);
+    await p2.goto(link);
+    await expect(p2.getByTestId("connect-page")).toContainText("Joining Bajar Wallet");
+    await p2.getByTestId("connect-page").getByRole("button", { name: /Connect$/ }).click();
+    await p2.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
+    await p2.getByTestId("connect-sign").click();
+    await expect(p2.getByTestId("connect-done")).toBeVisible({ timeout: 20_000 });
+
+    // Bajar Wallet sees it join; the token can't be used again.
+    const short = `${addr(A).slice(0, 4)}…${addr(A).slice(-4)}`; // the stand-in Phantom starts on account A
+    const row = card.getByTestId("connected-list").locator("li").filter({ hasText: short });
+    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await p2.goto(link);
+    await expect(p2.getByTestId("connect-page")).toContainText("Token expired or used");
+    await other.close();
+
+    // Portfolio is the one Bajar Wallet, now including the connected wallet (client-side nav keeps it unlocked).
+    await page.getByTestId("wallet-sidebar").getByRole("link", { name: "Portfolio" }).click();
+    await expect(page.getByTestId("portfolio-source")).toHaveText("Bajar Wallet");
+    await expect(page.getByTestId("dashboard-wallet-count")).toContainText(/\d+ connected wallets?/);
+    // Clean up: disconnect it again from Bajar Wallet.
+    const del = await page.request.delete(`/api/profile/wallets?address=${addr(A)}`, { headers: { origin: new URL(page.url()).origin } });
+    expect(del.ok()).toBe(true);
   });
 
   test("Pro activation rejects unknown payments", async ({ page }) => {

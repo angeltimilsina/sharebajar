@@ -13,6 +13,7 @@ import { settings } from "@/lib/bajar/session";
 import { allocation, assetHref, dayChange, walletInsights, type WalletInsight } from "@/lib/bajar/insights";
 import { usePortfolio, type Holding } from "./PortfolioPanel";
 import type { WalletView } from "./WalletApp";
+import { ConnectedWallets } from "./ConnectedWallets";
 
 const ActivityPanel = dynamic(() => import("./ActivityPanel").then((m) => m.ActivityPanel), { loading: () => <Skeleton className="h-40 w-full" /> });
 
@@ -70,6 +71,7 @@ export function WalletDashboard({ go }: { go: (v: WalletView) => void }) {
       <div className="contents lg:block lg:space-y-4 min-w-0">
         <div className="order-2 min-w-0"><Insights items={insights} go={go} /></div>
         <div className="order-5"><Allocation holdings={holdings} hidden={hidden} /></div>
+        <div className="order-5 scroll-mt-24" id="connections"><ConnectedWallets /></div>
         <div className="order-6">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-sans font-semibold text-muted">Recent activity</h2>

@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   keywords: ["crypto", "marketplace", "token discovery", "solana", "dex", "charts", "swap", "crypto prices"],
   openGraph: { type: "website", siteName: "Bajar", title: "Bajar — The Open Crypto Marketplace", description: "Real-time multi-chain crypto market data, pro charts, wallet trading and AI market intelligence." },
   twitter: { card: "summary_large_image" },
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/apple-icon.png" },
   appleWebApp: { capable: true, title: "Bajar", statusBarStyle: "black-translucent" },
 };
 
