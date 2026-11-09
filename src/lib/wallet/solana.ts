@@ -46,8 +46,8 @@ export async function solanaSignMessage(p: InjectedSolana, message: string): Pro
  * Deserialize a base64 versioned transaction (from Jupiter) and ask the wallet
  * to sign + send it. The user sees and approves it in their wallet.
  */
-export async function solanaSignAndSend(p: InjectedSolana, base64Tx: string, rpcUrl: string): Promise<string> {
-  const { VersionedTransaction, Connection } = await import("@solana/web3.js");
+export async function solanaSignAndSend(p: InjectedSolana, base64Tx: string, _rpcUrl?: string): Promise<string> {
+  const { VersionedTransaction } = await import("@solana/web3.js");
   const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(base64Tx), (c) => c.charCodeAt(0)));
   if (p.signAndSendTransaction) {
     const res = await p.signAndSendTransaction(tx, { skipPreflight: false, maxRetries: 3 });
@@ -55,11 +55,14 @@ export async function solanaSignAndSend(p: InjectedSolana, base64Tx: string, rpc
   }
   if (!p.signTransaction) throw new Error("Wallet cannot sign transactions");
   const signed = await p.signTransaction(tx);
-  const conn = new Connection(rpcUrl, "confirmed");
-  return conn.sendRawTransaction(signed.serialize(), { skipPreflight: false, maxRetries: 3 });
+  // Broadcast through Bajar's relay (preflight on): the browser doesn't contact RPC nodes directly.
+  const bytes = signed.serialize();
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  const { rpc } = await import("./rpc");
+  return rpc<string>("sendTransaction", [btoa(bin), { encoding: "base64", maxRetries: 3, preflightCommitment: "confirmed" }]);
 }
 
-/** Sign without sending (Jupiter /order route: Jupiter lands it via /execute). */
 export async function solanaSignOnly(p: InjectedSolana, base64Tx: string): Promise<string> {
   const { VersionedTransaction } = await import("@solana/web3.js");
   const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(base64Tx), (c) => c.charCodeAt(0)));

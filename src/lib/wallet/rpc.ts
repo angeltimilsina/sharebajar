@@ -1,17 +1,21 @@
 "use client";
 
-/** Lightweight Solana JSON-RPC client (no SDK needed for reads). */
-export const SOLANA_RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+/**
+ * Lightweight Solana JSON-RPC client (no SDK needed for reads). Requests go
+ * through Bajar's same-origin relay (/api/wallet/rpc): method-allowlisted,
+ * size-bounded and rate-limited, and allowed by the site's connect-src policy.
+ * The browser never talks to an RPC node directly.
+ */
+export const SOLANA_RPC = "/api/wallet/rpc";
 
-let id = 1;
 export async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(SOLANA_RPC, {
+  const res = await fetch("/api/wallet/rpc", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: id++, method, params }),
+    body: JSON.stringify({ chain: "solana", method, params }),
   });
-  if (res.status === 403 || res.status === 429) throw new Error(`Solana RPC refused the request (${res.status}). Configure NEXT_PUBLIC_SOLANA_RPC_URL with a dedicated RPC provider.`);
-  const body = await res.json();
+  if (res.status === 429) throw new Error("Too many network requests. Wait a moment and try again.");
+  const body = await res.json().catch(() => ({ error: { message: `Network relay error (${res.status})` } }));
   if (body.error) throw new Error(body.error.message ?? "RPC error");
   return body.result as T;
 }

@@ -12,12 +12,17 @@ function validParams(method: string, params: unknown[]): string | null {
   const first = params[0];
   if (method === "sendTransaction") return typeof first === "string" && first.length <= 1700 && /^[A-Za-z0-9+/=]+$/.test(first) ? null : "Signed Solana transaction must be base64 ≤ 1232 bytes";
   if (method === "simulateTransaction") return typeof first === "string" && first.length <= 1700 ? null : "Transaction too large";
+  if (method === "getTokenAccountsByOwner") {
+    // Only "token accounts of <owner> under the SPL Token / Token-2022 program".
+    const filter = params[1] as { programId?: string } | undefined;
+    return typeof first === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(first) && ["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"].includes(filter?.programId ?? "") ? null : "Invalid token-accounts query";
+  }
   if (method === "eth_sendRawTransaction") return typeof first === "string" && /^0x[0-9a-fA-F]+$/.test(first) && first.length <= 262_144 ? null : "Signed EVM transaction must be hex ≤ 128 KB";
   return null;
 }
 
 /** Allowlisted JSON-RPC relay for Bajar Wallet (reads, simulation, broadcast of signed txs). */
-const SOL = new Set(["getLatestBlockhash", "getBalance", "getAccountInfo", "getMultipleAccounts", "simulateTransaction", "sendTransaction", "getSignatureStatuses", "getSignaturesForAddress", "getTransaction", "getMinimumBalanceForRentExemption", "getFeeForMessage", "getRecentPrioritizationFees"]);
+const SOL = new Set(["getLatestBlockhash", "getBalance", "getTokenAccountsByOwner", "getAccountInfo", "getMultipleAccounts", "simulateTransaction", "sendTransaction", "getSignatureStatuses", "getSignaturesForAddress", "getTransaction", "getMinimumBalanceForRentExemption", "getFeeForMessage", "getRecentPrioritizationFees"]);
 const EVM = new Set(["eth_chainId", "eth_blockNumber", "eth_getBalance", "eth_call", "eth_estimateGas", "eth_gasPrice", "eth_maxPriorityFeePerGas", "eth_feeHistory", "eth_getTransactionCount", "eth_sendRawTransaction", "eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_getBlockByNumber", "eth_getCode"]);
 const Body = z.object({ chain: z.string().max(20), method: z.string().max(60), params: z.array(z.unknown()).max(10) });
 

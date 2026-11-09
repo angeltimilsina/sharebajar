@@ -24,22 +24,34 @@ export function Portfolio() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [at, setAt] = useState<number | null>(null);
+  const [partial, setPartial] = useState(false);
 
   const load = useCallback(async () => {
     if (!wallet) return;
     setLoading(true); setErr(null);
     try {
       if (wallet.chainType === "solana") {
-        const [sol, spl, s] = await Promise.all([getSolBalance(wallet.address), getSplHoldings(wallet.address), getRecentSignatures(wallet.address, 15).catch(() => null)]);
+        // Full token list needs getTokenAccountsByOwner, which free RPC nodes often refuse.
+        // Fall back to Bajar's server portfolio (SOL + major tokens, priced) so balances always load.
+        const [sol, spl, s] = await Promise.all([getSolBalance(wallet.address), getSplHoldings(wallet.address).catch(() => null), getRecentSignatures(wallet.address, 15).catch(() => null)]);
         setSigs(s);
-        const mints = [SOL_MINT, ...spl.map((h) => h.mint)].slice(0, 100);
-        const info = await fetch(`/api/swap/tokens-info?ids=${mints.join(",")}`).then((r) => r.json()).catch(() => ({ data: [] }));
-        const meta = new Map<string, { symbol: string; name: string; icon: string | null; usdPrice: number | null; verified: boolean }>((info.data ?? []).map((t: { address: string; symbol: string; name: string; icon: string | null; usdPrice: number | null; verified: boolean }) => [t.address, t]));
-        const list: Holding[] = [{ mint: SOL_MINT, amount: sol }, ...spl].map((h) => {
-          const m = meta.get(h.mint);
-          const price = m?.usdPrice ?? null;
-          return { mint: h.mint, symbol: m?.symbol ?? shortAddress(h.mint), name: m?.name ?? "Unknown token", icon: m?.icon ?? null, amount: h.amount, price, value: price !== null ? price * h.amount : null, verified: !!m?.verified };
-        });
+        setPartial(spl === null);
+        let list: Holding[];
+        if (spl) {
+          const mints = [SOL_MINT, ...spl.map((h) => h.mint)].slice(0, 100);
+          const info = await fetch(`/api/swap/tokens-info?ids=${mints.join(",")}`).then((r) => r.json()).catch(() => ({ data: [] }));
+          const meta = new Map<string, { symbol: string; name: string; icon: string | null; usdPrice: number | null; verified: boolean }>((info.data ?? []).map((t: { address: string; symbol: string; name: string; icon: string | null; usdPrice: number | null; verified: boolean }) => [t.address, t]));
+          list = [{ mint: SOL_MINT, amount: sol }, ...spl].map((h) => {
+            const m = meta.get(h.mint);
+            const price = m?.usdPrice ?? null;
+            return { mint: h.mint, symbol: m?.symbol ?? shortAddress(h.mint), name: m?.name ?? "Unknown token", icon: m?.icon ?? null, amount: h.amount, price, value: price !== null ? price * h.amount : null, verified: !!m?.verified };
+          });
+        } else {
+          const r = await fetch(`/api/wallet/portfolio?sol=${wallet.address}`).then((x) => x.json());
+          const hs = ((r.data?.holdings ?? []) as { token: string; symbol: string; name: string; amount: number; usdPrice: number | null; usdValue: number | null }[]).filter((h) => h.amount > 0);
+          list = hs.map((h) => ({ mint: h.token, symbol: h.symbol, name: h.name, icon: null, amount: h.amount, price: h.usdPrice, value: h.usdValue, verified: true }));
+          if (!list.some((h) => h.mint === SOL_MINT)) list.unshift({ mint: SOL_MINT, symbol: "SOL", name: "Solana", icon: null, amount: sol, price: null, value: null, verified: true });
+        }
         list.sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
         setHoldings(list);
       } else {
@@ -85,6 +97,7 @@ export function Portfolio() {
         <Button size="sm" variant="subtle" onClick={load} disabled={loading}><RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh</Button>
       </div>
       {err && <Notice tone="down" title="Could not load balances">{err}</Notice>}
+      {partial && !err && <Notice title="Showing SOL and major tokens">The network node didn&apos;t return your full token list, so smaller tokens may be missing. Balances shown are read live from the chain.</Notice>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4 min-w-0">
           {holdings !== null || wallet.chainType === "solana" ? (

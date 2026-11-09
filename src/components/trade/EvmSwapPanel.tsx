@@ -11,6 +11,7 @@ import { KNOWN_TOKENS, NATIVE_EVM, ZEROX_CHAINS } from "@/lib/treasury/tokens";
 import { formatNumber } from "@/lib/format";
 import { addActivity } from "@/lib/activity";
 import type { Eip1193 } from "@/lib/wallet/evm";
+import { assertSafeZeroxQuote } from "@/lib/wallet/txguard";
 
 export interface EvmTok { token: string; symbol: string; decimals: number }
 type FeeDisclosure = { applied: true; bps: number; symbol: string | null; decimals: number | null; estimatedAmount: string | null; note: string; isTest: boolean } | { applied: false; reason: string };
@@ -86,19 +87,20 @@ export function EvmSwapPanel({ chain: chainProp, asset, variant = "swap", side =
 
   const evmWalletOk = wallet?.chainType === "evm";
   const base = sell ? toBase(amount, sell.decimals) : null;
-  const fetchQuote = useCallback(async () => {
-    if (!chainId || !sell || !buy || !base) { setQuote(null); return; }
+  const fetchQuote = useCallback(async (): Promise<EvmQuote | null> => {
+    if (!chainId || !sell || !buy || !base) { setQuote(null); return null; }
     const id = ++req.current;
     setLoading(true);
     try {
       // With a connected EVM wallet the quote is firm (includes the transaction); without one it is indicative.
       const r = await fetch(`/api/swap/evm?chain=${chainId}&sellToken=${sell.token}&buyToken=${buy.token}&sellAmount=${base}${evmWalletOk ? `&taker=${wallet!.address}` : ""}&slippageBps=${SLIPPAGE_BPS}`);
       const b = await r.json();
-      if (id !== req.current) return;
+      if (id !== req.current) return null;
       if (!r.ok) throw new Error(b.error);
       if (!b.data.liquidityAvailable) throw new Error("No liquidity for this pair.");
       setQuote(b.data); setErr(null);
-    } catch (e) { if (id === req.current) { setQuote(null); setErr((e as Error).message); } }
+      return b.data as EvmQuote;
+    } catch (e) { if (id === req.current) { setQuote(null); setErr((e as Error).message); } return null; }
     finally { if (id === req.current) setLoading(false); }
   }, [chainId, sell, buy, base, evmWalletOk, wallet]);
   useEffect(() => { const t = setTimeout(fetchQuote, 450); return () => clearTimeout(t); }, [fetchQuote]);
@@ -116,6 +118,7 @@ export function EvmSwapPanel({ chain: chainProp, asset, variant = "swap", side =
   const impactPct = quote?.priceImpact !== null && quote?.priceImpact !== undefined ? quote.priceImpact * 100 : null;
   const verb = variant === "trade" ? (side === "sell" ? `Sell ${sell?.symbol}` : `Buy ${buy?.symbol}`) : "swap";
 
+  const preparedFor = useRef<string | null>(null);
   const ensureNetwork = async (p: Eip1193) => {
     const current = Number(await p.request({ method: "eth_chainId" }));
     if (current === ZEROX_CHAINS[chainId]) return;
@@ -128,23 +131,30 @@ export function EvmSwapPanel({ chain: chainProp, asset, variant = "swap", side =
     if (!p || !quote || !sell) return;
     try {
       await ensureNetwork(p);
-      if (!quote.transaction) { await fetchQuote(); setStep("idle"); return; }
-      if (quote.issues?.allowance) {
+      let q: EvmQuote | null = quote;
+      if (!q.transaction) { await fetchQuote(); setStep("idle"); return; }
+      // Approvals may only go to the 0x allowance contract, and the swap must target it.
+      assertSafeZeroxQuote(q);
+      if (q.issues?.allowance) {
         setStep("approving");
-        const h = (await p.request({ method: "eth_sendTransaction", params: [{ from: wallet!.address, to: sell.token, data: approveData(quote.issues.allowance.spender, quote.sellAmount), value: "0x0" }] })) as string;
+        const h = (await p.request({ method: "eth_sendTransaction", params: [{ from: wallet!.address, to: sell.token, data: approveData(q.issues.allowance.spender, q.sellAmount), value: "0x0" }] })) as string;
         addActivity({ chain: chainId, hash: h, kind: "approve", summary: `Allowed ${amount} ${sell.symbol} (exact amount)`, wallet: wallet!.address, assetHref });
         const rc = await waitReceipt(p, h);
         if (!rc || rc.status !== "0x1") throw new Error("Approval failed or timed out.");
-        await fetchQuote();
+        // Use the fresh quote (now without the allowance issue) from here on.
+        q = await fetchQuote();
+        if (!q?.transaction) throw new Error("Could not refresh the quote after approval. Try again.");
+        assertSafeZeroxQuote(q);
       }
       setStep("simulating");
-      const t = quote.transaction;
+      const t = q.transaction!;
       try {
         await p.request({ method: "eth_call", params: [{ from: wallet!.address, to: t.to, data: t.data, value: hex(t.value) }, "latest"] });
         setSimNote("Simulation succeeded.");
       } catch (e) {
         throw new Error(`Simulation reverted — not sending: ${(e as Error).message}`);
       }
+      preparedFor.current = wallet!.address.toLowerCase();
       setStep("ready");
     } catch (e) {
       setStep("failed"); setErr(/reject|denied/i.test((e as Error).message) ? "Rejected in wallet. Nothing was sent." : (e as Error).message);
@@ -154,8 +164,12 @@ export function EvmSwapPanel({ chain: chainProp, asset, variant = "swap", side =
   const confirm = async () => {
     const p = evm();
     if (!p || !quote?.transaction) return;
-    setStep("signing");
     try {
+      // Same account and network as the simulated quote, or start over.
+      if (wallet?.address.toLowerCase() !== preparedFor.current) throw new Error("Your wallet account changed since this swap was prepared. Review it again.");
+      await ensureNetwork(p);
+      assertSafeZeroxQuote(quote);
+      setStep("signing");
       const t = quote.transaction;
       const h = (await p.request({ method: "eth_sendTransaction", params: [{ from: wallet!.address, to: t.to, data: t.data, value: hex(t.value), ...(t.gas ? { gas: hex(t.gas) } : {}) }] })) as string;
       setHash(h);

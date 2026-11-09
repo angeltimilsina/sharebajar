@@ -7,6 +7,7 @@ import { bajar, saveSettings, settings } from "./session";
 import { requestApproval, UserRejected } from "./approvals";
 import { walletRpc } from "./rpc";
 import { solanaSign } from "./keys";
+import { describeEvmCall, inspectSolanaTx } from "../wallet/txguard";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const b64 = (u: Uint8Array) => { let s = ""; u.forEach((b) => (s += String.fromCharCode(b))); return btoa(s); };
@@ -18,22 +19,32 @@ async function describeSolanaTx(tx: unknown): Promise<{ rows: [string, string][]
   const t = tx as { serialize: (o?: unknown) => Uint8Array; message?: unknown };
   const bytes = tx instanceof VersionedTransaction ? t.serialize() : t.serialize({ requireAllSignatures: false, verifySignatures: false });
   const raw = b64(bytes);
+  const me = bajar.accounts()!.solana.address;
   const rows: [string, string][] = [];
+  const warnings: string[] = [];
   try {
-    const vt = tx instanceof VersionedTransaction ? tx : VersionedTransaction.deserialize(bytes);
-    const keys = vt.message.staticAccountKeys;
-    const progs = [...new Set(vt.message.compiledInstructions.map((i) => keys[i.programIdIndex]?.toBase58()).filter(Boolean))];
-    rows.push(["Fee payer", short(keys[0].toBase58())], ["Programs", progs.map((p) => short(p!)).join(", ")]);
-  } catch { /* legacy */ }
-  let warning: string | undefined;
+    const i = await inspectSolanaTx(bytes);
+    rows.push(["Fee payer", i.feePayer === me ? `${short(i.feePayer)} (you)` : short(i.feePayer)], ["Programs", i.programs.map(short).join(", ")]);
+    if (i.feePayer !== me) warnings.push("This transaction is paid by a different account than yours.");
+    for (const r of i.risks) warnings.push(`This transaction ${r}.`);
+  } catch { rows.push(["Contents", "Could not decode"]); }
   try {
-    const sim = await walletRpc<{ value: { err: unknown; unitsConsumed?: number } }>("solana", "simulateTransaction", [raw, { encoding: "base64", sigVerify: false, replaceRecentBlockhash: true }]);
+    // Simulate, reading your account's balance afterwards to show the expected SOL change.
+    const [sim, bal] = await Promise.all([
+      walletRpc<{ value: { err: unknown; unitsConsumed?: number; accounts?: ({ lamports: number } | null)[] } }>("solana", "simulateTransaction", [raw, { encoding: "base64", sigVerify: false, replaceRecentBlockhash: true, accounts: { encoding: "base64", addresses: [me] } }]),
+      walletRpc<{ value: number }>("solana", "getBalance", [me]).catch(() => null),
+    ]);
     rows.push(["Simulation", sim.value.err ? `FAILS: ${JSON.stringify(sim.value.err)}` : `OK (${sim.value.unitsConsumed?.toLocaleString() ?? "?"} CU)`]);
-    if (sim.value.err) warning = "This transaction fails in simulation and would likely fail on-chain.";
+    const after = sim.value.accounts?.[0]?.lamports;
+    if (!sim.value.err && bal && after !== undefined) {
+      const delta = (after - bal.value) / 1e9;
+      rows.push(["SOL balance change", `${delta >= 0 ? "+" : ""}${delta.toFixed(6)} SOL (incl. fees)`]);
+    }
+    if (sim.value.err) warnings.push("This transaction fails in simulation and would likely fail on-chain.");
   } catch (e) {
     rows.push(["Simulation", `unavailable (${(e as Error).message.slice(0, 60)})`]);
   }
-  return { rows, raw, warning };
+  return { rows, raw, warning: warnings.length ? warnings.join(" ") : undefined };
 }
 
 export function bajarSolanaProvider(): InjectedSolana & { isBajar: true } {
@@ -119,9 +130,11 @@ export async function evmSendTransaction(chainId: string, tx: { to: string; data
   const tip = big(tipHex);
   const maxFee = legacy ? gasPrice : big(block.baseFeePerGas) * BigInt(2) + tip;
   const maxCost = gas * maxFee;
+  const call = describeEvmCall(tx.to, data);
+  if (call.risk) warning = warning ? `${call.risk} ${warning}` : call.risk;
   const ok = await requestApproval({
     kind: "transaction", network: c.name, title: summary ?? "Approve transaction",
-    rows: [["From", short(from)], ["To", short(tx.to)], ["Value", `${Number(value) / 1e18} ${c.nativeSymbol}`], ["Data", data === "0x" ? "—" : `${data.slice(0, 10)}… (${(data.length - 2) / 2} bytes)`], ["Gas limit", gas.toString()], ["Max network fee", `${(Number(maxCost) / 1e18).toFixed(6)} ${c.nativeSymbol}`], ["Simulation", simNote]],
+    rows: [["Action", call.detail ? `${call.action} · ${call.detail.replace(/0x[0-9a-f]{40}/gi, (m) => short(m))}` : call.action], ["From", short(from)], ["To", short(tx.to)], ["Value", `${Number(value) / 1e18} ${c.nativeSymbol}`], ["Data", data === "0x" ? "—" : `${data.slice(0, 10)}… (${(data.length - 2) / 2} bytes)`], ["Gas limit", gas.toString()], ["Max network fee", `${(Number(maxCost) / 1e18).toFixed(6)} ${c.nativeSymbol}`], ["Simulation", simNote]],
     warning,
   }, { chain: c.id, ...callObj, gas: gas.toString() });
   if (!ok) throw new UserRejected();
@@ -134,6 +147,8 @@ export async function evmSendTransaction(chainId: string, tx: { to: string; data
   recordEvmTx(hash, c.id, tx.to, value.toString(), summary ?? "Transaction");
   return hash;
 }
+
+const READ_METHODS = new Set(["eth_call", "eth_estimateGas", "eth_getBalance", "eth_getTransactionCount", "eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_blockNumber", "eth_getBlockByNumber", "eth_gasPrice", "eth_maxPriorityFeePerGas", "eth_feeHistory", "eth_getCode"]);
 
 export function bajarEvmProvider(): Eip1193 & { isBajar: true } {
   return {
@@ -168,6 +183,9 @@ export function bajarEvmProvider(): Eip1193 & { isBajar: true } {
           return evmSendTransaction(c.id, t);
         }
         default:
+          // Read-only methods go to the network. Anything else (eth_sign, typed-data
+          // signing, raw signing) is refused: every signature must pass the approval screen.
+          if (!READ_METHODS.has(method)) throw Object.assign(new Error(`Bajar Wallet doesn't support ${method}.`), { code: 4200 });
           return walletRpc(c.id, method, params as unknown[]);
       }
     },

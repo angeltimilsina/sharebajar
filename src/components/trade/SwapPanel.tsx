@@ -8,6 +8,7 @@ import { Modal } from "../ui/Modal";
 import { TokenIcon } from "../ui/TokenIcon";
 import { COMMON, TokenPicker, type SwapToken } from "./TokenPicker";
 import { formatNumber, formatUsd } from "@/lib/format";
+import { assertSafeSolanaSwap } from "@/lib/wallet/txguard";
 import { getSolBalance, getSplHoldings, getSignatureStatus, simulateBase64, SOLANA_RPC, SOL_MINT, type SimResult } from "@/lib/wallet/rpc";
 import { solanaSignAndSend, solanaSignOnly } from "@/lib/wallet/solana";
 import { addActivity } from "@/lib/activity";
@@ -22,7 +23,7 @@ interface Quote {
   inAmount: string; outAmount: string; otherAmountThreshold: string; priceImpactPct: number; slippageBps: number;
   routeLabels: string[]; fee: FeeDisclosure; jupiterFee: { bps: number; mint: string | null } | null; intentToken: string | null;
 }
-interface Prepared { route: "build" | "order"; transaction: string; requestId: string | null; lastValidBlockHeight: number | null; unitsConsumed?: number | null; quote: Quote }
+interface Prepared { route: "build" | "order"; transaction: string; requestId: string | null; lastValidBlockHeight: number | null; unitsConsumed?: number | null; quote: Quote; builtFor?: string }
 
 const toBase = (v: string, decimals: number): string | null => {
   if (!/^\d*\.?\d*$/.test(v) || v === "" || v === ".") return null;
@@ -168,7 +169,9 @@ export function SwapPanel({ defaultOutput, side, variant = "swap", lockAsset = f
       const r = await fetch("/api/swap/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inputMint: input.address, outputMint: output.address, amount: baseAmount, slippageBps, userPublicKey: wallet.address }) });
       const b = (await r.json()) as Prepared & { error?: string };
       if (!r.ok) throw new Error(b.error ?? "Could not build transaction");
-      setTx(b);
+      // Verify before anything reaches the wallet: paid by you, grants no one control of your tokens.
+      await assertSafeSolanaSwap(b.transaction, wallet.address);
+      setTx({ ...b, builtFor: wallet.address });
       setQuote(b.quote);
       setStep("simulating");
       try {
@@ -187,6 +190,8 @@ export function SwapPanel({ defaultOutput, side, variant = "swap", lockAsset = f
   const confirm = async () => {
     const p = solana();
     if (!p || !tx) return;
+    // The wallet account must still be the one the transaction was built for.
+    if (!wallet || wallet.address !== tx.builtFor) { setStep("failed"); setExecErr("Your wallet account changed since this swap was prepared. Review it again."); return; }
     setStep("signing"); setExecErr(null);
     try {
       let signature: string;
