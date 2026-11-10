@@ -5,6 +5,7 @@ import { useWallet } from "../wallet/WalletProvider";
 import { Badge, Button, Card, Notice, Tabs } from "../ui/primitives";
 import { useMe } from "./client";
 import { BajarAdminSignIn } from "./BajarAdminSignIn";
+import { LaunchFees } from "./LaunchFees";
 import { Overview } from "./Overview";
 import { Setup } from "./Setup";
 import { Treasuries } from "./Treasuries";
@@ -16,6 +17,7 @@ import { Validation } from "./Validation";
 const TABS = [
   { id: "overview", label: "Dashboard" }, { id: "treasuries", label: "Treasuries" }, { id: "setup", label: "Setup wizard" },
   { id: "assets", label: "Assets & operations" }, { id: "records", label: "Revenue & ledger" }, { id: "validation", label: "Production validation" },
+  { id: "launchfees", label: "Launch fees" },
   { id: "governance", label: "Approvals & audit" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
@@ -84,6 +86,7 @@ export function TreasuryApp() {
       {tab === "records" && <Records />}
       {tab === "validation" && <Validation me={me!} />}
       {tab === "governance" && <Governance me={me!} />}
+      {tab === "launchfees" && <LaunchFees me={me!} />}
       <p className="text-[11px] text-faint flex gap-1.5"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> Revenue figures count only fees confirmed on-chain. Swap volume and quotes are never counted as revenue.</p>
     </div>
   );

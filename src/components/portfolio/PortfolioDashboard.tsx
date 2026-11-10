@@ -87,19 +87,17 @@ export function PortfolioDashboard({ wallets, source, side }: { wallets: Tracked
           </Card>
 
           <div className="order-2"><AssetList assets={assets} total={total} hidden={hidden} loaded={bal.at !== null} /></div>
+          <div className="order-3"><LaunchedTokens addresses={wallets.filter((w) => w.chain !== "bitcoin").map((w) => ({ address: w.address, chain: w.chain }))} /></div>
         </div>
 
         <div className="contents lg:block lg:space-y-4 min-w-0">
-          <div className="order-3"><Allocation assets={assets} total={total} /></div>
-          <div className="order-4"><Research assets={assets} onAsk={ask} /></div>
-          <div className="order-6 scroll-mt-24" id="activity"><ActivityPanel /></div>
+          <div className="order-5 scroll-mt-24" id="activity"><ActivityPanel /></div>
+          <div className="order-4"><Allocation assets={assets} total={total} /></div>
+          <div className="order-6"><Research assets={assets} onAsk={ask} /></div>
           {side && <div className="order-7">{side}</div>}
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Discover />
-        <LaunchpadCard addresses={wallets.filter((w) => w.chain !== "bitcoin").map((w) => w.address)} />
-      </div>
+      <Discover />
     </div>
   );
 }
@@ -167,30 +165,55 @@ function Discover() {
   );
 }
 
-/* ── Launchpad ─────────────────────────────────────────────────────────── */
+/* ── Launched tokens ───────────────────────────────────────────────────── */
 
-function LaunchpadCard({ addresses }: { addresses: string[] }) {
-  const [mine, setMine] = useState<{ mint: string; chain: string; symbol: string }[] | null>(null);
-  const key = addresses.join(",");
+interface Launched { mint: string; chain: string; symbol: string; name: string; recorded: boolean }
+
+/**
+ * Tokens you launched: recorded launches for every wallet in the portfolio,
+ * plus Solana mints the wallet still controls (mint or metadata authority),
+ * which are imported in the background so they stay listed.
+ */
+function LaunchedTokens({ addresses }: { addresses: { address: string; chain: string }[] }) {
+  const [list, setList] = useState<Launched[] | null>(null);
+  const key = addresses.map((a) => a.address).join(",");
   useEffect(() => {
-    Promise.all(addresses.slice(0, 6).map((a) => fetch(`/api/launch/record?creator=${encodeURIComponent(a)}`).then((r) => r.json()).then((b) => (b.launches ?? []) as { mint: string; chain: string; symbol: string }[]).catch(() => [])))
-      .then((l) => setMine(l.flat()));
+    let alive = true;
+    (async () => {
+      const recorded = (await Promise.all(addresses.slice(0, 8).map((a) => fetch(`/api/launch/record?creator=${encodeURIComponent(a.address)}`).then((r) => r.json()).then((b) => (b.launches ?? []) as Launched[]).catch(() => [])))).flat().map((t) => ({ ...t, recorded: true }));
+      if (alive) setList(recorded);
+      const sol = addresses.filter((a) => a.chain === "solana").slice(0, 4);
+      const found = (await Promise.all(sol.map((a) => fetch(`/api/launch/discover?owner=${a.address}`).then((r) => r.json()).then((b) => (b.tokens ?? []) as Launched[]).catch(() => [])))).flat();
+      const missing = found.filter((f) => !recorded.some((r) => r.mint === f.mint)).map((f) => ({ ...f, recorded: false }));
+      if (alive && missing.length) setList([...recorded, ...missing]);
+      // Import them so the launchpad and token manager know them too (server verifies the creation tx).
+      for (const m of missing.slice(0, 5)) fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mint: m.mint }) }).catch(() => {});
+    })();
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return (
-    <Card className="p-4 sm:p-5" data-testid="portfolio-launchpad">
-      <div className="flex items-center gap-2"><Rocket size={16} className="text-ai" /><h2 className="text-base">Launchpad</h2></div>
-      <p className="text-[13px] text-muted mt-1">Create a token on Solana, Ethereum, Base or BNB Chain from your wallet, then manage it: revoke authorities, burn, lock metadata, add liquidity.</p>
-      <div className="mt-3 flex items-center gap-1.5">{["solana", "ethereum", "base", "bsc"].map((c) => <span key={c} className="h-8 w-8 rounded-full bg-surface-2 grid place-items-center"><ChainIcon chain={c} size={16} /></span>)}</div>
-      {mine && mine.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-1.5">
-          {mine.slice(0, 6).map((t) => <li key={t.mint}><Link href={`/token/${t.chain}/${t.mint}`} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[12.5px] font-medium"><ChainIcon chain={t.chain} size={12} />{t.symbol}</Link></li>)}
-        </ul>
-      )}
-      <div className="mt-4 flex gap-2">
-        <Link href="/launchpad#create" className="btn-ink h-10 px-4 rounded-full inline-flex items-center gap-1.5 text-[13.5px] font-semibold"><Rocket size={14} />Launch a token</Link>
-        {mine && mine.length > 0 && <Link href="/launchpad#manage" className="h-10 px-4 rounded-full bg-surface-2 hover:bg-surface-3 inline-flex items-center text-[13.5px] font-medium">Manage {mine.length}</Link>}
-      </div>
+    <Card data-testid="launched-tokens">
+      <CardHeader title={<span className="inline-flex items-center gap-2"><Rocket size={16} className="text-ai" />Launched tokens</span>} sub="Tokens created from this wallet" action={<Link href="/launchpad#create" className="text-[13px] text-brand font-medium">Launch</Link>} />
+      <ul className="divide-y divide-line/70">
+        {list === null && <li className="px-4 py-3"><Skeleton className="h-10 w-full" /></li>}
+        {list?.length === 0 && (
+          <li className="px-4 py-4 text-[13.5px] text-muted">
+            No launched tokens yet. <Link href="/launchpad#create" className="text-brand">Launch one</Link> on Solana, Ethereum, Base or BNB Chain.
+          </li>
+        )}
+        {list?.map((t) => (
+          <li key={`${t.chain}:${t.mint}`} className="flex items-center gap-3 px-4 py-3" data-testid="launched-token">
+            <span className="relative"><TokenIcon symbol={t.symbol} size={34} /><span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1.5px]"><ChainIcon chain={t.chain} size={13} /></span></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14.5px] font-semibold truncate">{t.symbol} <span className="text-muted font-normal">· {t.name}</span></span>
+              <span className="block text-[11.5px] text-muted font-mono truncate">{t.mint.slice(0, 6)}…{t.mint.slice(-4)}</span>
+            </span>
+            <Link href={`/token/${t.chain}/${t.mint}`} className="hidden sm:inline-flex h-9 px-3 rounded-full bg-surface-2 hover:bg-surface-3 items-center text-[13px]">Token page</Link>
+            <Link href={`/launchpad/token/${t.chain}/${t.mint}`} className="h-9 px-3.5 rounded-full btn-ink inline-flex items-center text-[13px] font-semibold" data-testid="launched-manage">Manage</Link>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

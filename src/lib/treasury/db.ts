@@ -219,6 +219,7 @@ create table if not exists subscriptions (
 );
 create index if not exists subscriptions_profile on subscriptions (profile_id);
 alter table token_launches add column if not exists group_id text;
+alter table token_launches add column if not exists source text;
 create index if not exists token_launches_group on token_launches (group_id);
 create table if not exists token_profiles (
   chain text not null,
@@ -232,6 +233,14 @@ create table if not exists token_profiles (
   updated_by text not null,
   updated_at timestamptz not null default now(),
   primary key (chain, token)
+);
+create table if not exists launch_fee_settings (
+  id text primary key,
+  schedule text,
+  solana_recipient text,
+  evm_recipient text,
+  updated_by text not null,
+  updated_at timestamptz not null default now()
 );
 create table if not exists accounts (
   profile_id text primary key,

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import {
-  Activity, Check, Crown, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
+  Check, Crown, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
 } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
 import { useWallet } from "../wallet/WalletProvider";
@@ -17,7 +17,6 @@ import { ThemeToggle } from "./ThemeToggle";
 const LINKS = [
   { href: "/portfolio", label: "Portfolio", Icon: PieChart },
   { href: "/wallet", label: "Bajar Wallet", Icon: Wallet },
-  { href: "/portfolio#activity", label: "Activity", Icon: Activity },
   { href: "/pro", label: "Profile & Pro", Icon: Crown },
 ];
 
@@ -180,7 +179,7 @@ function Body({ compact }: { compact: boolean }) {
       {/* Wallet pages */}
       <nav aria-label="Wallet pages" className="space-y-0.5">
         {!compact && <div className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-faint">Your money</div>}
-        {LINKS.filter((x) => wallet || bajarUnlocked || x.label !== "Activity").map(({ href, label: l, Icon }) => (
+        {LINKS.map(({ href, label: l, Icon }) => (
           <Link key={href} href={href} title={compact ? l : undefined} aria-current={isOn(href) ? "page" : undefined}
             className={clsx(row, isOn(href) && "!text-fg bg-surface-2 font-medium")}>
             <Icon size={16} />{label(l)}

@@ -151,7 +151,15 @@ export function TokenLauncher({ onManage, preset, fee: feeOverride, groupKey, on
       const signature = await sendSigned(signed);
       addActivity({ chain: "solana", hash: signature, kind: "send", summary: `Launched ${f.symbol} (${f.name})`, wallet: wallet.address, assetHref: `/token/solana/${mintAddress}` });
       await confirmSignature(signature, lastValidBlockHeight);
-      fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature, mint: mintAddress, ...(groupKey ? { groupKey } : {}) }) }).catch(() => {});
+      // Record it for your token list. The server verifies the transaction on-chain, which can take
+      // a few seconds to be indexed after confirmation: retry on 404/429/5xx.
+      void (async () => {
+        for (let i = 0; i < 8; i++) {
+          if (i) await new Promise((res) => setTimeout(res, 2500 * i));
+          const r = await fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature, mint: mintAddress, ...(groupKey ? { groupKey } : {}) }) }).catch(() => null);
+          if (r?.ok || (r && r.status !== 404 && r.status !== 429 && r.status < 500)) return;
+        }
+      })();
       setResult({ mint: mintAddress, signature });
       setStep("done");
       onLaunched?.(mintAddress);

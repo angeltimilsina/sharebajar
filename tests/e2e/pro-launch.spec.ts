@@ -145,7 +145,7 @@ test.describe("Launchpad", () => {
     await w.getByLabel("Symbol", { exact: true }).fill("TEST");
     await w.getByTestId("wizard-next").click();
     // Fee grows with networks: compare 1 vs 3 networks in the plan's pricing line.
-    await expect(w.getByTestId("fee-plan")).toContainText("1 network 10 USDC · 2 networks 25 USDC · 3 networks 45 USDC · 4 networks 70 USDC");
+    await expect(w.getByTestId("fee-plan")).toContainText("1 network 1 USDC · 2 networks 2 USDC · 3 networks 3 USDC · 4 networks 4 USDC");
     await w.getByTestId("net-solana").click(); // deselect
     await w.getByTestId("net-base").click();
     await expect(w.getByTestId("fee-plan")).toContainText("1 network");

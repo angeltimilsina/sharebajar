@@ -46,7 +46,7 @@ test.describe("multi-wallet", () => {
     await expect(page.getByTestId("holdings-chart")).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId("portfolio-research")).toBeVisible();
     await expect(page.getByTestId("portfolio-discover")).toBeVisible();
-    await expect(page.getByTestId("portfolio-launchpad")).toBeVisible();
+    await expect(page.getByTestId("launched-tokens")).toBeVisible();
 
     await page.getByTestId("asset-row").first().getByRole("button").click();
     const details = page.getByTestId("asset-details");
@@ -54,7 +54,10 @@ test.describe("multi-wallet", () => {
     await expect(details.getByTestId("asset-acquired")).toBeVisible();
 
     // The agent (on Profile & Pro) gets values, never addresses.
-    await expect(page.getByTestId("wallet-sidebar").getByRole("link", { name: "Activity" })).toBeVisible();
+    // Activity is part of Portfolio now; launched tokens are listed with a Manage action.
+    await expect(page.getByTestId("wallet-sidebar").getByRole("link", { name: "Activity" })).toHaveCount(0);
+    await expect(page.getByTestId("portfolio-activity")).toBeVisible();
+    await expect(page.getByTestId("launched-tokens")).toBeVisible();
     await page.getByTestId("wallet-sidebar").getByRole("link", { name: "Profile & Pro" }).click();
     await page.getByTestId("pro-agent").getByTestId("open-agent").click();
     await expect(page).toHaveURL(/\/intelligence\?agent=portfolio/);
