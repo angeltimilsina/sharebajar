@@ -218,6 +218,21 @@ create table if not exists subscriptions (
   created_at timestamptz not null default now()
 );
 create index if not exists subscriptions_profile on subscriptions (profile_id);
+alter table token_launches add column if not exists group_id text;
+create index if not exists token_launches_group on token_launches (group_id);
+create table if not exists token_profiles (
+  chain text not null,
+  token text not null,
+  image text,
+  description text,
+  website text,
+  twitter text,
+  telegram text,
+  discord text,
+  updated_by text not null,
+  updated_at timestamptz not null default now(),
+  primary key (chain, token)
+);
 create table if not exists connect_tokens (
   token_hash text primary key,
   profile_id text not null,

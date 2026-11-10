@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { ChevronDown, ExternalLink, Flame, Loader2, Lock, PenLine, Plus, ShieldCheck, ShieldOff, Snowflake, Settings2 } from "lucide-react";
+import { ChevronRight, ExternalLink, Flame, Loader2, Lock, PenLine, Plus, ShieldCheck, ShieldOff, Snowflake, Settings2 } from "lucide-react";
 import { decodeFunctionResult, encodeFunctionData, formatUnits, parseUnits } from "viem";
 import { useWallet } from "../wallet/WalletProvider";
 import { Badge, Button, Card, CardHeader, Notice, Skeleton } from "../ui/primitives";
@@ -18,61 +19,51 @@ import { linkWalletOf } from "@/lib/wallet/solanaLink";
 interface Launch { mint: string; chain: string; name: string; symbol: string; creator: string; fixed_supply: boolean; freeze_revoked: boolean; created_at: string }
 const CHAIN_NAME: Record<string, string> = { solana: "Solana", ethereum: "Ethereum", base: "Base", bsc: "BNB Chain" };
 
-/** Tokens you launched with the connected wallet, each with its after-launch controls. */
-export function ManageTokens({ focus }: { focus?: { chain: string; token: string } | null }) {
+/** Tokens you launched with the connected wallet; each opens its token manager page. */
+export function ManageTokens() {
   const { wallet } = useWallet();
+  const router = useRouter();
   const [list, setList] = useState<Launch[] | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
   const [extra, setExtra] = useState("");
   const load = useCallback(() => {
     if (!wallet) { setList(null); return; }
     fetch(`/api/launch/record?creator=${encodeURIComponent(wallet.address)}`).then((r) => r.json()).then((b) => setList(b.launches ?? [])).catch(() => setList([]));
   }, [wallet]);
   useEffect(load, [load]);
-  useEffect(() => { if (focus) setOpen(`${focus.chain}:${focus.token}`); }, [focus]);
 
   if (!wallet) return null;
-  const chainOfWallet = wallet.chainType === "solana" ? ["solana"] : ["ethereum", "base", "bsc"];
-  const rows: { chain: string; token: string; symbol: string; name: string }[] = (list ?? []).filter((l) => chainOfWallet.includes(l.chain)).map((l) => ({ chain: l.chain, token: l.mint, symbol: l.symbol, name: l.name }));
-  if (focus && !rows.some((r) => r.token.toLowerCase() === focus.token.toLowerCase())) rows.unshift({ chain: focus.chain, token: focus.token, symbol: "", name: "Just launched" });
+  const rows = list ?? [];
 
   return (
     <Card id="manage" className="scroll-mt-24" data-testid="manage-tokens">
-      <CardHeader title={<span className="inline-flex items-center gap-2"><Settings2 size={16} className="text-brand" />Your tokens</span>} sub="Controls for tokens launched from this wallet. Every change is signed by you; revoking is permanent." />
+      <CardHeader title={<span className="inline-flex items-center gap-2"><Settings2 size={16} className="text-brand" />Your tokens</span>} sub="Open the token manager for profile, supply, authorities and liquidity." />
       <ul className="divide-y divide-line/70">
         {list === null && <li className="px-5 pb-5"><Skeleton className="h-12 w-full" /></li>}
         {list !== null && rows.length === 0 && <li className="px-5 pb-4 text-sm text-muted">No tokens launched from this wallet yet.</li>}
-        {rows.map((r) => {
-          const k = `${r.chain}:${r.token}`;
-          const isOpen = open === k;
-          return (
-            <li key={k}>
-              <button onClick={() => setOpen(isOpen ? null : k)} aria-expanded={isOpen} className="w-full flex items-center gap-3 px-4 sm:px-5 py-3 text-left hover:bg-surface-2/60">
-                <span className="relative"><TokenIcon symbol={r.symbol || "?"} size={32} /><span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1.5px]"><ChainIcon chain={r.chain} size={13} /></span></span>
-                <span className="min-w-0 flex-1"><span className="block font-semibold truncate">{r.symbol || "New token"} <span className="text-muted font-normal">· {r.name}</span></span><span className="block text-[11.5px] text-muted font-mono truncate">{r.token}</span></span>
-                <ChevronDown size={16} className={clsx("text-faint transition-transform", isOpen && "rotate-180")} />
-              </button>
-              {isOpen && (r.chain === "solana" ? <SolanaControls mint={r.token} /> : <EvmControls chain={r.chain} token={r.token} />)}
-            </li>
-          );
-        })}
+        {rows.map((r) => (
+          <li key={`${r.chain}:${r.mint}`}>
+            <Link href={`/launchpad/token/${r.chain}/${r.mint}`} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-surface-2/60" data-testid="your-token">
+              <span className="relative"><TokenIcon symbol={r.symbol || "?"} size={32} /><span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1.5px]"><ChainIcon chain={r.chain} size={13} /></span></span>
+              <span className="min-w-0 flex-1"><span className="block font-semibold truncate">{r.symbol} <span className="text-muted font-normal">· {r.name}</span></span><span className="block text-[11.5px] text-muted truncate">{CHAIN_NAME[r.chain] ?? r.chain} · <span className="font-mono">{r.mint.slice(0, 6)}…{r.mint.slice(-4)}</span></span></span>
+              <ChevronRight size={16} className="text-faint" />
+            </Link>
+          </li>
+        ))}
       </ul>
       <form className="px-4 sm:px-5 py-3 border-t border-line/70 flex gap-2" onSubmit={(e) => {
         e.preventDefault();
         const t = extra.trim();
-        const chain = wallet.chainType === "solana" ? (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(t) ? "solana" : null) : (/^0x[0-9a-fA-F]{40}$/.test(t) ? (EVM_LAUNCH_CHAINS.find((c) => c.chainId === wallet.chainId)?.id ?? "ethereum") : null);
-        if (!chain) return;
-        setList((l) => [...(l ?? []), { mint: t, chain, name: "Added by address", symbol: "", creator: wallet.address, fixed_supply: false, freeze_revoked: false, created_at: new Date().toISOString() }]);
-        setOpen(`${chain}:${t}`); setExtra("");
+        const chain = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(t) ? "solana" : /^0x[0-9a-fA-F]{40}$/.test(t) ? (wallet.chainType === "evm" ? EVM_LAUNCH_CHAINS.find((c) => c.chainId === wallet.chainId)?.id ?? "ethereum" : "ethereum") : null;
+        if (chain) router.push(`/launchpad/token/${chain}/${t}`);
       }}>
-        <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder={wallet.chainType === "solana" ? "Manage another mint address" : "Manage another token address (current network)"} aria-label="Token address" className="no-ring flex-1 min-w-0 h-10 rounded-xl bg-surface-2 px-3 text-[16px] sm:text-sm font-mono outline-none" />
+        <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Manage a token by address" aria-label="Token address" className="no-ring flex-1 min-w-0 h-10 rounded-xl bg-surface-2 px-3 text-[16px] sm:text-sm font-mono outline-none" />
         <Button variant="outline" type="submit"><Plus size={14} /> Open</Button>
       </form>
     </Card>
   );
 }
 
-function Row({ icon, title, sub, children }: { icon: React.ReactNode; title: string; sub: React.ReactNode; children?: React.ReactNode }) {
+export function Row({ icon, title, sub, children }: { icon: React.ReactNode; title: string; sub: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
       <span className="text-muted">{icon}</span>
@@ -82,7 +73,7 @@ function Row({ icon, title, sub, children }: { icon: React.ReactNode; title: str
   );
 }
 
-function SolanaControls({ mint }: { mint: string }) {
+export function SolanaControls({ mint }: { mint: string }) {
   const { wallet, solana } = useWallet();
   const [s, setS] = useState<SolanaTokenState | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -182,7 +173,7 @@ async function evmRead<T>(request: (a: { method: string; params?: unknown[] }) =
   return decodeFunctionResult({ abi: BAJAR_TOKEN_ABI, functionName: fn, data: out } as never) as T;
 }
 
-function EvmControls({ chain, token }: { chain: string; token: string }) {
+export function EvmControls({ chain, token }: { chain: string; token: string }) {
   const { wallet, evm } = useWallet();
   const c = EVM_LAUNCH_CHAINS.find((x) => x.id === chain) ?? EVM_LAUNCH_CHAINS[0];
   const [s, setS] = useState<{ name: string; symbol: string; supply: bigint; balance: bigint; decimals: number } | null>(null);
@@ -244,7 +235,7 @@ function EvmControls({ chain, token }: { chain: string; token: string }) {
   );
 }
 
-function TokenLinks({ chain, token, explorer }: { chain: string; token: string; explorer?: string }) {
+export function TokenLinks({ chain, token, explorer }: { chain: string; token: string; explorer?: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1 text-[12.5px]">
       <span className="text-muted">Add liquidity:</span>

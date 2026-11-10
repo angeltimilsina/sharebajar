@@ -32,11 +32,18 @@ function linkWalletBlock(walletId: string | undefined): { message: string; openU
  * Launch an SPL token on Solana from your own wallet. Built and simulated in
  * the browser; you sign once. Bajar keeps no authority over the token.
  */
-export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void } = {}) {
+export interface LaunchPreset { name: string; symbol: string; supply: string; decimals: string; description: string; image: string; website: string; twitter: string; telegram: string; revokeMint: boolean; revokeFreeze: boolean; immutable: boolean }
+
+/**
+ * With `preset` (from the multi-network launch wizard) the details are fixed
+ * and the form is hidden; `fee` overrides the single-network fee; the launch
+ * is recorded in the same group (`groupKey`) and `onLaunched` fires when live.
+ */
+export function TokenLauncher({ onManage, preset, fee: feeOverride, groupKey, onLaunched }: { onManage?: (mint: string) => void; preset?: LaunchPreset; fee?: { amountUsdc: number; recipient: string } | null; groupKey?: string; onLaunched?: (mint: string) => void } = {}) {
   const { wallet, openModal, solana } = useWallet();
   const [cfg, setCfg] = useState<Config | null>(null);
-  const [f, setF] = useState({ name: "", symbol: "", supply: "1000000000", decimals: "6", description: "", image: "", website: "", twitter: "", telegram: "", uri: "" });
-  const [opts, setOpts] = useState({ revokeMint: true, revokeFreeze: true, immutable: false });
+  const [f, setF] = useState(() => preset ? { name: preset.name, symbol: preset.symbol, supply: preset.supply, decimals: preset.decimals, description: preset.description, image: preset.image, website: preset.website, twitter: preset.twitter, telegram: preset.telegram, uri: "" } : { name: "", symbol: "", supply: "1000000000", decimals: "6", description: "", image: "", website: "", twitter: "", telegram: "", uri: "" });
+  const [opts, setOpts] = useState(() => preset ? { revokeMint: preset.revokeMint, revokeFreeze: preset.revokeFreeze, immutable: preset.immutable } : { revokeMint: true, revokeFreeze: true, immutable: false });
   const [costs, setCosts] = useState<{ rentSol: number; metaplexSol: number; feeSol: number } | null>(null);
   const [step, setStep] = useState<Step>("form");
   const [sim, setSim] = useState<{ ok: boolean; units?: number; error?: string } | null>(null);
@@ -81,7 +88,8 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
     return hosted;
   };
 
-  const feeFromCfg = (): Fee => cfg?.fee ? { amountRaw: BigInt(Math.round(cfg.fee.amountUsdc * 1e6)), recipientOwner: cfg.fee.recipient } : null;
+  const shownFee = feeOverride !== undefined ? feeOverride : cfg?.fee ?? null;
+  const feeFromCfg = (): Fee => shownFee ? { amountRaw: BigInt(Math.round(shownFee.amountUsdc * 1e6)), recipientOwner: shownFee.recipient } : null;
 
   const build = async (payer: string, metaUri: string, fee: Fee, computeUnits?: number) => {
     const [{ value: { blockhash, lastValidBlockHeight } }, rentMint] = await Promise.all([rpc<{ value: { blockhash: string; lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "confirmed" }]), rpc<number>("getMinimumBalanceForRentExemption", [MINT_SIZE])]);
@@ -143,9 +151,10 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
       const signature = await sendSigned(signed);
       addActivity({ chain: "solana", hash: signature, kind: "send", summary: `Launched ${f.symbol} (${f.name})`, wallet: wallet.address, assetHref: `/token/solana/${mintAddress}` });
       await confirmSignature(signature, lastValidBlockHeight);
-      fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature, mint: mintAddress }) }).catch(() => {});
+      fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature, mint: mintAddress, ...(groupKey ? { groupKey } : {}) }) }).catch(() => {});
       setResult({ mint: mintAddress, signature });
       setStep("done");
+      onLaunched?.(mintAddress);
     } catch (e) {
       const m = (e as Error).message;
       setErr(/reject|denied|cancel|declined/i.test(m) && !/expired/i.test(m) ? "You rejected the transaction. Nothing was created." : m);
@@ -179,7 +188,8 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-xs"><img src="/logos/networks/solana.svg" alt="" width={16} height={16} /> <span className="font-medium">Solana</span><span className="text-muted">· SPL token + Metaplex metadata</span></div>
-      <fieldset disabled={step !== "form"} className="space-y-2.5">
+      {preset && <div className="rounded-xl bg-surface-2 px-3 py-2 text-[13px]"><b>{f.symbol}</b> · {f.name} · {Number(f.supply).toLocaleString()} supply · {f.decimals} decimals{opts.revokeMint ? " · fixed supply" : ""}{opts.revokeFreeze ? " · no freeze" : ""}{opts.immutable ? " · metadata locked" : ""}</div>}
+      <fieldset disabled={step !== "form"} className={clsx("space-y-2.5", preset && "hidden")}>
         <div className="grid grid-cols-[1fr_120px] gap-2">
           <input className={input} placeholder="Token name" maxLength={32} value={f.name} onChange={set("name")} aria-label="Token name" />
           <input className={input} placeholder="Symbol" maxLength={10} value={f.symbol} onChange={(e) => setF((s) => ({ ...s, symbol: e.target.value.toUpperCase().replace(/[^A-Z0-9$._-]/g, "") }))} aria-label="Symbol" />
@@ -212,7 +222,7 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
         <div className="flex justify-between"><span className="text-muted">Network rent (mint, token account, metadata)</span><span className="num">{costs ? `≈ ${costs.rentSol.toFixed(4)} SOL` : "…"}</span></div>
         <div className="flex justify-between"><span className="text-muted">Metaplex metadata fee (protocol)</span><span className="num">{costs ? `${costs.metaplexSol.toFixed(2)} SOL` : "…"}</span></div>
         <div className="flex justify-between"><span className="text-muted">Network fee</span><span className="num">{costs ? `≈ ${costs.feeSol.toFixed(5)} SOL` : "…"}</span></div>
-        <div className="flex justify-between"><span className="text-muted">Bajar launch fee</span><span className="num">{cfg ? (cfg.fee ? `${cfg.fee.amountUsdc} USDC` : "None") : "…"}</span></div>
+        <div className="flex justify-between"><span className="text-muted">Bajar launch fee</span><span className="num">{cfg ? (shownFee ? `${shownFee.amountUsdc} USDC` : "None") : "…"}</span></div>
         <p className="text-faint pt-1">Rent is held by the accounts and the metadata fee goes to Metaplex (neither is paid to Bajar). The full supply is minted to your wallet.</p>
       </div>
 

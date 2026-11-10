@@ -5,12 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { Rocket } from "lucide-react";
 import { usePoll } from "@/hooks/usePoll";
 import { getChain } from "@/lib/chains";
-import { TokenLauncher } from "./TokenLauncher";
-import { EvmTokenLauncher } from "./EvmTokenLauncher";
+import { LaunchWizard } from "../launch/LaunchWizard";
 import { ManageTokens } from "./ManageTokens";
-import { EVM_LAUNCH_CHAINS } from "@/lib/launch/evmToken";
 import { ChainIcon } from "../ui/ChainIcon";
-import clsx from "clsx";
 
 import type { Pool } from "@/lib/types";
 import { Card, CardHeader, Notice } from "../ui/primitives";
@@ -23,36 +20,26 @@ export function Launchpad() {
   const [network, setNetwork] = useState(sp.get("network") ?? "all");
   const chain = getChain(network);
   const pools = usePoll<Pool[]>(`/api/dex/pools?feed=new${chain ? `&network=${chain.id}` : ""}`, 15_000);
-  const [launchChain, setLaunchChain] = useState<string>(["solana", "ethereum", "base", "bsc"].includes(sp.get("chain") ?? "") ? sp.get("chain")! : "solana");
-  const [focus, setFocus] = useState<{ chain: string; token: string } | null>(null);
-  const manage = (chain: string) => (token: string) => { setFocus({ chain, token }); setTimeout(() => document.getElementById("manage")?.scrollIntoView({ behavior: "smooth" }), 50); };
-  const evmChain = EVM_LAUNCH_CHAINS.find((c) => c.id === launchChain);
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[1fr_440px]">
         <div className="space-y-4 min-w-0">
           <div className="rounded-[22px] border border-line bg-surface p-6 sm:p-7">
             <div className="flex items-center gap-2 text-ai"><Rocket size={18} /><span className="text-xs font-medium uppercase tracking-wider">Launchpad</span></div>
-            <h1 className="mt-2 text-[30px] sm:text-[36px]">Launch a token, then manage it.</h1>
-            <p className="text-sm sm:text-[15px] text-muted mt-2 max-w-xl">Create a token on Solana, Ethereum, Base or BNB Chain from your own wallet in one transaction, then manage it: revoke authorities, burn, edit or lock metadata and add liquidity. Follow every new pool across networks as it appears.</p>
-            <ul className="mt-4 grid sm:grid-cols-3 gap-2 text-xs">
-              {["Your wallet signs; Bajar holds no authority", "Simulated before you sign", "Costs shown up front"].map((t) => <li key={t} className="rounded-xl bg-surface-2 px-3 py-2">{t}</li>)}
+            <h1 className="mt-2 text-[30px] sm:text-[36px]">Launch on every network, manage in one place.</h1>
+            <p className="text-sm sm:text-[15px] text-muted mt-2 max-w-xl">Create your token once and launch it on Solana, Ethereum, Base and BNB Chain from your own wallet. Then run it from the token manager: logo, description and links, supply and authorities, pairs and liquidity.</p>
+            <ul className="mt-4 grid sm:grid-cols-2 gap-2 text-xs">
+              {["Your wallet signs every step; Bajar holds no authority", "Simulated before you sign", "Every cost and fee shown up front", "Fee grows with the number of networks"].map((t) => <li key={t} className="rounded-xl bg-surface-2 px-3 py-2">{t}</li>)}
             </ul>
+            <div className="mt-4 flex items-center gap-1.5">{["solana", "ethereum", "base", "bsc"].map((c) => <span key={c} className="h-8 w-8 rounded-full bg-surface-2 grid place-items-center"><ChainIcon chain={c} size={17} /></span>)}</div>
           </div>
         </div>
         <Card id="create" className="p-5 h-fit">
           <h2 className="text-[22px] mb-3">Create a token</h2>
-          <div role="radiogroup" aria-label="Launch network" className="grid grid-cols-4 gap-1 rounded-2xl bg-surface-2 p-1 mb-4" data-testid="launch-chain">
-            {[{ id: "solana", name: "Solana" }, ...EVM_LAUNCH_CHAINS.map((c) => ({ id: c.id, name: c.id === "bsc" ? "BNB" : c.name }))].map((c) => (
-              <button key={c.id} role="radio" aria-checked={launchChain === c.id} onClick={() => setLaunchChain(c.id)} className={clsx("h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium", launchChain === c.id ? "seg-on text-fg" : "text-muted")}>
-                <ChainIcon chain={c.id} size={18} />{c.name}
-              </button>
-            ))}
-          </div>
-          {evmChain ? <EvmTokenLauncher chain={evmChain} onManage={manage(evmChain.id)} /> : <TokenLauncher onManage={manage("solana")} />}
+          <LaunchWizard />
         </Card>
       </div>
-      <ManageTokens focus={focus} />
+      <ManageTokens />
       <NetworkFilter value={network} onChange={setNetwork} />
       <Card>
         <CardHeader title="Newly created pools" sub={<DataStatus fetchedAt={pools.fetchedAt} expectedMs={15_000} stale={pools.stale} error={pools.error} source="GeckoTerminal" />} />

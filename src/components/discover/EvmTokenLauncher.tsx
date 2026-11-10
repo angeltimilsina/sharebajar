@@ -17,9 +17,17 @@ type Step = "form" | "review" | "signing" | "sending" | "done" | "failed";
  * Deploy a fixed-supply ERC-20 (contracts/BajarToken.sol) on Ethereum, Base
  * or BNB Chain from the connected wallet. No owner, no mint, no pause.
  */
-export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; onManage?: (token: string) => void }) {
+export interface EvmLaunchFee { recipient: string; amountWei: string; display: string }
+
+/**
+ * With `preset` (multi-network wizard) the details are fixed and the form is
+ * hidden. `fee`, when set, is the network's disclosed Bajar launch fee: a
+ * native-coin transfer to Bajar's verified treasury, signed just before the deploy.
+ */
+export function EvmTokenLauncher({ chain, onManage, preset, fee, groupKey, onLaunched }: { chain: EvmLaunchChain; onManage?: (token: string) => void; preset?: { name: string; symbol: string; supply: string }; fee?: EvmLaunchFee | null; groupKey?: string; onLaunched?: (token: string) => void }) {
   const { wallet, openModal, evm } = useWallet();
-  const [f, setF] = useState({ name: "", symbol: "", supply: "1000000000" });
+  const [f, setF] = useState(() => preset ? { name: preset.name, symbol: preset.symbol, supply: preset.supply } : { name: "", symbol: "", supply: "1000000000" });
+  const [feePaid, setFeePaid] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("form");
   const [quote, setQuote] = useState<DeployQuote | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -38,7 +46,14 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
     if (!wallet || !isEvm || !p) { openModal(); return; }
     try {
       await ensureChain(p, chain.chainId);
-      setQuote(await quoteDeploy(p, wallet.address, deployData(f.name, f.symbol, supply, wallet.address as `0x${string}`), chain.native));
+      let q = await quoteDeploy(p, wallet.address, deployData(f.name, f.symbol, supply, wallet.address as `0x${string}`), chain.native);
+      // The launch fee is paid from the same balance: check gas + fee together.
+      if (q.ok && fee && !feePaid) {
+        const bal = BigInt(await p.request({ method: "eth_getBalance", params: [wallet.address, "latest"] }) as string);
+        const need = BigInt(fee.amountWei) + (q.costWei ?? BigInt(0));
+        if (bal < need) q = { ok: false, error: `Not enough ${chain.native}: the launch fee and gas need about ${fmtNative(need)} ${chain.native}, your wallet has ${fmtNative(bal)} ${chain.native}.` };
+      }
+      setQuote(q);
       setStep("review");
     } catch (e) { setErr(walletErrorMessage(e).slice(0, 240)); }
   };
@@ -50,6 +65,14 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
     let hash: string | null = null;
     try {
       await ensureChain(p, chain.chainId);
+      // Disclosed launch fee first (its own transaction, to Bajar's verified treasury). Paid once per launch.
+      if (fee && !feePaid) {
+        const fh = await p.request({ method: "eth_sendTransaction", params: [{ from: wallet.address, to: fee.recipient, value: `0x${BigInt(fee.amountWei).toString(16)}` }] }) as string;
+        if (typeof fh !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(fh)) throw new Error("The wallet didn't return a transaction hash for the launch fee.");
+        const frc = await waitReceipt(p, fh, chain.id);
+        if (frc.status !== "0x1") throw new Error("The launch fee transfer failed on-chain. Nothing was deployed.");
+        setFeePaid(fh);
+      }
       // Contract creation: no `to`. Pass a gas limit with headroom (some wallets under-estimate deployments).
       const tx: Record<string, string> = { from: wallet.address, data: deployData(f.name, f.symbol, supply, wallet.address as `0x${string}`), value: "0x0" };
       if (quote?.ok) tx.gas = `0x${((quote.gas * BigInt(12)) / BigInt(10)).toString(16)}`;
@@ -66,10 +89,11 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
       const token = rc.contractAddress, h = hash;
       setResult({ token, hash: h, listed: false });
       setStep("done");
+      onLaunched?.(token);
       void (async () => {
         for (let i = 0; i < 6; i++) {
           if (i) await new Promise((res) => setTimeout(res, 3000 * i));
-          const r = await fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: chain.id, hash: h }) }).catch(() => null);
+          const r = await fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: chain.id, hash: h, ...(groupKey ? { groupKey } : {}) }) }).catch(() => null);
           if (r?.ok) { setResult((x) => (x && x.hash === h ? { ...x, listed: true } : x)); return; }
           if (r && r.status !== 404 && r.status !== 429 && r.status < 500) return;
         }
@@ -102,7 +126,8 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
 
   return (
     <div className="space-y-3" data-testid="evm-launcher">
-      <fieldset disabled={step !== "form"} className="space-y-2.5">
+      {preset && <div className="rounded-xl bg-surface-2 px-3 py-2 text-[13px]"><b>{f.symbol}</b> · {f.name} · {Number(f.supply).toLocaleString()} supply · 18 decimals</div>}
+      <fieldset disabled={step !== "form"} className={preset ? "hidden" : "space-y-2.5"}>
         <div className="grid grid-cols-[1fr_120px] gap-2">
           <input className={input} placeholder="Token name" maxLength={64} value={f.name} onChange={(e) => setF((s) => ({ ...s, name: e.target.value }))} aria-label="Token name" />
           <input className={input} placeholder="Symbol" maxLength={16} value={f.symbol} onChange={(e) => setF((s) => ({ ...s, symbol: e.target.value.toUpperCase().replace(/[^A-Z0-9$._-]/g, "") }))} aria-label="Symbol" />
@@ -117,8 +142,9 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
 
       <div className="rounded-xl bg-surface-2 p-3 text-xs space-y-1" data-testid="launch-costs">
         <div className="flex justify-between"><span className="text-muted">Network fee (gas)</span><span className="num">{quote?.ok ? (quote.costWei === null ? "Shown in your wallet" : `≈ ${fmtNative(quote.costWei)} ${chain.native}`) : "Shown after review"}</span></div>
-        <div className="flex justify-between"><span className="text-muted">Bajar launch fee</span><span className="num">None</span></div>
-        <p className="text-faint pt-1">Paid to the network, not to Bajar. The full supply goes to your wallet.</p>
+        <div className="flex justify-between"><span className="text-muted">Bajar launch fee</span><span className="num">{fee ? fee.display : "None"}</span></div>
+        {fee && <div className="flex justify-between"><span className="text-muted">Fee goes to</span><span className="num">Bajar treasury {fee.recipient.slice(0, 6)}…{fee.recipient.slice(-4)}</span></div>}
+        <p className="text-faint pt-1">{fee ? "Gas goes to the network. The launch fee is a separate transfer you approve first; it's paid once." : "Paid to the network, not to Bajar."} The full supply goes to your wallet.</p>
       </div>
 
       {formErr && (f.name || f.symbol) && <p className="text-xs text-down">{formErr}</p>}
@@ -126,7 +152,7 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
       {pending && step !== "done" && <p className="text-xs text-muted">Transaction: <a className="underline font-mono" href={`${chain.explorer}/tx/${pending}`} target="_blank" rel="noopener noreferrer">{pending.slice(0, 10)}…{pending.slice(-8)}</a></p>}
       {step === "review" && quote && (
         <Notice tone={quote.ok ? "info" : "down"} title={quote.ok ? "Simulation passed" : "Simulation failed"}>
-          {quote.ok ? <>The deployment ran successfully in simulation ({quote.gas.toLocaleString()} gas). Your wallet will ask you to approve one transaction on {chain.name}.</> : quote.error}
+          {quote.ok ? <>The deployment ran successfully in simulation ({quote.gas.toLocaleString()} gas). Your wallet will ask you to approve {fee && !feePaid ? "two transactions (launch fee, then the deploy)" : "one transaction"} on {chain.name}.</> : quote.error}
         </Notice>
       )}
       {step === "form" && (!isEvm

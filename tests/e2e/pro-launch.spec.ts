@@ -139,24 +139,37 @@ test.describe("Launchpad", () => {
       announce();
     });
     await page.goto("/launchpad");
-    await page.getByTestId("launch-chain").getByRole("radio", { name: /Base/ }).click();
-    const l = page.getByTestId("evm-launcher");
-    await l.getByLabel("Token name").fill("Test Token");
-    await l.getByLabel("Symbol").fill("TEST");
+    const w = page.getByTestId("launch-wizard");
+    await w.getByLabel("Token name", { exact: true }).fill("Test Token");
+    await w.getByLabel("Symbol", { exact: true }).fill("TEST");
+    await w.getByTestId("wizard-next").click();
+    // Fee grows with networks: compare 1 vs 3 networks in the plan's pricing line.
+    await expect(w.getByTestId("fee-plan")).toContainText("1 network 10 USDC · 2 networks 25 USDC · 3 networks 45 USDC · 4 networks 70 USDC");
+    await w.getByTestId("net-solana").click(); // deselect
+    await w.getByTestId("net-base").click();
+    await expect(w.getByTestId("fee-plan")).toContainText("1 network");
+    await w.getByTestId("wizard-start").click();
+    const l = w.getByTestId("launch-row-base").getByTestId("evm-launcher");
     await l.getByTestId("launch-connect").click();
     await page.getByRole("dialog").getByRole("button", { name: /MetaMask/ }).click();
     await l.getByRole("button", { name: /Review launch on Base/ }).click();
     await expect(l.getByText("Simulation passed")).toBeVisible({ timeout: 20_000 });
     await l.getByRole("button", { name: /Launch TEST/ }).click();
-    await expect(page.getByTestId("launch-done")).toContainText("TEST is live on Base", { timeout: 30_000 });
+    await expect(w.getByTestId("launch-row-base")).toContainText("Live", { timeout: 30_000 });
+    await expect(w.getByTestId("wizard-summary")).toContainText("TEST is live on 1 of 1 network");
+    await expect(w.getByTestId("open-manager")).toBeVisible();
     const calls = await page.evaluate(() => (window as unknown as { __evmCalls: { method: string; params?: { data?: string; to?: string }[] }[] }).__evmCalls);
     expect(calls.some((c) => c.method === "wallet_switchEthereumChain" && (c.params?.[0] as unknown as { chainId: string }).chainId === "0x2105")).toBe(true);
     const sends = calls.filter((c) => c.method === "eth_sendTransaction");
     expect(sends).toHaveLength(1);
     expect(sends[0].params?.[0].to).toBeUndefined(); // contract creation
     expect(sends[0].params?.[0].data?.startsWith("0x6080")).toBe(true);
-    await expect(page.getByTestId("launch-done").getByRole("link", { name: "PancakeSwap" })).toHaveCount(0);
-    await expect(page.getByTestId("launch-done").getByRole("link", { name: "Uniswap" })).toBeVisible();
+    // The manager's liquidity tab offers Base DEXs (not PancakeSwap).
+    await w.getByTestId("open-manager").click();
+    await expect(page).toHaveURL(/\/launchpad\/token\/base\/0x2222222222222222222222222222222222222222/);
+    await page.getByTestId("token-manager").getByRole("tab", { name: "Liquidity" }).click();
+    await expect(page.getByTestId("create-pool").getByRole("link", { name: /Uniswap/ })).toBeVisible();
+    await expect(page.getByTestId("create-pool").getByRole("link", { name: /PancakeSwap/ })).toHaveCount(0);
   });
 
   test("manage token: reads a Solana mint's authorities and metadata on-chain", async ({ page }) => {
@@ -167,7 +180,17 @@ test.describe("Launchpad", () => {
     await expect(m).toBeVisible();
     await m.getByLabel("Token address").fill("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"); // BONK
     await m.getByRole("button", { name: /Open/ }).click();
-    const s = m.getByTestId("manage-solana");
+    // The token manager page: overview with holders, liquidity with real pools, then controls.
+    const tm = page.getByTestId("token-manager");
+    await expect(tm).toBeVisible({ timeout: 20_000 });
+    await expect(tm.getByTestId("holders")).toBeVisible();
+    await tm.getByRole("tab", { name: "Liquidity" }).click();
+    await expect(tm.getByTestId("liquidity").locator("table")).toBeVisible({ timeout: 30_000 });
+    await expect(tm.getByTestId("create-pool")).toBeVisible();
+    await tm.getByRole("tab", { name: "Profile" }).click();
+    await expect(tm.getByTestId("profile-save")).toBeDisabled(); // not launched by this wallet
+    await tm.getByRole("tab", { name: "Supply & control" }).click();
+    const s = tm.getByTestId("manage-solana");
     await expect(s.getByText("Mint authority")).toBeVisible({ timeout: 30_000 });
     await expect(s.getByText("Revoked").first()).toBeVisible();
     await expect(s.getByText("Editable by another wallet")).toBeVisible();
