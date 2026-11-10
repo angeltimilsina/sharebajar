@@ -23,6 +23,8 @@ export async function recordEvmLaunch(chain: "ethereum" | "base" | "bsc", hash: 
   if (!rc.contractAddress) return { ok: false, status: 400, error: "This transaction did not create a contract." };
   const token = getAddress(rc.contractAddress);
   const code = await erpc<string>(chain, "eth_getCode", [token, "latest"]);
+  // A load-balanced RPC node can serve the receipt before its "latest" state has the code: retryable.
+  if (!code || code === "0x") return { ok: false, status: 404, error: "Contract not visible yet — try again in a few seconds." };
   if (code.toLowerCase() !== BAJAR_TOKEN_RUNTIME.toLowerCase()) return { ok: false, status: 400, error: "Contract is not a Bajar token." };
   const [name, symbol, supply] = await Promise.all([read(chain, token, "name"), read(chain, token, "symbol"), read(chain, token, "totalSupply")]);
   await q(

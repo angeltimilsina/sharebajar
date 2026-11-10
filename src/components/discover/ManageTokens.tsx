@@ -10,7 +10,7 @@ import { TokenIcon } from "../ui/TokenIcon";
 import { ChainIcon } from "../ui/ChainIcon";
 import { describe, readSolanaToken, runManage, type ManageAction, type SolanaTokenState } from "@/lib/launch/manage";
 import { BAJAR_TOKEN_ABI } from "@/lib/launch/erc20Artifact";
-import { EVM_LAUNCH_CHAINS, burnData, ensureChain, waitReceipt } from "@/lib/launch/evmToken";
+import { EVM_LAUNCH_CHAINS, burnData, ensureChain, isUserRejection, waitReceipt, walletErrorMessage } from "@/lib/launch/evmToken";
 import { EXPLORER, liquidityLinks } from "@/lib/launch/links";
 import { addActivity } from "@/lib/activity";
 
@@ -213,12 +213,12 @@ function EvmControls({ chain, token }: { chain: string; token: string }) {
       await p.request({ method: "eth_call", params: [{ from: wallet.address, to: token, data }, "latest"] }); // simulate
       const hash = await p.request({ method: "eth_sendTransaction", params: [{ from: wallet.address, to: token, data }] }) as string;
       addActivity({ chain: c.id, hash, kind: "send", summary: `Burned ${amt} ${s.symbol}`, wallet: wallet.address });
-      const rc = await waitReceipt(p, hash);
+      const rc = await waitReceipt(p, hash, c.id);
       if (rc.status !== "0x1") throw new Error("Burn failed on-chain.");
       setDone(hash); setAmt(""); void refresh();
     } catch (e) {
       const m = (e as Error).message;
-      setErr(/reject|denied|cancel/i.test(m) ? "You rejected the transaction. Nothing changed." : m.slice(0, 200));
+      setErr(isUserRejection(e) ? "You rejected the transaction. Nothing changed." : walletErrorMessage(e).slice(0, 200));
     } finally { setBusy(false); }
   };
 

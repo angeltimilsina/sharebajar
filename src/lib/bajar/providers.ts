@@ -110,7 +110,7 @@ export function evmTxHistory(): { hash: string; chain: string; to: string; value
 }
 
 /** Fill gas/fees/nonce, simulate, ask for approval, sign locally and broadcast. */
-export async function evmSendTransaction(chainId: string, tx: { to: string; data?: string; value?: string; gas?: string }, summary?: string): Promise<string> {
+export async function evmSendTransaction(chainId: string, tx: { to?: string; data?: string; value?: string; gas?: string }, summary?: string): Promise<string> {
   const c = getChain(chainId)!;
   const from = bajar.accounts()!.evm.address;
   const value = big(tx.value);
@@ -130,11 +130,12 @@ export async function evmSendTransaction(chainId: string, tx: { to: string; data
   const tip = big(tipHex);
   const maxFee = legacy ? gasPrice : big(block.baseFeePerGas) * BigInt(2) + tip;
   const maxCost = gas * maxFee;
-  const call = describeEvmCall(tx.to, data);
+  // No `to` = contract creation (e.g. a Launchpad token deploy).
+  const call = tx.to ? describeEvmCall(tx.to, data) : { action: "Deploy contract", detail: undefined as string | undefined, risk: undefined as string | undefined };
   if (call.risk) warning = warning ? `${call.risk} ${warning}` : call.risk;
   const ok = await requestApproval({
     kind: "transaction", network: c.name, title: summary ?? "Approve transaction",
-    rows: [["Action", call.detail ? `${call.action} · ${call.detail.replace(/0x[0-9a-f]{40}/gi, (m) => short(m))}` : call.action], ["From", short(from)], ["To", short(tx.to)], ["Value", `${Number(value) / 1e18} ${c.nativeSymbol}`], ["Data", data === "0x" ? "—" : `${data.slice(0, 10)}… (${(data.length - 2) / 2} bytes)`], ["Gas limit", gas.toString()], ["Max network fee", `${(Number(maxCost) / 1e18).toFixed(6)} ${c.nativeSymbol}`], ["Simulation", simNote]],
+    rows: [["Action", call.detail ? `${call.action} · ${call.detail.replace(/0x[0-9a-f]{40}/gi, (m) => short(m))}` : call.action], ["From", short(from)], ["To", tx.to ? short(tx.to) : "New contract"], ["Value", `${Number(value) / 1e18} ${c.nativeSymbol}`], ["Data", data === "0x" ? "—" : `${data.slice(0, 10)}… (${(data.length - 2) / 2} bytes)`], ["Gas limit", gas.toString()], ["Max network fee", `${(Number(maxCost) / 1e18).toFixed(6)} ${c.nativeSymbol}`], ["Simulation", simNote]],
     warning,
   }, { chain: c.id, ...callObj, gas: gas.toString() });
   if (!ok) throw new UserRejected();
@@ -144,7 +145,7 @@ export async function evmSendTransaction(chainId: string, tx: { to: string; data
     ? await account.signTransaction({ ...base, type: "legacy", gasPrice })
     : await account.signTransaction({ ...base, type: "eip1559", maxFeePerGas: maxFee, maxPriorityFeePerGas: tip });
   const hash = await walletRpc<string>(c.id, "eth_sendRawTransaction", [raw]);
-  recordEvmTx(hash, c.id, tx.to, value.toString(), summary ?? "Transaction");
+  recordEvmTx(hash, c.id, tx.to ?? "", value.toString(), summary ?? (tx.to ? "Transaction" : "Contract deployment"));
   return hash;
 }
 
