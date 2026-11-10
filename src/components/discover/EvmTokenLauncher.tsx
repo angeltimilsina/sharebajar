@@ -61,17 +61,19 @@ export function EvmTokenLauncher({ chain, onManage }: { chain: EvmLaunchChain; o
       const rc = await waitReceipt(p, hash, chain.id);
       if (rc.status !== "0x1") throw new Error("The deployment transaction failed on-chain (reverted). Only the gas was spent.");
       if (!rc.contractAddress) throw new Error("The transaction confirmed but didn't create a contract.");
-      // Server re-checks the receipt and the contract code before listing it.
-      // Retry while its node hasn't seen the transaction yet (404) or is unavailable (429/5xx).
-      let listed = false;
-      for (let i = 0; i < 6 && !listed; i++) {
-        if (i) await new Promise((res) => setTimeout(res, 3000 * i));
-        const r = await fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: chain.id, hash }) }).catch(() => null);
-        if (r?.ok) listed = true;
-        else if (r && r.status !== 404 && r.status !== 429 && r.status < 500) break;
-      }
-      setResult({ token: rc.contractAddress, hash, listed });
+      // It's live: show it now. The server re-checks the receipt and contract code
+      // before listing it; retry in the background while its node catches up (404) or is busy (429/5xx).
+      const token = rc.contractAddress, h = hash;
+      setResult({ token, hash: h, listed: false });
       setStep("done");
+      void (async () => {
+        for (let i = 0; i < 6; i++) {
+          if (i) await new Promise((res) => setTimeout(res, 3000 * i));
+          const r = await fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: chain.id, hash: h }) }).catch(() => null);
+          if (r?.ok) { setResult((x) => (x && x.hash === h ? { ...x, listed: true } : x)); return; }
+          if (r && r.status !== 404 && r.status !== 429 && r.status < 500) return;
+        }
+      })();
     } catch (e) {
       setErr(isUserRejection(e) ? "You rejected the transaction. Nothing was deployed." : walletErrorMessage(e).slice(0, 240));
       setStep("failed");

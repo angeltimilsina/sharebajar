@@ -126,6 +126,7 @@ test.describe("Launchpad", () => {
             case "eth_call": return "0x";
             case "eth_estimateGas": return "0x89520";
             case "eth_gasPrice": return "0x3b9aca00";
+            case "eth_getBalance": return "0xde0b6b3a7640000"; // 1 ETH
             case "eth_sendTransaction": return "0x" + "cd".repeat(32);
             case "eth_getTransactionReceipt": return { status: "0x1", contractAddress: "0x2222222222222222222222222222222222222222" };
             default: return null;

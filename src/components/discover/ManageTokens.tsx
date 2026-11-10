@@ -13,6 +13,7 @@ import { BAJAR_TOKEN_ABI } from "@/lib/launch/erc20Artifact";
 import { EVM_LAUNCH_CHAINS, burnData, ensureChain, isUserRejection, waitReceipt, walletErrorMessage } from "@/lib/launch/evmToken";
 import { EXPLORER, liquidityLinks } from "@/lib/launch/links";
 import { addActivity } from "@/lib/activity";
+import { linkWalletOf } from "@/lib/wallet/solanaLink";
 
 interface Launch { mint: string; chain: string; name: string; symbol: string; creator: string; fixed_supply: boolean; freeze_revoked: boolean; created_at: string }
 const CHAIN_NAME: Record<string, string> = { solana: "Solana", ethereum: "Ethereum", base: "Base", bsc: "BNB Chain" };
@@ -93,7 +94,7 @@ function SolanaControls({ mint }: { mint: string }) {
   const owner = wallet?.address ?? "";
   const refresh = useCallback(() => { readSolanaToken(mint, owner).then((x) => { setS(x); setErr(null); }).catch((e) => setErr((e as Error).message)); }, [mint, owner]);
   useEffect(refresh, [refresh]);
-  if (err && !s) return <div className="px-5 pb-4"><Notice tone="down">{err}</Notice></div>;
+  if (err && !s) return <div className="px-5 pb-4"><Notice tone="down"><span className="whitespace-pre-line break-words">{err}</span></Notice></div>;
   if (!s) return <div className="px-5 pb-4"><Skeleton className="h-24 w-full" /></div>;
   const sym = s.metadata?.symbol || "tokens";
   const fmt = (r: bigint) => formatUnits(r, s.decimals);
@@ -102,6 +103,7 @@ function SolanaControls({ mint }: { mint: string }) {
 
   const confirm = async () => {
     const p = solana();
+    if (linkWalletOf(wallet?.walletId)) { setErr("Managing a token needs your wallet's in-app browser. Open Bajar inside the wallet app."); return; }
     if (!pending || !p?.signTransaction) { setErr("This wallet can't sign transactions."); return; }
     setBusy(true); setErr(null);
     try {
@@ -168,7 +170,7 @@ function SolanaControls({ mint }: { mint: string }) {
           </div>
         </Notice>
       )}
-      {err && <Notice tone="down">{err}</Notice>}
+      {err && <Notice tone="down"><span className="whitespace-pre-line break-words">{err}</span></Notice>}
       {done && <Notice title="Done"><a className="underline" href={`https://solscan.io/tx/${done}`} target="_blank" rel="noopener noreferrer">View transaction</a></Notice>}
     </div>
   );

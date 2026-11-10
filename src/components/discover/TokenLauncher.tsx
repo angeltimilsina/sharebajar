@@ -2,22 +2,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Buffer } from "buffer";
 import { CheckCircle2, ExternalLink, Loader2, Rocket, ShieldCheck } from "lucide-react";
 import { useWallet } from "../wallet/WalletProvider";
 import { Badge, Button, Notice } from "../ui/primitives";
-import { buildLaunchTransaction, validateLaunch, METADATA_SIZE, MINT_SIZE, TOKEN_ACCOUNT_SIZE } from "@/lib/launch/solanaToken";
+import { buildLaunchTransaction, computeLimitFrom, confirmSignature, explainSimulation, networkFeeSol, sendSigned, simulate, solRpc as rpc, validateLaunch, METADATA_SIZE, METAPLEX_CREATE_FEE_LAMPORTS, MINT_SIZE, SIM_COMPUTE_UNITS, TOKEN_ACCOUNT_SIZE, ATA_PROGRAM, TOKEN_PROGRAM, USDC_MINT } from "@/lib/launch/solanaToken";
+import { LINK_WALLETS, linkWalletOf } from "@/lib/wallet/solanaLink";
 import { addActivity } from "@/lib/activity";
 
 const input = "w-full h-11 rounded-xl border border-line bg-surface-2 px-3 text-[15px] sm:text-sm outline-none focus:border-line-strong";
 type Config = { fee: { amountUsdc: number; recipient: string } | null; metadataHosting: boolean };
 type Step = "form" | "review" | "signing" | "sending" | "done" | "failed";
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const r = await fetch("/api/wallet/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "solana", method, params }) });
-  const b = await r.json();
-  if (b.error) throw new Error(b.error.message);
-  return b.result as T;
+type Fee = { amountRaw: bigint; recipientOwner: string } | null;
+
+/** Deep-link (mobile app) wallets can't sign in-page, and the launch needs a locally generated mint key co-signing. */
+function linkWalletBlock(walletId: string | undefined): { message: string; openUrl: string | null } | null {
+  const lw = linkWalletOf(walletId);
+  if (!lw) return null;
+  const name = LINK_WALLETS[lw].name;
+  const here = typeof window !== "undefined" ? window.location.href : "";
+  const browse: Record<string, string> = { phantom: "https://phantom.app/ul/browse/", solflare: "https://solflare.com/ul/v1/browse/", backpack: "https://backpack.app/ul/v1/browse/" };
+  return {
+    message: `Launching a token needs ${name}'s in-app browser: the launch is co-signed by a one-time mint key created on this page, which a ${name} app link can't carry. Open Bajar inside the ${name} app to launch.`,
+    openUrl: here ? `${browse[lw]}${encodeURIComponent(here)}?ref=${encodeURIComponent(new URL(here).origin)}` : null,
+  };
 }
 
 /**
@@ -29,9 +37,12 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
   const [cfg, setCfg] = useState<Config | null>(null);
   const [f, setF] = useState({ name: "", symbol: "", supply: "1000000000", decimals: "6", description: "", image: "", website: "", twitter: "", telegram: "", uri: "" });
   const [opts, setOpts] = useState({ revokeMint: true, revokeFreeze: true, immutable: false });
-  const [costs, setCosts] = useState<{ rentSol: number; feeSol: number } | null>(null);
+  const [costs, setCosts] = useState<{ rentSol: number; metaplexSol: number; feeSol: number } | null>(null);
   const [step, setStep] = useState<Step>("form");
   const [sim, setSim] = useState<{ ok: boolean; units?: number; error?: string } | null>(null);
+  // What the review simulated and showed; launch() signs exactly this (fee included).
+  const [reviewed, setReviewed] = useState<{ fee: Fee; units?: number } | null>(null);
+  const [metaCache, setMetaCache] = useState<{ key: string; uri: string; note: string | null } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ mint: string; signature: string } | null>(null);
   const [uri, setUri] = useState<string>("");
@@ -41,7 +52,7 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
   useEffect(() => { fetch("/api/launch/config").then((r) => r.json()).then(setCfg).catch(() => setCfg({ fee: null, metadataHosting: false })); }, []);
   useEffect(() => {
     Promise.all([MINT_SIZE, TOKEN_ACCOUNT_SIZE, METADATA_SIZE].map((n) => rpc<number>("getMinimumBalanceForRentExemption", [n])))
-      .then((r) => setCosts({ rentSol: r.reduce((a, b) => a + b, 0) / 1e9, feeSol: 0.00001 + (160_000 * 50_000) / 1e15 }))
+      .then((r) => setCosts({ rentSol: r.reduce((a, b) => a + b, 0) / 1e9, metaplexSol: METAPLEX_CREATE_FEE_LAMPORTS / 1e9, feeSol: networkFeeSol(2, computeLimitFrom(90_000)) }))
       .catch(() => setCosts(null));
   }, []);
 
@@ -49,61 +60,95 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
   const decimals = Number(f.decimals);
   const formErr = validateLaunch({ name: f.name, symbol: f.symbol, uri: f.uri, decimals, supply });
 
+  const linkBlock = wallet?.chainType === "solana" ? linkWalletBlock(wallet.walletId) : null;
+
   const prepareMetadata = async (): Promise<string> => {
-    if (f.uri) return f.uri;
-    if (!f.image && !f.description && !f.website && !f.twitter && !f.telegram) return "";
-    const r = await fetch("/api/launch/metadata", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: f.name, symbol: f.symbol, description: f.description, image: f.image || undefined, website: f.website || undefined, twitter: f.twitter || undefined, telegram: f.telegram || undefined }) });
-    const b = await r.json();
-    if (!r.ok) throw new Error(b.error ?? "Couldn't host metadata");
-    setMetaNote(b.dropped?.length ? `Saved without ${b.dropped.join(", ")} to fit the 200-byte limit. Add them later with Edit metadata, or use your own metadata URI.` : null);
-    return b.uri;
+    if (f.uri) { setMetaNote(null); return f.uri.trim(); }
+    if (!f.image && !f.description && !f.website && !f.twitter && !f.telegram) { setMetaNote(null); return ""; }
+    const body = { name: f.name.trim(), symbol: f.symbol, description: f.description, image: f.image.trim() || undefined, website: f.website.trim() || undefined, twitter: f.twitter.trim() || undefined, telegram: f.telegram.trim() || undefined };
+    const key = JSON.stringify(body);
+    if (metaCache?.key === key) { setMetaNote(metaCache.note); return metaCache.uri; } // don't re-host on every review (rate-limited)
+    const r = await fetch("/api/launch/metadata", { method: "POST", headers: { "content-type": "application/json" }, body: key });
+    const b = await r.json().catch(() => null) as { uri?: unknown; dropped?: unknown; mode?: string; error?: string } | null;
+    if (!r.ok || !b) throw new Error(b?.error ?? (r.status === 429 ? "Too many metadata requests. Wait a minute and try again." : "Couldn't host metadata. Try again, or use your own metadata URI under Advanced."));
+    const hosted = typeof b.uri === "string" ? b.uri : "";
+    // Metaplex stores at most 200 bytes; the in-URL mode (no database) is sized to fit, but never trust it blindly.
+    if (!hosted || new TextEncoder().encode(hosted).length > 200) throw new Error("The hosted metadata link is longer than Metaplex's 200-byte limit. Use a shorter logo URL, or your own metadata URI under Advanced.");
+    const dropped = Array.isArray(b.dropped) ? b.dropped.filter((x): x is string => typeof x === "string") : [];
+    const note = dropped.length ? `Saved without ${dropped.join(", ")} to fit the 200-byte limit. Add them later with Edit metadata, or use your own metadata URI.` : null;
+    setMetaNote(note);
+    setMetaCache({ key, uri: hosted, note });
+    return hosted;
   };
 
-  const build = async (payer: string, metaUri: string) => {
-    const [{ value: { blockhash } }, rentMint] = await Promise.all([rpc<{ value: { blockhash: string } }>("getLatestBlockhash", [{ commitment: "confirmed" }]), rpc<number>("getMinimumBalanceForRentExemption", [MINT_SIZE])]);
-    return buildLaunchTransaction({
-      payer, name: f.name, symbol: f.symbol, uri: metaUri, decimals, supply, ...opts,
-      launchFee: cfg?.fee ? { amountRaw: BigInt(Math.round(cfg.fee.amountUsdc * 1e6)), recipientOwner: cfg.fee.recipient } : null,
-    }, { blockhash, rent: { mint: rentMint } });
+  const feeFromCfg = (): Fee => cfg?.fee ? { amountRaw: BigInt(Math.round(cfg.fee.amountUsdc * 1e6)), recipientOwner: cfg.fee.recipient } : null;
+
+  const build = async (payer: string, metaUri: string, fee: Fee, computeUnits?: number) => {
+    const [{ value: { blockhash, lastValidBlockHeight } }, rentMint] = await Promise.all([rpc<{ value: { blockhash: string; lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "confirmed" }]), rpc<number>("getMinimumBalanceForRentExemption", [MINT_SIZE])]);
+    const built = await buildLaunchTransaction({ payer, name: f.name, symbol: f.symbol, uri: metaUri, decimals, supply, ...opts, launchFee: fee }, { blockhash, rent: { mint: rentMint }, computeUnits });
+    return { ...built, lastValidBlockHeight };
+  };
+
+  /** Human message for a failed simulation, with balances when it's about money. */
+  const explain = async (payer: string, s: { err: unknown; logs?: string[] | null }, fee: Fee) => {
+    const msg = explainSimulation(s, "launch");
+    if (/SOL/.test(msg) && costs) {
+      const bal = await rpc<{ value: number }>("getBalance", [payer, { commitment: "confirmed" }]).catch(() => null);
+      if (bal) return `${msg} You have ${(bal.value / 1e9).toFixed(4)} SOL; launching needs about ${(costs.rentSol + costs.metaplexSol + networkFeeSol(2, computeLimitFrom(90_000)) + (fee ? 0.0015 : 0)).toFixed(4)} SOL.`;
+    }
+    return msg;
+  };
+
+  /** Launch fee check up front: a missing USDC account otherwise fails as "invalid account data". */
+  const checkUsdc = async (payer: string, fee: Fee) => {
+    if (!fee) return;
+    const { PublicKey } = await import("@solana/web3.js");
+    const ata = PublicKey.findProgramAddressSync([new PublicKey(payer).toBuffer(), new PublicKey(TOKEN_PROGRAM).toBuffer(), new PublicKey(USDC_MINT).toBuffer()], new PublicKey(ATA_PROGRAM))[0];
+    const a = await rpc<{ value: { data: { parsed?: { info: { tokenAmount: { amount: string } } } } } | null }>("getAccountInfo", [ata.toBase58(), { encoding: "jsonParsed", commitment: "confirmed" }]);
+    const have = BigInt(a.value?.data?.parsed?.info.tokenAmount.amount ?? "0");
+    if (have < fee.amountRaw) throw new Error(`The launch fee is ${Number(fee.amountRaw) / 1e6} USDC, but this wallet holds ${(Number(have) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC. Add USDC and try again.`);
   };
 
   const review = async () => {
-    setErr(null); setSim(null);
+    setErr(null); setSim(null); setReviewed(null);
     if (!wallet || wallet.chainType !== "solana") { openModal(); return; }
+    if (linkBlock) { setErr(linkBlock.message); return; }
+    if (!cfg) { setErr("Still loading launch settings. Try again in a moment."); return; }
     try {
+      const fee = feeFromCfg();
       const metaUri = await prepareMetadata();
       setUri(metaUri);
-      const { tx } = await build(wallet.address, metaUri);
-      const b64 = Buffer.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })).toString("base64");
-      const s = await rpc<{ value: { err: unknown; unitsConsumed?: number; logs?: string[] } }>("simulateTransaction", [b64, { encoding: "base64", sigVerify: false, replaceRecentBlockhash: true, commitment: "confirmed" }]);
-      setSim(s.value.err ? { ok: false, error: /insufficient|0x1\b/i.test(JSON.stringify(s.value.logs ?? s.value.err)) ? "Not enough SOL (or USDC for the launch fee) in this wallet." : JSON.stringify(s.value.err) } : { ok: true, units: s.value.unitsConsumed });
+      await checkUsdc(wallet.address, fee);
+      const { tx } = await build(wallet.address, metaUri, fee, SIM_COMPUTE_UNITS);
+      const s = await simulate(tx);
+      if (s.err) setSim({ ok: false, error: await explain(wallet.address, s, fee) });
+      else { setSim({ ok: true, units: s.unitsConsumed }); setReviewed({ fee, units: s.unitsConsumed }); }
       setStep("review");
     } catch (e) { setErr((e as Error).message); }
   };
 
   const launch = async () => {
+    if (!wallet || !reviewed) return;
+    if (linkBlock) { setErr(linkBlock.message); return; }
     const p = solana();
-    if (!p?.signTransaction || !wallet) { setErr("This wallet can't sign transactions."); return; }
+    if (!p?.signTransaction) { setErr("This wallet can't sign transactions. Connect Phantom, Solflare or Backpack in this browser."); return; }
     setErr(null); setStep("signing");
     try {
-      const { tx, mintAddress } = await build(wallet.address, uri); // fresh blockhash
+      // Fresh blockhash and mint key: re-simulate exactly what will be signed, with a compute limit sized from the review.
+      const { tx, mintAddress, lastValidBlockHeight } = await build(wallet.address, uri, reviewed.fee, computeLimitFrom(reviewed.units));
+      const s = await simulate(tx);
+      if (s.err) throw new Error(await explain(wallet.address, s, reviewed.fee));
       const signed = await p.signTransaction(tx);
       setStep("sending");
-      const signature = await rpc<string>("sendTransaction", [Buffer.from(signed.serialize()).toString("base64"), { encoding: "base64", preflightCommitment: "confirmed", maxRetries: 3 }]);
+      const signature = await sendSigned(signed);
       addActivity({ chain: "solana", hash: signature, kind: "send", summary: `Launched ${f.symbol} (${f.name})`, wallet: wallet.address, assetHref: `/token/solana/${mintAddress}` });
-      for (let i = 0; i < 45; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const st = await rpc<{ value: ({ err: unknown; confirmationStatus: string } | null)[] }>("getSignatureStatuses", [[signature], { searchTransactionHistory: true }]).catch(() => null);
-        const v = st?.value[0];
-        if (v?.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(v.err)}`);
-        if (v && (v.confirmationStatus === "confirmed" || v.confirmationStatus === "finalized")) break;
-      }
+      await confirmSignature(signature, lastValidBlockHeight);
       fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature, mint: mintAddress }) }).catch(() => {});
       setResult({ mint: mintAddress, signature });
       setStep("done");
     } catch (e) {
       const m = (e as Error).message;
-      setErr(/reject|denied|cancel/i.test(m) ? "You rejected the transaction. Nothing was created." : m);
+      setErr(/reject|denied|cancel|declined/i.test(m) && !/expired/i.test(m) ? "You rejected the transaction. Nothing was created." : m);
       setStep("failed");
     }
   };
@@ -165,13 +210,14 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
 
       <div className="rounded-xl bg-surface-2 p-3 text-xs space-y-1" data-testid="launch-costs">
         <div className="flex justify-between"><span className="text-muted">Network rent (mint, token account, metadata)</span><span className="num">{costs ? `≈ ${costs.rentSol.toFixed(4)} SOL` : "…"}</span></div>
+        <div className="flex justify-between"><span className="text-muted">Metaplex metadata fee (protocol)</span><span className="num">{costs ? `${costs.metaplexSol.toFixed(2)} SOL` : "…"}</span></div>
         <div className="flex justify-between"><span className="text-muted">Network fee</span><span className="num">{costs ? `≈ ${costs.feeSol.toFixed(5)} SOL` : "…"}</span></div>
         <div className="flex justify-between"><span className="text-muted">Bajar launch fee</span><span className="num">{cfg ? (cfg.fee ? `${cfg.fee.amountUsdc} USDC` : "None") : "…"}</span></div>
-        <p className="text-faint pt-1">Rent is held by the accounts (not paid to Bajar). The full supply is minted to your wallet.</p>
+        <p className="text-faint pt-1">Rent is held by the accounts and the metadata fee goes to Metaplex (neither is paid to Bajar). The full supply is minted to your wallet.</p>
       </div>
 
       {formErr && (f.name || f.symbol) && <p className="text-xs text-down">{formErr}</p>}
-      {err && <Notice tone="down">{err}</Notice>}
+      {err && <Notice tone="down">{err}{linkBlock?.openUrl && err === linkBlock.message && <> <a className="underline" href={linkBlock.openUrl}>Open in {LINK_WALLETS[linkWalletOf(wallet?.walletId)!].name}</a></>}</Notice>}
       {metaNote && step === "review" && <Notice tone="warn">{metaNote}</Notice>}
       {step === "review" && sim && (
         <Notice tone={sim.ok ? "info" : "down"} title={sim.ok ? "Simulation passed" : "Simulation failed"}>
@@ -182,12 +228,12 @@ export function TokenLauncher({ onManage }: { onManage?: (mint: string) => void 
       {step === "form" && (
         !wallet || wallet.chainType !== "solana"
           ? <Button className="w-full h-11" disabled={!!formErr} onClick={openModal} data-testid="launch-connect">Connect a Solana wallet to launch</Button>
-          : <Button className="w-full h-11" disabled={!!formErr} onClick={review}><Rocket size={15} /> Review launch</Button>
+          : <Button className="w-full h-11" disabled={!!formErr || !cfg} onClick={review}><Rocket size={15} /> Review launch</Button>
       )}
       {step === "review" && (
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setStep("form")}>Edit</Button>
-          <Button className="flex-1 h-11" disabled={!sim?.ok} onClick={launch}><Rocket size={15} /> Launch {f.symbol}</Button>
+          <Button className="flex-1 h-11" disabled={!sim?.ok || !reviewed} onClick={launch}><Rocket size={15} /> Launch {f.symbol}</Button>
         </div>
       )}
       {(step === "signing" || step === "sending") && <Button className="w-full h-11" disabled><Loader2 size={15} className="animate-spin" /> {step === "signing" ? "Approve in your wallet…" : "Confirming on Solana…"}</Button>}

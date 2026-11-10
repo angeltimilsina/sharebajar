@@ -21,7 +21,91 @@ export const METADATA_PROGRAM = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const MINT_SIZE = 82;
 export const TOKEN_ACCOUNT_SIZE = 165;
-export const METADATA_SIZE = 679;
+/** Size Metaplex Token Metadata allocates for a fungible metadata account today (was 679 before the 2024 resize). */
+export const METADATA_SIZE = 607;
+/** Metaplex protocol fee charged on CreateMetadataAccountV3 (0.01 SOL, held in the metadata account). Verified by simulation. */
+export const METAPLEX_CREATE_FEE_LAMPORTS = 10_000_000;
+/** Priority fee price; the compute-unit limit is sized from simulation so the priority fee stays small. */
+export const PRIORITY_MICROLAMPORTS = 50_000;
+/** Compute-unit limit used when simulating (a launch uses ~50k–90k). */
+export const SIM_COMPUTE_UNITS = 200_000;
+/** Limit for the signed transaction: simulated units plus headroom (PDA bump search varies per mint). */
+export const computeLimitFrom = (units: number | undefined) => units && units > 0 ? Math.min(SIM_COMPUTE_UNITS, Math.ceil(units * 1.4) + 10_000) : SIM_COMPUTE_UNITS;
+/** Network fee estimate in SOL: base fee per signature + priority fee on the compute-unit limit. */
+export const networkFeeSol = (signatures: number, cuLimit: number) => (5000 * signatures) / 1e9 + (cuLimit * PRIORITY_MICROLAMPORTS) / 1e15;
+
+/** Solana JSON-RPC through Bajar's allowlisted relay, with readable errors for network/rate-limit failures. */
+export async function solRpc<T>(method: string, params: unknown[]): Promise<T> {
+  let r: Response;
+  try {
+    r = await fetch("/api/wallet/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "solana", method, params }) });
+  } catch {
+    throw new Error("Couldn't reach the Solana network. Check your connection and try again.");
+  }
+  const b = await r.json().catch(() => null) as { result?: T; error?: string | { message?: string } } | null;
+  if (!b) throw new Error(r.status === 429 ? "Too many requests. Wait a moment and try again." : `Solana network unavailable (HTTP ${r.status}). Try again.`);
+  if (b.error) throw new Error(typeof b.error === "string" ? b.error : b.error.message || "Solana network error");
+  return b.result as T;
+}
+
+export interface SimResult { err: unknown; logs?: string[] | null; unitsConsumed?: number }
+
+/** Turn a failed simulation into plain words, keeping the program's own error line when we don't recognise it. */
+export function explainSimulation(sim: SimResult, ctx: "launch" | "manage"): string {
+  const e = JSON.stringify(sim.err ?? "");
+  const logs = sim.logs ?? [];
+  const L = logs.join("\n");
+  if (/AccountNotFound/.test(e)) return "This wallet has no SOL. Add SOL to pay network rent and fees, then try again.";
+  if (/InvalidAccountForFee/.test(e)) return "This address can't pay Solana fees (it isn't a regular wallet account). Connect the wallet that holds the authority.";
+  if (/InsufficientFundsForFee/.test(e)) return "Not enough SOL in this wallet to pay the network fee.";
+  if (/InsufficientFundsForRent|insufficient lamports/i.test(e + L)) return ctx === "launch" ? "Not enough SOL in this wallet to cover rent, the Metaplex fee and network fees." : "Not enough SOL in this wallet to pay for this transaction.";
+  if (/Error: insufficient funds/i.test(L)) return ctx === "launch" ? "Not enough USDC in this wallet for the launch fee." : "Your wallet doesn't hold that many tokens.";
+  if (/Account is frozen/i.test(L)) return ctx === "launch" ? "Your USDC account is frozen, so the launch fee can't be paid from it." : "Your token account is frozen.";
+  if (/owner does not match/i.test(L)) return "This wallet doesn't hold the authority for that action.";
+  if (/supply is fixed/i.test(L)) return "The mint authority was revoked — the supply is fixed.";
+  if (/Update Authority given does not match|update authority/i.test(L) && /Error/i.test(L)) return "This wallet isn't the metadata update authority.";
+  if (/Data type mismatch|immutable|is_mutable|not mutable/i.test(L) && /Error/i.test(L)) return "The metadata is locked and can't be changed.";
+  const line = [...logs].reverse().find((l) => /^Program log: (Error|AnchorError)/.test(l)) ?? [...logs].reverse().find((l) => / failed: /.test(l));
+  return `Simulation failed: ${line ? line.replace(/^Program log: /, "").replace(/^Program \w+ failed: /, "") : e}${line ? ` (${e})` : ""}`;
+}
+
+/** Simulate an unsigned (or partially signed) transaction without signature checks. */
+export async function simulate(tx: Transaction): Promise<SimResult> {
+  const b64 = Buffer.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })).toString("base64");
+  const s = await solRpc<{ value: SimResult }>("simulateTransaction", [b64, { encoding: "base64", sigVerify: false, replaceRecentBlockhash: true, commitment: "confirmed" }]);
+  return s.value;
+}
+
+/** Broadcast a signed transaction (with preflight), translating an expired blockhash into plain words. */
+export async function sendSigned(signed: { serialize(): Uint8Array | Buffer }): Promise<string> {
+  try {
+    return await solRpc<string>("sendTransaction", [Buffer.from(signed.serialize()).toString("base64"), { encoding: "base64", preflightCommitment: "confirmed", maxRetries: 3 }]);
+  } catch (e) {
+    const m = (e as Error).message;
+    if (/Blockhash not found|block height exceeded|expired/i.test(m)) throw new Error("The transaction expired while waiting for approval. Nothing was sent — please try again.");
+    throw e;
+  }
+}
+
+/**
+ * Wait until a signature is confirmed. Fails if it errors on-chain or its blockhash
+ * expires unseen (current block height ≈ latest lastValidBlockHeight − 150).
+ */
+export async function confirmSignature(signature: string, lastValidBlockHeight: number | null, timeoutMs = 120_000): Promise<void> {
+  const start = Date.now();
+  for (let i = 0; ; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const st = await solRpc<{ value: ({ err: unknown; confirmationStatus: string } | null)[] }>("getSignatureStatuses", [[signature], { searchTransactionHistory: true }]).catch(() => null);
+    const v = st?.value?.[0];
+    if (v?.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(v.err)}`);
+    if (v && (v.confirmationStatus === "confirmed" || v.confirmationStatus === "finalized")) return;
+    if (!v && lastValidBlockHeight && i % 3 === 2) {
+      const lb = await solRpc<{ value: { lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "confirmed" }]).catch(() => null);
+      if (lb && lb.value.lastValidBlockHeight - 150 > lastValidBlockHeight) throw new Error("The transaction expired before it was confirmed (the network is busy). Nothing was changed — please try again.");
+    }
+    if (Date.now() - start > timeoutMs) throw new Error(`Not confirmed yet. It may still land — check https://solscan.io/tx/${signature} before trying again.`);
+  }
+}
 
 export interface LaunchParams {
   payer: string;
@@ -42,6 +126,7 @@ const u64 = (n: bigint) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(n, 0)
 const borshString = (s: string) => Buffer.concat([u32(utf8(s).length), utf8(s)]);
 
 export function validateLaunch(p: Pick<LaunchParams, "name" | "symbol" | "uri" | "decimals" | "supply">): string | null {
+  if (typeof p.uri !== "string") return "Metadata URI is missing.";
   if (!p.name.trim() || utf8(p.name).length > 32) return "Name must be 1–32 bytes.";
   if (!/^[A-Za-z0-9$._-]{1,10}$/.test(p.symbol)) return "Symbol must be 1–10 letters/numbers.";
   if (utf8(p.uri).length > 200) return "Metadata URI must be at most 200 bytes.";
@@ -66,19 +151,19 @@ export function metadataV3Data(name: string, symbol: string, uri: string, isMuta
   ]);
 }
 
-export async function buildLaunchTransaction(p: LaunchParams, chain: { blockhash: string; rent: { mint: number } }): Promise<{ tx: Transaction; mint: Keypair; mintAddress: string; ata: string }> {
+export async function buildLaunchTransaction(p: LaunchParams, chain: { blockhash: string; rent: { mint: number }; computeUnits?: number; mint?: Keypair }): Promise<{ tx: Transaction; mint: Keypair; mintAddress: string; ata: string }> {
   const err = validateLaunch(p);
   if (err) throw new Error(err);
   const w3 = await import("@solana/web3.js");
   const { PublicKey, Keypair, SystemProgram, Transaction, TransactionInstruction, ComputeBudgetProgram } = w3;
   const payer = new PublicKey(p.payer);
-  const mint = Keypair.generate();
+  const mint = chain.mint ?? Keypair.generate();
   const tokenProg = new PublicKey(TOKEN_PROGRAM), ataProg = new PublicKey(ATA_PROGRAM), mdProg = new PublicKey(METADATA_PROGRAM);
   const ataOf = (owner: PK, m: PK) => PublicKey.findProgramAddressSync([owner.toBuffer(), tokenProg.toBuffer(), m.toBuffer()], ataProg)[0];
   const ata = ataOf(payer, mint.publicKey);
   const [metadata] = PublicKey.findProgramAddressSync([utf8("metadata"), mdProg.toBuffer(), mint.publicKey.toBuffer()], mdProg);
   const raw = p.supply * BigInt(10) ** BigInt(p.decimals);
-  const ix: TI[] = [ComputeBudgetProgram.setComputeUnitLimit({ units: 160_000 }), ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 })];
+  const ix: TI[] = [ComputeBudgetProgram.setComputeUnitLimit({ units: chain.computeUnits ?? SIM_COMPUTE_UNITS }), ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_MICROLAMPORTS })];
 
   ix.push(SystemProgram.createAccount({ fromPubkey: payer, newAccountPubkey: mint.publicKey, lamports: chain.rent.mint, space: MINT_SIZE, programId: tokenProg }));
   // InitializeMint2 (20): decimals, mint authority, freeze authority option
