@@ -12,6 +12,7 @@ import { readSolanaToken, runManage } from "@/lib/launch/manage";
 import { EXPLORER, liquidityLinks } from "@/lib/launch/links";
 import { formatNumber, formatPrice, formatUsd, timeAgo } from "@/lib/format";
 import type { DexPair } from "@/lib/types";
+import { CreatePool } from "./CreatePool";
 
 const CHAIN_NAME: Record<string, string> = { solana: "Solana", ethereum: "Ethereum", base: "Base", bsc: "BNB Chain" };
 type TabId = "overview" | "profile" | "supply" | "liquidity";
@@ -167,7 +168,7 @@ export function TokenManager({ chain, token }: { chain: string; token: string })
         </Card>
       )}
 
-      {tab === "liquidity" && <Liquidity chain={chain} token={token} symbol={symbol} supply={l ? Number(l.supply) / 10 ** l.decimals : null} />}
+      {tab === "liquidity" && <Liquidity chain={chain} token={token} symbol={symbol} decimals={l?.decimals ?? (chain === "solana" ? 6 : 18)} supply={l ? Number(l.supply) / 10 ** l.decimals : null} />}
     </div>
   );
 }
@@ -298,7 +299,7 @@ function ProfileEditor({ chain, token, data, canEdit, onSaved }: { chain: string
 
 /* ── Liquidity: pairs, create pool, positions, locks ───────────────────── */
 
-function Liquidity({ chain, token, symbol, supply }: { chain: string; token: string; symbol: string; supply: number | null }) {
+function Liquidity({ chain, token, symbol, decimals, supply }: { chain: string; token: string; symbol: string; decimals: number; supply: number | null }) {
   const [pairs, setPairs] = useState<DexPair[] | null>(null);
   const [calc, setCalc] = useState({ tokens: "", quote: "", quotePrice: "" });
   useEffect(() => {
@@ -344,7 +345,8 @@ function Liquidity({ chain, token, symbol, supply }: { chain: string; token: str
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4 sm:p-5 space-y-3" data-testid="create-pool">
           <h2 className="text-base">Create a pool</h2>
-          <p className="text-[13px] text-muted">Pair {symbol || "your token"} with {QUOTES[chain]}. The amounts you deposit set the starting price. You approve the deposit on the DEX.</p>
+          {pairs !== null && pairs.length === 0 && <CreatePool chain={chain} token={token} symbol={symbol || "TOKEN"} decimals={decimals} />}
+          <p className="text-[13px] text-muted">{pairs?.length === 0 ? "Or plan it here and create it on a DEX yourself:" : `Pair ${symbol || "your token"} with ${QUOTES[chain]}. The amounts you deposit set the starting price.`}</p>
           <div className="grid grid-cols-3 gap-2">
             <label className="text-[11.5px] text-muted">{symbol || "Tokens"} to add<input className={field} inputMode="decimal" value={calc.tokens} onChange={(e) => setCalc((c) => ({ ...c, tokens: e.target.value.replace(/[^\d.]/g, "") }))} aria-label="Token amount" /></label>
             <label className="text-[11.5px] text-muted">Quote to add<input className={field} inputMode="decimal" value={calc.quote} onChange={(e) => setCalc((c) => ({ ...c, quote: e.target.value.replace(/[^\d.]/g, "") }))} aria-label="Quote amount" /></label>

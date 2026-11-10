@@ -124,7 +124,7 @@ test.describe("Launchpad", () => {
             case "eth_requestAccounts": case "eth_accounts": return ["0x1111111111111111111111111111111111111111"];
             case "eth_chainId": return chainId;
             case "wallet_switchEthereumChain": chainId = (params![0] as { chainId: string }).chainId; return null;
-            case "eth_call": return "0x";
+            case "eth_call": return (params?.[0] as { data?: string })?.data?.startsWith("0x70a08231") ? "0x" + (10n ** 27n).toString(16).padStart(64, "0") : "0x"; // balanceOf: 1e9 tokens
             case "eth_estimateGas": return "0x89520";
             case "eth_gasPrice": return "0x3b9aca00";
             case "eth_getBalance": return "0xde0b6b3a7640000"; // 1 ETH
@@ -159,10 +159,21 @@ test.describe("Launchpad", () => {
     await expect(w.getByTestId("launch-row-base")).toContainText("Live", { timeout: 30_000 });
     await expect(w.getByTestId("wizard-summary")).toContainText("TEST is live on 1 of 1 network");
     await expect(w.getByTestId("open-manager")).toBeVisible();
+    // Right after launch: create the trading pool (approve the router, then addLiquidityETH with the native deposit).
+    const pool = w.getByTestId("pool-base");
+    await expect(pool.getByText("You hold 1,000,000,000")).toBeVisible({ timeout: 20_000 });
+    await pool.getByLabel("ETH amount").fill("0.1");
+    await pool.getByTestId("create-pool-submit").click();
+    await expect(pool.getByTestId("pool-created")).toBeVisible({ timeout: 30_000 });
+    const sent = (await page.evaluate(() => (window as unknown as { __evmCalls: { method: string; params?: { to?: string; data?: string; value?: string }[] }[] }).__evmCalls)).filter((c) => c.method === "eth_sendTransaction").map((c) => c.params![0]);
+    expect(sent[1].data?.startsWith("0x095ea7b3")).toBe(true); // approve
+    expect(sent[2].to?.toLowerCase()).toBe("0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24"); // Uniswap V2 router on Base
+    expect(sent[2].data?.startsWith("0xf305d719")).toBe(true); // addLiquidityETH
+    expect(BigInt(sent[2].value!)).toBe(10n ** 17n);
     const calls = await page.evaluate(() => (window as unknown as { __evmCalls: { method: string; params?: { data?: string; to?: string }[] }[] }).__evmCalls);
     expect(calls.some((c) => c.method === "wallet_switchEthereumChain" && (c.params?.[0] as unknown as { chainId: string }).chainId === "0x2105")).toBe(true);
     const sends = calls.filter((c) => c.method === "eth_sendTransaction");
-    expect(sends).toHaveLength(1);
+    expect(sends).toHaveLength(3); // deploy, then the pool: approve + add liquidity
     expect(sends[0].params?.[0].to).toBeUndefined(); // contract creation
     expect(sends[0].params?.[0].data?.startsWith("0x6080")).toBe(true);
     // The manager's liquidity tab offers Base DEXs (not PancakeSwap).

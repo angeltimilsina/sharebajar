@@ -9,6 +9,7 @@ import { ChainIcon } from "../ui/ChainIcon";
 import { TokenLauncher, type LaunchPreset } from "../discover/TokenLauncher";
 import { EvmTokenLauncher } from "../discover/EvmTokenLauncher";
 import { EVM_LAUNCH_CHAINS } from "@/lib/launch/evmToken";
+import { CreatePool } from "./CreatePool";
 
 const NETS = [
   { id: "solana", name: "Solana", wallet: "Solana wallet", note: "SPL token + Metaplex metadata" },
@@ -162,6 +163,11 @@ export function LaunchWizard() {
                   {token ? <span className="inline-flex items-center gap-1 text-up text-[12.5px] font-semibold"><Check size={14} /> Live</span>
                     : !isActive ? <Button size="sm" variant="ghost" onClick={() => setActive(n.id)}>Launch</Button> : null}
                 </div>
+                {token && (
+                  <div className="px-3 pb-3" data-testid={`pool-${n.id}`}>
+                    <CreatePool chain={n.id} token={token} symbol={d.symbol} decimals={n.id === "solana" ? Number(d.decimals) : 18} />
+                  </div>
+                )}
                 {isActive && (
                   <div className="px-3 pb-3">
                     {n.id === "solana"
