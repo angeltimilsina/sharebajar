@@ -43,6 +43,18 @@ export async function POST(req: Request) {
   }
   const c = getChain(chain);
   try {
+    // Learn sandbox: Solana devnet (test coins with no value). Airdrops are rate-limited per visitor.
+    if (chain === "solana-devnet") {
+      if (method === "requestAirdrop") {
+        const a = rateLimit(`airdrop:${clientIp(req)}`, 3, 0.05);
+        if (!a.ok) return NextResponse.json({ error: { message: "Airdrop limit reached. Use faucet.solana.com or try again later." } }, { status: 429 });
+        const lamports = Number(params[1]);
+        if (typeof params[0] !== "string" || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(params[0]) || !(lamports > 0 && lamports <= 1e9)) return NextResponse.json({ error: { message: "Invalid airdrop" } }, { status: 400 });
+        return NextResponse.json({ result: await srpc(method, [params[0], lamports], "testnet") });
+      }
+      if (!SOL.has(method)) return NextResponse.json({ error: { message: `Method ${method} not allowed` } }, { status: 403 });
+      return NextResponse.json({ result: await srpc(method, params, "testnet") });
+    }
     if (chain === "solana") {
       if (!SOL.has(method)) return NextResponse.json({ error: { message: `Method ${method} not allowed` } }, { status: 403 });
       return NextResponse.json({ result: await srpc(method, params) });

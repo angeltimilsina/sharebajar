@@ -257,7 +257,7 @@ export interface PlanEntry { path: string; priority: number; changeFrequency: "a
 export async function seoPlan(): Promise<PlanEntry[]> {
   const now = new Date();
   const e = (path: string, priority: number, changeFrequency: PlanEntry["changeFrequency"] = "hourly"): PlanEntry => ({ path, priority, changeFrequency, lastModified: now });
-  const out: PlanEntry[] = [e("/", 1), e("/tokens", 0.95), e("/discover", 0.9), e("/markets", 0.9), e("/trade", 0.7), e("/launchpad", 0.8), e("/pro", 0.6), e("/intelligence", 0.6)];
+  const out: PlanEntry[] = [e("/", 1), e("/tokens", 0.95), e("/discover", 0.9), e("/markets", 0.9), e("/trade", 0.7), e("/launchpad", 0.8), e("/pro", 0.6), e("/learn", 0.7), e("/intelligence", 0.6)];
   out.push(...TOPICS.map((t) => e(`/markets/${t.slug}`, t.kind === "ranking" ? 0.85 : 0.75)));
   try {
     const { coins } = await universe();

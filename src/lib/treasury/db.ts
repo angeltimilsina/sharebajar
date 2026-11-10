@@ -233,6 +233,13 @@ create table if not exists token_profiles (
   updated_at timestamptz not null default now(),
   primary key (chain, token)
 );
+create table if not exists accounts (
+  profile_id text primary key,
+  display_name text not null,
+  email text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 create table if not exists connect_tokens (
   token_hash text primary key,
   profile_id text not null,

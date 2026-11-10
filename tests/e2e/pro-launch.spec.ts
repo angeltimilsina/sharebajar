@@ -63,6 +63,7 @@ test.describe("Bajar Pro", () => {
     await page.getByTestId("bajar-pw-ack").check();
     await page.getByTestId("bajar-pw-next").click();
     await expect(page.getByTestId("bajar-done")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("bajar-signup-name").fill("Test Student");
     await page.getByTestId("bajar-done-signin").click();
     await page.getByTestId("bajar-approve").click();
     await expect(page.getByTestId("bajar-signin-ok")).toBeVisible({ timeout: 20_000 });
@@ -222,5 +223,23 @@ test.describe("Admin with Bajar Wallet", () => {
     await box.getByTestId("bajar-admin-signin").click();
     await page.getByTestId("bajar-approve").click();
     await expect(box.getByText("Signed in, but not a treasury admin")).toBeVisible({ timeout: 20_000 });
+  });
+});
+
+test.describe("Learn", () => {
+  test.setTimeout(150_000);
+  test("lessons with quizzes and a devnet student sandbox", async ({ page }) => {
+    await page.goto("/learn");
+    await expect(page.getByTestId("learn-progress")).toHaveText("0 / 6 lessons");
+    const lesson = page.getByTestId("lesson-wallets");
+    await lesson.getByRole("button", { name: "Refuse — nobody legitimate ever needs it" }).click();
+    await expect(page.getByTestId("learn-progress")).toHaveText("1 / 6 lessons");
+    const sb = page.getByTestId("sandbox");
+    await expect(sb.getByTestId("sandbox-address")).toHaveText(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+    await expect(sb.getByTestId("sandbox-balance")).toBeVisible(); // devnet may be unreachable from CI
+    await expect(sb.getByTestId("sandbox-launch")).toBeDisabled(); // needs test SOL first
+    // The relay serves devnet only through its own chain id and limits airdrops.
+    const r = await page.evaluate(() => fetch("/api/wallet/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "solana-devnet", method: "requestAirdrop", params: ["11111111111111111111111111111111", 5e9] }) }).then((x) => x.status));
+    expect(r).toBe(400); // more than 1 SOL refused
   });
 });

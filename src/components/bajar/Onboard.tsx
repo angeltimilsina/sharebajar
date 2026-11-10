@@ -471,6 +471,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
   const a = bajar.accounts();
   const s = settings();
   const [signin, setSignin] = useState<{ state: "idle" | "busy" | "ok" | "err"; text?: string }>({ state: "idle" });
+  const [acct, setAcct] = useState({ name: "", email: "" });
   const checks = [
     ...environmentChecks().map((c) => ({ label: c.label, ok: c.ok })),
     { label: "Encrypted on this device (scrypt + AES-256-GCM)", ok: true },
@@ -488,19 +489,29 @@ function Done({ onFinish }: { onFinish: () => void }) {
         {checks.map((c) => <li key={c.label} className="flex items-center gap-2 px-3 py-2">{c.ok ? <ShieldCheck size={15} className="text-up shrink-0" /> : <ShieldAlert size={15} className="text-warn shrink-0" />}{c.label}</li>)}
       </ul>
       {a && <div className="text-[11px] text-muted space-y-0.5 font-mono"><div className="truncate">BTC {a.bitcoin.address}</div><div className="truncate">EVM {a.evm.address}</div><div className="truncate">SOL {a.solana.address}</div></div>}
-      <div className="rounded-xl border border-line p-3 space-y-2">
-        <div className="text-sm font-medium">Sign in to Bajar <span className="text-muted font-normal">(optional)</span></div>
-        <p className="text-xs text-muted">Proves you own this wallet with two signatures (Ed25519 + post-quantum ML-DSA-65), verified by the server. No transaction, no fees.</p>
+      <div className="rounded-xl border border-line p-3 space-y-2" data-testid="bajar-signup">
+        <div className="text-sm font-medium">Create your Bajar account</div>
+        <p className="text-xs text-muted">Your wallet is your login: signing up signs a message with Ed25519 + post-quantum ML-DSA-65, verified by the server. No password, no transaction, no fees.</p>
         {signin.state === "ok" ? <p className="text-xs text-up" data-testid="bajar-signin-ok">{signin.text}</p> : (
-          <Button size="sm" variant="outline" disabled={signin.state === "busy"} data-testid="bajar-done-signin" onClick={async () => {
-            setSignin({ state: "busy" });
-            try { const ss = await hybridSignIn(); setSignin({ state: "ok", text: `Signed in · both signatures verified (PQ ${ss.pq?.fingerprint.split(":").pop()?.slice(0, 8)})` }); }
-            catch (e) { setSignin({ state: "err", text: (e as Error).message }); }
-          }}>{signin.state === "busy" ? <Loader2 size={13} className="animate-spin" /> : <LogIn size={13} />}Sign in</Button>
+          <>
+            <input value={acct.name} onChange={(e) => setAcct((x) => ({ ...x, name: e.target.value }))} maxLength={40} placeholder="Display name" aria-label="Display name" data-testid="bajar-signup-name" className="no-ring w-full h-10 rounded-lg border border-line bg-surface-2 px-3 text-[16px] sm:text-sm outline-none" />
+            <input value={acct.email} onChange={(e) => setAcct((x) => ({ ...x, email: e.target.value }))} maxLength={120} type="email" placeholder="Email (optional)" aria-label="Email" data-testid="bajar-signup-email" className="no-ring w-full h-10 rounded-lg border border-line bg-surface-2 px-3 text-[16px] sm:text-sm outline-none" />
+            <Button size="sm" disabled={signin.state === "busy" || acct.name.trim().length < 2} data-testid="bajar-done-signin" onClick={async () => {
+              setSignin({ state: "busy" });
+              try {
+                const ss = await hybridSignIn();
+                const r = await fetch("/api/account", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: acct.name.trim(), email: acct.email.trim() }) });
+                const b = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(b.error ?? "Couldn't save your details");
+                setSignin({ state: "ok", text: `Signed up as ${acct.name.trim()} · both signatures verified (PQ ${ss.pq?.fingerprint.split(":").pop()?.slice(0, 8)})` });
+              } catch (e) { setSignin({ state: "err", text: (e as Error).message }); }
+            }}>{signin.state === "busy" ? <Loader2 size={13} className="animate-spin" /> : <LogIn size={13} />}Sign up with this wallet</Button>
+            <p className="text-[11px] text-faint">We use your name in the app; email only if you add it. Never shared.</p>
+          </>
         )}
         {signin.state === "err" && <p className="text-xs text-down">{signin.text}</p>}
       </div>
-      <Button className="w-full h-11" onClick={onFinish} data-testid="bajar-open">Open wallet</Button>
+      <Button className="w-full h-11" variant={signin.state === "ok" ? "primary" : "outline"} onClick={onFinish} data-testid="bajar-open">{signin.state === "ok" ? "Open wallet" : "Skip for now and open wallet"}</Button>
     </div>
   );
 }

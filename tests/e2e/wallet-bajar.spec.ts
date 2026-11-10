@@ -110,10 +110,13 @@ test.describe("Bajar Wallet", () => {
 
   test("hybrid sign-in requires approval and verifies both signatures", async ({ page }) => {
     await importTestWallet(page);
+    await page.getByTestId("bajar-signup-name").fill("Test Student");
     await page.getByTestId("bajar-done-signin").click();
     await expect(page.getByTestId("bajar-approval")).toBeVisible();
     await page.getByTestId("bajar-approve").click();
-    await expect(page.getByTestId("bajar-signin-ok")).toContainText("both signatures verified", { timeout: 20_000 });
+    await expect(page.getByTestId("bajar-signin-ok")).toContainText("Signed up as Test Student · both signatures verified", { timeout: 20_000 });
+    const acct = await page.evaluate(() => fetch("/api/account").then((r) => r.json()));
+    expect(acct.account?.name).toBe("Test Student");
   });
 
   test("send screen screens a known-malicious recipient", async ({ page }) => {
