@@ -13,7 +13,9 @@ test.describe("journey", () => {
     const side = page.getByTestId("wallet-sidebar");
     await expect(side.getByTestId("menu-connect")).toBeVisible();
     await expect(side.getByRole("link", { name: "Portfolio" })).toBeVisible();
-    await expect(side.getByTestId("open-agent")).toBeVisible();
+    await expect(side.getByTestId("open-agent")).toHaveCount(0); // the agent lives on Profile & Pro
+    await expect(side.getByRole("link", { name: "Activity" })).toHaveCount(0); // no wallet yet
+    await expect(side.getByRole("link", { name: "Profile & Pro" })).toBeVisible();
     // Collapses to an icon rail and remembers it.
     await page.getByTestId("sidebar-collapse").click();
     await expect(page.locator("html")).toHaveAttribute("data-sb", "collapsed");

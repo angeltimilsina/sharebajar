@@ -53,8 +53,10 @@ test.describe("multi-wallet", () => {
     await expect(details.getByText("Held in")).toBeVisible();
     await expect(details.getByTestId("asset-acquired")).toBeVisible();
 
-    // The agent gets values, never addresses.
-    await page.getByTestId("open-agent").click();
+    // The agent (on Profile & Pro) gets values, never addresses.
+    await expect(page.getByTestId("wallet-sidebar").getByRole("link", { name: "Activity" })).toBeVisible();
+    await page.getByTestId("wallet-sidebar").getByRole("link", { name: "Profile & Pro" }).click();
+    await page.getByTestId("pro-agent").getByTestId("open-agent").click();
     await expect(page).toHaveURL(/\/intelligence\?agent=portfolio/);
     await expect(page.getByTestId("agent-portfolio")).toBeVisible();
     const stash = await page.evaluate(() => sessionStorage.getItem("bajar.agent.portfolio") ?? "");

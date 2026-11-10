@@ -6,6 +6,7 @@ import { Check, Crown, Link2, Loader2, Minus, ShieldCheck, Sparkles } from "luci
 import { useWallet } from "../wallet/WalletProvider";
 import { useProfile } from "@/hooks/useProfile";
 import { Button, Card, CardHeader, Notice } from "../ui/primitives";
+import { AgentButton } from "../ai/AgentButton";
 import { shortAddress } from "@/lib/format";
 import { buildProPayment, sendAndConfirm } from "@/lib/pro/checkout";
 
@@ -48,6 +49,11 @@ export function ProPage() {
           </div>
         </Card>
         <div className="space-y-4">
+          <Card className="p-4 sm:p-5" data-testid="pro-agent">
+            <h2 className="text-[17px] font-semibold">Investment agent</h2>
+            <p className="text-[13px] text-muted mt-1 mb-3">{p.isPro ? "Pro: reads your wallet live, runs a risk report and drafts trade steps you approve." : "Ask about your portfolio with live market data. Pro adds live wallet reads, risk reports and trade plans."}</p>
+            <AgentButton />
+          </Card>
           <WalletsCard />
           <Checkout />
         </div>

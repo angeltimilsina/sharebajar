@@ -134,7 +134,6 @@ function Research({ assets, onAsk }: { assets: Asset[]; onAsk: (q?: string) => v
           <button key={q} onClick={() => onAsk(q)} className="text-left rounded-xl bg-surface-2 hover:bg-surface-3 px-3 py-2 text-[13px]">{q}</button>
         ))}
       </div>
-      <button onClick={() => onAsk()} className="mt-3 w-full h-10 rounded-xl text-white text-[13.5px] font-semibold inline-flex items-center justify-center gap-1.5" style={{ background: "linear-gradient(135deg,#bf5af2,#0a84ff)" }}><Sparkles size={14} />Open investment agent</button>
     </Card>
   );
 }
