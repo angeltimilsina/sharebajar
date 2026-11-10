@@ -4,6 +4,7 @@ import { Lock, ShieldCheck, Wallet, AlertTriangle } from "lucide-react";
 import { useWallet } from "../wallet/WalletProvider";
 import { Badge, Button, Card, Notice, Tabs } from "../ui/primitives";
 import { useMe } from "./client";
+import { BajarAdminSignIn } from "./BajarAdminSignIn";
 import { Overview } from "./Overview";
 import { Setup } from "./Setup";
 import { Treasuries } from "./Treasuries";
@@ -36,8 +37,12 @@ export function TreasuryApp() {
         <Lock className="mx-auto text-brand" size={32} />
         <h1 className="text-xl font-semibold mt-3">Bajar Treasury</h1>
         <p className="text-sm text-muted mt-1">Private administration. Sign in with an authorized admin wallet. You will sign a message — no transaction, no fees.</p>
-        <div className="mt-5 flex justify-center gap-2">
-          {!wallet ? <Button onClick={openModal}><Wallet size={15} /> Connect wallet</Button>
+        <div className="mt-5" data-testid="admin-bajar">
+          <BajarAdminSignIn onSignedIn={reload} />
+        </div>
+        <div className="my-4 text-[12px] text-faint">or use another wallet</div>
+        <div className="flex justify-center gap-2">
+          {!wallet ? <Button variant="outline" onClick={openModal}><Wallet size={15} /> Connect wallet</Button>
             : !signedInAs ? <Button onClick={async () => { await signIn(); reload(); }}><ShieldCheck size={15} /> Sign in with wallet</Button>
             : <Notice tone="warn">{wallet.address} is signed in but is not an authorized treasury admin. This attempt has been logged.</Notice>}
         </div>

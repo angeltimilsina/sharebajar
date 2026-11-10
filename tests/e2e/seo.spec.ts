@@ -53,8 +53,10 @@ test.describe("seo", () => {
 
   test("launchpad: form is usable and the wallet is only requested to launch", async ({ page }) => {
     await page.goto("/launchpad");
-    await expect(page.getByLabel("Token name")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("launch-connect")).toBeVisible();
+    await expect(page.getByLabel("Token name", { exact: true })).toBeVisible({ timeout: 30_000 });
+    // No wallet is requested to fill the details or pick networks.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByTestId("wizard-next")).toBeDisabled();
   });
 });
 

@@ -3,6 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "../wallet/WalletProvider";
 import { getSolanaProvider, solanaSignMessage } from "@/lib/wallet/solana";
 import { evmSignMessage, getEvmProvider } from "@/lib/wallet/evm";
+import bs58 from "bs58";
+import { bajar } from "@/lib/bajar/session";
+import { currentSession } from "@/lib/bajar/auth";
+import { bajarSolanaProvider } from "@/lib/bajar/providers";
 
 export async function api<T = unknown>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const r = await fetch(path, { method: init?.method ?? (init?.body ? "POST" : "GET"), headers: init?.body ? { "content-type": "application/json" } : undefined, body: init?.body ? JSON.stringify(init.body) : undefined, cache: "no-store" });
@@ -29,8 +33,16 @@ export const can = (me: Me | null, role: keyof typeof RANK) => !!me?.actor && RA
 
 /** Sign a human-readable message with the currently connected wallet. */
 export function useSigner() {
-  const { wallet } = useWallet();
+  const { wallet, session } = useWallet();
   const sign = useCallback(async (message: string): Promise<{ signer: string; signature: string }> => {
+    // Signed in with Bajar Wallet (hybrid sign-in): approvals are signed by Bajar Wallet, through its approval screen.
+    const a = bajar.isUnlocked() ? bajar.accounts() : null;
+    const s = await currentSession().catch(() => null);
+    if (a && s?.address === a.solana.address) {
+      const res = await bajarSolanaProvider().signMessage(new TextEncoder().encode(message));
+      const sig = res instanceof Uint8Array ? res : (res as { signature: Uint8Array }).signature;
+      return { signer: a.solana.address, signature: bs58.encode(sig) };
+    }
     if (!wallet) throw new Error("Connect a wallet first.");
     if (wallet.chainType === "solana") {
       const p = getSolanaProvider(wallet.walletId);
@@ -40,7 +52,7 @@ export function useSigner() {
     const p = getEvmProvider(wallet.walletId);
     if (!p) throw new Error("Wallet unavailable");
     return { signer: wallet.address, signature: await evmSignMessage(p, wallet.address, message) };
-  }, [wallet]);
+  }, [wallet, session]); // eslint-disable-line react-hooks/exhaustive-deps
   return { sign, wallet };
 }
 

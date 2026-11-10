@@ -198,3 +198,29 @@ test.describe("Launchpad", () => {
     await expect(s.getByRole("link", { name: /Raydium/ })).toBeVisible();
   });
 });
+
+test.describe("Admin with Bajar Wallet", () => {
+  test.setTimeout(150_000);
+  test("treasury admin: unlock Bajar Wallet in place and sign in with it (not an owner → told which address to authorize)", async ({ page }) => {
+    await page.goto("/wallet");
+    await page.getByRole("tab", { name: "Import", exact: true }).click();
+    await page.getByTestId("bajar-import-phrase").fill("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+    await page.getByTestId("bajar-ack-public").check();
+    await page.getByTestId("bajar-import-next").click();
+    await page.getByTestId("bajar-accounts-next").click();
+    await page.getByTestId("bajar-password").fill("orbit-lantern-quiet-maple-29");
+    await page.getByTestId("bajar-password2").fill("orbit-lantern-quiet-maple-29");
+    await page.getByTestId("bajar-pw-ack").check();
+    await page.getByTestId("bajar-pw-next").click();
+    await expect(page.getByTestId("bajar-done")).toBeVisible({ timeout: 60_000 });
+
+    await page.goto("/admin/treasury"); // full load: Bajar Wallet is locked again
+    const box = page.getByTestId("admin-bajar");
+    await box.getByTestId("bajar-password").fill("orbit-lantern-quiet-maple-29");
+    await box.getByTestId("bajar-unlock").click();
+    await expect(box.getByTestId("bajar-admin-address")).toHaveText("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk", { timeout: 60_000 });
+    await box.getByTestId("bajar-admin-signin").click();
+    await page.getByTestId("bajar-approve").click();
+    await expect(box.getByText("Signed in, but not a treasury admin")).toBeVisible({ timeout: 20_000 });
+  });
+});
