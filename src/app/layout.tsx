@@ -14,6 +14,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { AppViewSync } from "@/components/layout/AppViewSync";
 import { WalletSync } from "@/components/wallets/WalletSync";
 import { WalletSidebar } from "@/components/layout/WalletSidebar";
+import { DemoConsent } from "@/components/layout/DemoConsent";
 import { SIDEBAR_SCRIPT } from "@/lib/ui/sidebarScript";
 
 const SITE = siteUrl();
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AlertWatcher />
           <Toaster />
           <ApprovalHost />
+          <DemoConsent />
         </WalletProvider>
       </body>
     </html>

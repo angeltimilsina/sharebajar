@@ -254,3 +254,23 @@ test.describe("Learn", () => {
     expect(r).toBe(400); // more than 1 SOL refused
   });
 });
+
+test.describe("Demo notice", () => {
+  test("first visit asks for explicit consent; accepted once, it stays away", async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const page = await ctx.newPage();
+    await page.goto("/");
+    const d = page.getByTestId("demo-consent");
+    await expect(d).toBeVisible();
+    await expect(d.getByText("demo / beta")).toBeVisible();
+    await expect(d.getByTestId("consent-accept")).toBeDisabled();
+    await d.getByTestId("consent-demo").check();
+    await expect(d.getByTestId("consent-accept")).toBeDisabled(); // both are required
+    await d.getByTestId("consent-risk").check();
+    await d.getByTestId("consent-accept").click();
+    await expect(d).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("demo-consent")).toHaveCount(0);
+    await ctx.close();
+  });
+});

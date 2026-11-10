@@ -7,7 +7,8 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 20_000 },
   retries: process.env.CI ? 1 : 0,
-  use: { baseURL: `http://localhost:${PORT}`, trace: "off" },
+  // Tests start with the demo notice already accepted (one test checks the notice itself).
+  use: { baseURL: `http://localhost:${PORT}`, trace: "off", storageState: { cookies: [{ name: "bajar_consent", value: "v1", domain: "localhost", path: "/", expires: -1, httpOnly: false, secure: false, sameSite: "Lax" }], origins: [] } },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } }, grepInvert: /@mobile/ },
     { name: "mobile", use: { ...devices["Pixel 7"] }, grep: /@mobile/ },
