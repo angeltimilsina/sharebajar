@@ -37,9 +37,11 @@ export async function hybridSignIn(): Promise<BajarSession> {
   });
   const b = await v.json();
   if (!v.ok) throw new Error(b.error ?? "Sign-in failed");
+  window.dispatchEvent(new Event("bajar:session"));
   return b.session as BajarSession;
 }
 
 export async function signOut() {
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+  window.dispatchEvent(new Event("bajar:session"));
 }

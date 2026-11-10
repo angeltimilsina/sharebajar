@@ -121,6 +121,7 @@ function Checkout() {
   return (
     <Card className="p-4 sm:p-5" data-testid="pro-checkout">
       <div className="flex items-center gap-2"><Sparkles size={16} className="text-ai" /><h2 className="text-[17px] font-semibold">{p.isPro ? "Extend Pro" : "Get Pro"}</h2></div>
+      {p.isPro && !p.profile?.plan.until && <p className="text-[13px] text-up mt-1" data-testid="pro-comp">Pro is enabled for this account (complimentary, for testing).</p>}
       {p.isPro && p.profile?.plan.until && <p className="text-[13px] text-muted mt-1">Pro until {new Date(p.profile.plan.until).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}. Paying again adds {p.pricing?.periodDays ?? 30} days.</p>}
       {step === "done" ? (
         <Notice title="Welcome to Pro" className="mt-3">Your advanced agent is ready. <Link href="/intelligence?agent=portfolio" className="underline">Open the investment agent</Link></Notice>

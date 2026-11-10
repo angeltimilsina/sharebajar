@@ -7,6 +7,7 @@ import {
   Check, Crown, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
 } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
+import { useBajar } from "../bajar/useBajar";
 import { useWallet } from "../wallet/WalletProvider";
 import { lock } from "@/lib/bajar/session";
 import { shortAddress } from "@/lib/format";
@@ -97,6 +98,7 @@ const rowCls = (compact: boolean) => clsx("w-full flex items-center rounded-xl t
 function Body({ compact }: { compact: boolean }) {
   const path = usePathname();
   const { wallet, bajarUnlocked } = useConnected();
+  const { hasVault } = useBajar();
   const { openModal, disconnect, session, signIn, signOut, error, sync, syncing } = useWallet();
   const [copied, setCopied] = useState(false);
   const [hash, setHash] = useState("");
@@ -186,6 +188,11 @@ function Body({ compact }: { compact: boolean }) {
             {href === "/wallet" && bajarUnlocked && !compact && <span className="ml-auto text-xs text-up">Unlocked</span>}
           </Link>
         ))}
+        {hasVault && !bajarUnlocked && (
+          <Link href="/wallet" title={compact ? "Bajar Wallet locked — unlock" : undefined} className={clsx(row, "!text-warn")} data-testid="bajar-locked">
+            <Lock size={16} />{label("Bajar Wallet locked · Unlock")}
+          </Link>
+        )}
         {bajarUnlocked && (
           <button type="button" className={row} title={compact ? "Lock Bajar Wallet" : undefined} onClick={() => lock()}>
             <Lock size={16} />{label("Lock Bajar Wallet")}

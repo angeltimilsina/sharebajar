@@ -162,6 +162,7 @@ export function TokenLauncher({ onManage, preset, fee: feeOverride, groupKey, on
       })();
       setResult({ mint: mintAddress, signature });
       setStep("done");
+      void import("@/lib/launch/mine").then((m) => m.trackInBajarWallet({ mint: mintAddress, chain: "solana", symbol: f.symbol, decimals, creator: wallet.address }));
       onLaunched?.(mintAddress);
     } catch (e) {
       const m = (e as Error).message;

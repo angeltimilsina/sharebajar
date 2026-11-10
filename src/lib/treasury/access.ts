@@ -4,6 +4,7 @@ import { SESSION_COOKIE, unseal, verifyEvm, verifySolana, type Session } from ".
 import { clientIp } from "../server/ratelimit";
 import { q } from "./db";
 import { alert, audit } from "./audit";
+import { BOOTSTRAP_OWNERS } from "../config/accounts";
 
 /**
  * Role-based access for /admin/treasury.
@@ -26,7 +27,8 @@ export class AccessError extends Error {
 const norm = (a: string) => (a.startsWith("0x") ? a.toLowerCase() : a);
 
 export function envOwners(): string[] {
-  return (process.env.TREASURY_OWNERS ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(norm);
+  // TREASURY_OWNERS plus owners granted in code (src/lib/config/accounts.ts).
+  return [...new Set([...(process.env.TREASURY_OWNERS ?? "").split(","), ...BOOTSTRAP_OWNERS].map((s) => s.trim()).filter(Boolean).map(norm))];
 }
 
 export const FRESH_MS = Number(process.env.TREASURY_FRESH_AUTH_MINUTES ?? 30) * 60_000;

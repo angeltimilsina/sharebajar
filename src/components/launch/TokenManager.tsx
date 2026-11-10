@@ -57,7 +57,16 @@ export function TokenManager({ chain, token }: { chain: string; token: string })
   const [tab, setTab] = useState<TabId>("overview");
   const [copied, setCopied] = useState(false);
   const load = useCallback(() => {
-    fetch(`/api/launch/token?chain=${chain}&token=${token}`).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error ?? "Unavailable"); setData(b); }).catch((e) => setErr((e as Error).message));
+    const get = () => fetch(`/api/launch/token?chain=${chain}&token=${token}`).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error ?? "Unavailable"); return b as TokenData; });
+    get().then(async (b) => {
+      setData(b);
+      // A Solana token that isn't recorded yet (e.g. launched before records worked): import it.
+      // The server verifies on-chain which wallet created it, so the creator can manage it here.
+      if (!b.launch && chain === "solana") {
+        const r = await fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mint: token }) }).catch(() => null);
+        if (r?.ok) setData(await get());
+      }
+    }).catch((e) => setErr((e as Error).message));
   }, [chain, token]);
   useEffect(load, [load]);
   useEffect(() => { const h = window.location.hash.slice(1); if (["overview", "profile", "supply", "liquidity"].includes(h)) setTab(h as TabId); }, []);

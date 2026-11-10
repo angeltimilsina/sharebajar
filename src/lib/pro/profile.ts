@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { q, newId } from "@/lib/treasury/db";
 import { SESSION_COOKIE, unseal, type Session } from "@/lib/server/auth";
 import { listTreasuries } from "@/lib/treasury/store";
+import { PRO_COMP } from "@/lib/config/accounts";
 
 /**
  * A profile belongs to a Bajar Wallet (created by its hybrid Ed25519 +
@@ -37,8 +38,11 @@ export async function profileForSession(s: Session): Promise<string> {
   return (await q<{ profile_id: string }>("select profile_id from profile_wallets where address = $1", [addr]))[0].profile_id;
 }
 
-export interface Plan { tier: "free" | "pro"; until: string | null }
+export interface Plan { tier: "free" | "pro"; until: string | null; complimentary?: boolean }
 export async function planOf(profileId: string): Promise<Plan> {
+  // Complimentary Pro for addresses granted in code / PRO_COMP_ADDRESSES (testing before launch).
+  const comp = new Set(PRO_COMP.map((a) => (a.startsWith("0x") ? a.toLowerCase() : a)));
+  if (comp.size && (await walletsOf(profileId)).some((w) => comp.has(w.address))) return { tier: "pro", until: null, complimentary: true };
   const r = (await q<{ until: string | Date | null }>("select max(period_end) as until from subscriptions where profile_id = $1", [profileId]))[0];
   const until = r?.until ? new Date(r.until) : null;
   return until && until.getTime() > Date.now() ? { tier: "pro", until: until.toISOString() } : { tier: "free", until: until?.toISOString() ?? null };

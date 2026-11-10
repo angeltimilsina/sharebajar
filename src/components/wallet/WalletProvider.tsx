@@ -102,7 +102,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async (walletId: string, chainType: ChainType, name: string, silent = false) => {
     setError(null);
-    setConnecting(walletId);
+    // Silent reconnects (focus, visibility) don't show a "connecting" state: no flicker.
+    if (!silent) setConnecting(walletId);
     try {
       if (chainType === "solana") {
         const p = getSolanaProvider(walletId);
@@ -258,15 +259,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     startEvmDiscovery();
-    fetch("/api/auth/session").then((r) => r.json()).then((b) => setSession(b.session ?? null)).catch(() => {});
+    // The sign-in session lives in an httpOnly cookie: re-read it on return and after Bajar Wallet signs in/out,
+    // so the UI never shows "signed out" while the session is still valid (or the reverse).
+    const readSession = () => fetch("/api/auth/session", { cache: "no-store" }).then((r) => r.json()).then((b) => setSession((s) => {
+      const n = b.session ?? null;
+      return s && n && s.address === n.address && s.exp === n.exp ? s : n;
+    })).catch(() => {});
+    readSession();
     sync();
     let lastRun = Date.now();
-    const again = () => { if (document.visibilityState === "visible" && Date.now() - lastRun > 1500) { lastRun = Date.now(); sync(); } };
+    const again = () => { if (document.visibilityState === "visible" && Date.now() - lastRun > 1500) { lastRun = Date.now(); sync(); readSession(); } };
+    window.addEventListener("bajar:session", readSession);
     const onShow = (e: PageTransitionEvent) => { if (e.persisted) again(); };
     document.addEventListener("visibilitychange", again);
     window.addEventListener("focus", again);
     window.addEventListener("pageshow", onShow);
-    return () => { document.removeEventListener("visibilitychange", again); window.removeEventListener("focus", again); window.removeEventListener("pageshow", onShow); cleanup.current?.(); };
+    return () => { document.removeEventListener("visibilitychange", again); window.removeEventListener("focus", again); window.removeEventListener("pageshow", onShow); window.removeEventListener("bajar:session", readSession); cleanup.current?.(); };
   }, [sync]);
 
   const disconnect = useCallback(async () => {

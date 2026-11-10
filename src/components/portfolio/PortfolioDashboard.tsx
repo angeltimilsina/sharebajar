@@ -167,27 +167,48 @@ function Discover() {
 
 /* ── Launched tokens ───────────────────────────────────────────────────── */
 
-interface Launched { mint: string; chain: string; symbol: string; name: string; recorded: boolean }
+interface Launched { mint: string; chain: string; symbol: string; name: string; recorded: boolean; creator?: string; decimals?: number }
 
 /**
  * Tokens you launched: recorded launches for every wallet in the portfolio,
- * plus Solana mints the wallet still controls (mint or metadata authority),
- * which are imported in the background so they stay listed.
+ * launches in this browser's activity, and Solana mints the wallet created or
+ * still controls. Anything not yet recorded is imported in the background
+ * (the server verifies the creation transaction), so it stays listed and
+ * becomes manageable.
  */
 function LaunchedTokens({ addresses }: { addresses: { address: string; chain: string }[] }) {
   const [list, setList] = useState<Launched[] | null>(null);
+  const [bal, setBal] = useState<Record<string, string>>({});
   const key = addresses.map((a) => a.address).join(",");
   useEffect(() => {
     let alive = true;
     (async () => {
+      const { localLaunches, trackInBajarWallet } = await import("@/lib/launch/mine");
       const recorded = (await Promise.all(addresses.slice(0, 8).map((a) => fetch(`/api/launch/record?creator=${encodeURIComponent(a.address)}`).then((r) => r.json()).then((b) => (b.launches ?? []) as Launched[]).catch(() => [])))).flat().map((t) => ({ ...t, recorded: true }));
-      if (alive) setList(recorded);
+      const local = localLaunches(addresses.map((a) => a.address)).filter((l) => !recorded.some((r) => r.mint === l.mint)).map((l) => ({ ...l, recorded: false }));
+      const first = [...recorded, ...local];
+      if (alive) setList(first);
       const sol = addresses.filter((a) => a.chain === "solana").slice(0, 4);
-      const found = (await Promise.all(sol.map((a) => fetch(`/api/launch/discover?owner=${a.address}`).then((r) => r.json()).then((b) => (b.tokens ?? []) as Launched[]).catch(() => [])))).flat();
-      const missing = found.filter((f) => !recorded.some((r) => r.mint === f.mint)).map((f) => ({ ...f, recorded: false }));
-      if (alive && missing.length) setList([...recorded, ...missing]);
-      // Import them so the launchpad and token manager know them too (server verifies the creation tx).
-      for (const m of missing.slice(0, 5)) fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mint: m.mint }) }).catch(() => {});
+      const found = (await Promise.all(sol.map((a) => fetch(`/api/launch/discover?owner=${a.address}`).then((r) => r.json()).then((b) => ((b.tokens ?? []) as Launched[]).map((t) => ({ ...t, creator: a.address }))).catch(() => [])))).flat();
+      const missing = found.filter((f) => !first.some((r) => r.mint === f.mint)).map((f) => ({ ...f, recorded: false }));
+      const all = [...first, ...missing];
+      if (alive) setList(all);
+      for (const t of all) trackInBajarWallet(t);
+      // Import unrecorded ones so the launchpad and token manager know them too.
+      for (const m of all.filter((x) => !x.recorded).slice(0, 6)) fetch("/api/launch/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mint: m.mint }) }).catch(() => {});
+      // Your balance of each Solana launch (its associated token account; no indexed RPC needed).
+      const { PublicKey } = await import("@solana/web3.js");
+      const ATA = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"), TK = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+      const out: Record<string, string> = {};
+      await Promise.all(all.filter((t) => t.chain === "solana").slice(0, 12).flatMap((t) => sol.map(async (o) => {
+        try {
+          const acct = PublicKey.findProgramAddressSync([new PublicKey(o.address).toBuffer(), TK.toBuffer(), new PublicKey(t.mint).toBuffer()], ATA)[0].toBase58();
+          const r = await fetch("/api/wallet/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "solana", method: "getAccountInfo", params: [acct, { encoding: "jsonParsed" }] }) }).then((x) => x.json());
+          const ui = r.result?.value?.data?.parsed?.info?.tokenAmount?.uiAmountString;
+          if (ui && ui !== "0") out[t.mint] = ui;
+        } catch { /* no balance */ }
+      })));
+      if (alive) setBal(out);
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -207,7 +228,7 @@ function LaunchedTokens({ addresses }: { addresses: { address: string; chain: st
             <span className="relative"><TokenIcon symbol={t.symbol} size={34} /><span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-[1.5px]"><ChainIcon chain={t.chain} size={13} /></span></span>
             <span className="min-w-0 flex-1">
               <span className="block text-[14.5px] font-semibold truncate">{t.symbol} <span className="text-muted font-normal">· {t.name}</span></span>
-              <span className="block text-[11.5px] text-muted font-mono truncate">{t.mint.slice(0, 6)}…{t.mint.slice(-4)}</span>
+              <span className="block text-[11.5px] text-muted truncate"><span className="font-mono">{t.mint.slice(0, 6)}…{t.mint.slice(-4)}</span>{bal[t.mint] ? <> · you hold <span className="num">{Number(bal[t.mint]).toLocaleString()}</span></> : null}</span>
             </span>
             <Link href={`/token/${t.chain}/${t.mint}`} className="hidden sm:inline-flex h-9 px-3 rounded-full bg-surface-2 hover:bg-surface-3 items-center text-[13px]">Token page</Link>
             <Link href={`/launchpad/token/${t.chain}/${t.mint}`} className="h-9 px-3.5 rounded-full btn-ink inline-flex items-center text-[13px] font-semibold" data-testid="launched-manage">Manage</Link>
