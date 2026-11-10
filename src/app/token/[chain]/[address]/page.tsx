@@ -23,6 +23,7 @@ import { absolute } from "@/lib/site";
 import { formatPct } from "@/lib/format";
 import { Breadcrumbs, DataSummary, JsonLd, RelatedLinks } from "@/components/seo/SeoBlocks";
 import { trendingSearches } from "@/lib/seo/agent";
+import { PrePoolToken } from "@/components/token/PrePoolToken";
 
 /** Pools thinner than this aren't worth indexing (mostly spam / rugs). */
 const INDEX_MIN_LIQUIDITY = 10_000;
@@ -42,7 +43,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   try {
     const r = await loadPairs(chain, address);
     const p = r?.env.data[0];
-    if (!p) return { title: "Token not found" };
+    if (!p) return { title: "Token", robots: { index: false } };
     return {
       title: `${p.base.name} (${p.base.symbol}) price today on ${r!.chain.name} — live chart`,
       description: `${p.base.name} (${p.base.symbol}) price ${formatPrice(p.priceUsd)}, liquidity ${formatUsd(p.liquidityUsd)}, 24h volume ${formatUsd(p.volume.h24)}. Live chart, trades, holders and contract risk checks on Bajar.`,
@@ -70,6 +71,8 @@ export default async function TokenPage({ params, searchParams }: Params) {
   // Keep the pool the user tapped (Discover, search, feeds) — fall back to the deepest pool.
   const top = (pairParam && env.data.find((x) => x.pairAddress.toLowerCase() === pairParam.toLowerCase())) || env.data[0];
   if (!top) {
+    // No pool yet (e.g. just launched): show the token itself, with creator tools and next steps.
+    if (["solana", "ethereum", "base", "bsc"].includes(chain.id)) return <PrePoolToken chain={chain.id} chainName={chain.name} address={address} />;
     return (
       <Notice title="No trading pairs found" className="my-10">
         No active liquidity pools were found for <span className="num">{address}</span> on {chain.name}. The token may not be launched yet, or may trade on another network.

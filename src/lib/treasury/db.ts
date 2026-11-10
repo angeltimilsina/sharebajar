@@ -276,7 +276,21 @@ async function open(): Promise<Db> {
     const ssl = ca ? { ca, rejectUnauthorized: true } : wantsTls ? { rejectUnauthorized: false } : undefined;
     const pool = new Pool({ connectionString: u.toString(), max: 5, connectionTimeoutMillis: 10_000, ssl });
     const db: Db = { kind: "postgres", query: async (sql, params) => (await pool.query(sql, params as unknown[])).rows };
-    await pool.query(SCHEMA);
+    // Serverless starts many instances at once after a deploy; concurrent
+    // "create … if not exists" / "alter … add column if not exists" can fail
+    // with duplicate-object races. Apply the schema under an advisory lock.
+    const c = await pool.connect();
+    try {
+      await c.query("select pg_advisory_lock(74201001)");
+      for (let i = 0; ; i++) {
+        try { await c.query(SCHEMA); break; } catch (e) {
+          if (i >= 2 || !/already exists|duplicate key|concurrently/i.test(String(e))) throw e;
+        }
+      }
+    } finally {
+      await c.query("select pg_advisory_unlock(74201001)").catch(() => {});
+      c.release();
+    }
     return db;
   }
   if (process.env.NODE_ENV === "production" && process.env.VERCEL) {
