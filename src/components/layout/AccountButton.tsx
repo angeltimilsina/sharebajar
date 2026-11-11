@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Check, Copy, Crown, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, UserRound, Wallet, X } from "lucide-react";
+import { Check, Copy, Crown, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, ShoppingBag, UserRound, Wallet, X } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
 import { useWallet } from "../wallet/WalletProvider";
 import { useBajar } from "../bajar/useBajar";
@@ -110,6 +110,7 @@ function AccountPanel() {
         {hasVault && !bajarUnlocked && <Link href="/wallet" className={clsx(row, "!text-warn")} onClick={close} data-testid="bajar-locked"><Lock size={16} />Bajar Wallet locked · Unlock</Link>}
         {bajarUnlocked && <button type="button" className={row} onClick={() => { close(); lock(); }}><Lock size={16} />Lock Bajar Wallet</button>}
         <Link href="/pro" className={row} onClick={close}><Crown size={16} />Profile & Pro</Link>
+        <Link href="/agents/profile" className={row} onClick={close} data-testid="account-shopping-profile"><ShoppingBag size={16} />Shopping profile & store logins</Link>
       </div>
 
       <nav aria-label="More pages" className="space-y-0.5 border-t border-line pt-2" data-testid="account-pages">

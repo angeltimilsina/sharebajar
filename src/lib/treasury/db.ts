@@ -300,6 +300,20 @@ create table if not exists commerce_orders (
   updated_at timestamptz not null default now()
 );
 create index if not exists commerce_orders_wallet on commerce_orders (wallet);
+create table if not exists shopping_profiles (
+  profile_id text primary key,
+  data_enc text not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists store_accounts (
+  profile_id text not null,
+  store text not null,
+  account_name text,
+  token_enc text,
+  scopes text,
+  connected_at timestamptz not null default now(),
+  primary key (profile_id, store)
+);
 `;
 
 const g = globalThis as unknown as { __sbDb?: Promise<Db> };

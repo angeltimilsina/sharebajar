@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, ShieldCheck, XCircle } from "lucide-react";
 import type { Offer } from "@/lib/commerce/types";
 import { newIdempotencyKey, saveOrderToken, usd } from "@/lib/commerce/client";
 import { useWallet } from "../wallet/WalletProvider";
 import { Modal } from "../ui/Modal";
+import { SwipeToConfirm } from "../ui/SwipeToConfirm";
+import type { Profile } from "./ShoppingProfile";
 
 interface Quote {
   id: string; sandbox: boolean; quantity: number; lines: { label: string; usd: number; note?: string }[]; totalUsd: number; asset: string; network: string;
@@ -21,7 +23,11 @@ const SHIP = [{ id: "std", label: "Standard (5–7 days) · Free" }, { id: "exp"
  * wallet signature is the only thing that authorizes an order.
  */
 export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: Offer | null; asset: string; onClose: () => void }) {
-  const { wallet, openModal, signMessage } = useWallet();
+  const { wallet, openModal, signMessage, session } = useWallet();
+  const signedIn = !!(wallet && session && session.address.toLowerCase() === wallet.address.toLowerCase());
+  const [saved, setSaved] = useState<Profile | null>(null);
+  const [addrId, setAddrId] = useState<string>("new");
+  const [remember, setRemember] = useState(false);
   const [qty, setQty] = useState(1);
   const [ship, setShip] = useState("std");
   const [asset, setAsset] = useState(initialAsset);
@@ -35,6 +41,23 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
   const idem = useRef(newIdempotencyKey());
 
   useEffect(() => { if (offer) { setQuote(null); setOrder(null); setErr(null); setConsent(false); setQty(1); idem.current = newIdempotencyKey(); } }, [offer]);
+  // Clone the saved shopping profile into the form.
+  useEffect(() => {
+    if (!offer || !signedIn) { setSaved(null); return; }
+    fetch("/api/commerce/profile").then((r) => (r.ok ? r.json() : null)).then((b) => {
+      const pr = b?.profile as Profile | undefined;
+      if (!pr) return;
+      setSaved(pr);
+      const a = pr.addresses.find((x) => x.id === pr.defaultAddress) ?? pr.addresses[0];
+      if (a) { setAddrId(a.id); setAddr({ name: a.name, line1: a.line1, city: a.city, postal: a.postal, country: a.country, email: pr.email }); }
+      else setAddr((x) => ({ ...x, name: x.name || pr.name, email: x.email || pr.email }));
+    }).catch(() => {});
+  }, [offer, signedIn]);
+  const pickAddress = (id: string) => {
+    setAddrId(id);
+    const a = saved?.addresses.find((x) => x.id === id);
+    setAddr(a ? { name: a.name, line1: a.line1, city: a.city, postal: a.postal, country: a.country, email: saved?.email ?? "" } : { name: saved?.name ?? "", line1: "", city: "", postal: "", country: "US", email: saved?.email ?? "" });
+  };
   useEffect(() => { setAsset(wallet?.chainType === "evm" && (initialAsset === "SOL") ? "USDC" : wallet?.chainType === "solana" && initialAsset === "ETH" ? "USDC" : initialAsset); }, [initialAsset, wallet?.chainType]);
   useEffect(() => { if (!quote) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [quote]);
   // Any change to what's being bought invalidates the quote.
@@ -72,7 +95,15 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
       const r = await fetch("/api/commerce/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteId: quote.id, signature, idempotencyKey: idem.current, consent: true, shipping: { ...addr, email: addr.email || undefined } }) });
       const b = await r.json();
       if (!r.ok) setErr({ code: b.code, message: b.error ?? "Checkout failed. Nothing was charged." });
-      else { setOrder(b.order); if (b.order.token) saveOrderToken(b.order.token); }
+      else {
+        setOrder(b.order); if (b.order.token) saveOrderToken(b.order.token);
+        if (remember && signedIn) {
+          const base = saved ?? { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true };
+          const id = `a${Date.now().toString(36)}`;
+          const next: Profile = { ...base, name: base.name || addr.name, email: base.email || addr.email, addresses: [...base.addresses, { id, label: base.addresses.length ? "Other" : "Home", name: addr.name, line1: addr.line1, city: addr.city, postal: addr.postal, country: addr.country }].slice(0, 10), defaultAddress: base.defaultAddress ?? id };
+          fetch("/api/commerce/profile", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: next }) }).catch(() => {});
+        }
+      }
     } catch { setErr({ message: "Checkout failed. Nothing was charged." }); }
     setBusy(null);
   }
@@ -102,12 +133,20 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
 
                   <fieldset className="grid grid-cols-2 gap-2" data-testid="ship-form">
                     <legend className="text-[12px] text-faint mb-1">Ship to (encrypted; shared only with the merchant)</legend>
+                    {saved && saved.addresses.length > 0 && (
+                      <select className={`${input} col-span-2`} value={addrId} onChange={(e) => pickAddress(e.target.value)} aria-label="Saved address" data-testid="saved-address">
+                        {saved.addresses.map((a) => <option key={a.id} value={a.id}>{a.label} · {a.line1}, {a.city}</option>)}
+                        <option value="new">New address…</option>
+                      </select>
+                    )}
                     <input className={`${input} col-span-2`} placeholder="Full name" aria-label="Full name" value={addr.name} onChange={(e) => setAddr({ ...addr, name: e.target.value })} autoComplete="name" />
                     <input className={`${input} col-span-2`} placeholder="Street address" aria-label="Street address" value={addr.line1} onChange={(e) => setAddr({ ...addr, line1: e.target.value })} autoComplete="address-line1" />
                     <input className={input} placeholder="City" aria-label="City" value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} autoComplete="address-level2" />
                     <input className={input} placeholder="Postal code" aria-label="Postal code" value={addr.postal} onChange={(e) => setAddr({ ...addr, postal: e.target.value })} autoComplete="postal-code" />
                     <input className={input} placeholder="Country (US)" aria-label="Country" maxLength={2} value={addr.country} onChange={(e) => setAddr({ ...addr, country: e.target.value.toUpperCase() })} autoComplete="country" />
                     <input className={input} placeholder="Email (optional)" aria-label="Email" value={addr.email} onChange={(e) => setAddr({ ...addr, email: e.target.value })} autoComplete="email" />
+                    {signedIn && addrId === "new" && <label className="col-span-2 flex items-center gap-2 text-[12.5px] text-muted"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} data-testid="remember-address" />Save to my shopping profile</label>}
+                    {!signedIn && <Link href="/agents/profile" className="col-span-2 text-[12px] text-faint hover:text-fg">Sign in to fill this in from your shopping profile →</Link>}
                   </fieldset>
 
                   {!quote ? (
@@ -130,10 +169,17 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
                             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" data-testid="consent" />
                             I reviewed the item, fees and total. I&apos;ll authorize this payment myself in my wallet — Bajar agents can&apos;t pay for me.
                           </label>
-                          <button type="button" onClick={authorize} disabled={!consent || busy !== null} className="mt-3 w-full h-12 rounded-full btn-ink font-medium flex items-center justify-center gap-2 disabled:opacity-40" data-testid="authorize">
-                            {busy ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-                            {busy === "sign" ? "Approve in your wallet…" : busy === "submit" ? "Confirming with merchant…" : `Authorize ${quote.cryptoAmount} ${quote.asset}`}
-                          </button>
+                          <div className="mt-3">
+                            <SwipeToConfirm
+                              testId="authorize"
+                              label={`Swipe to pay ${quote.cryptoAmount} ${quote.asset}`}
+                              busyLabel={busy === "sign" ? "Approve in your wallet…" : "Confirming with merchant…"}
+                              busy={busy === "sign" || busy === "submit"}
+                              disabled={!consent || busy !== null}
+                              onConfirm={authorize}
+                            />
+                            <div className="mt-1.5 flex items-center justify-center gap-1 text-[11.5px] text-faint"><ShieldCheck size={12} />Your wallet will ask you to approve. Swiping alone pays nothing.</div>
+                          </div>
                         </>
                       )}
                     </div>

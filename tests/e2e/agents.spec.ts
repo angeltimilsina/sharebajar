@@ -25,6 +25,18 @@ async function stubPhantom(page: Page, opts: { reject?: boolean } = {}) {
   return pk;
 }
 
+/** Drags the swipe-to-pay knob to the end of its track (a real pointer gesture). */
+async function swipe(page: Page) {
+  const knob = page.getByTestId("authorize");
+  const track = page.getByTestId("authorize-track");
+  await expect(knob).toBeEnabled();
+  const k = (await knob.boundingBox())!, t = (await track.boundingBox())!;
+  await page.mouse.move(k.x + k.width / 2, k.y + k.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(k.x + k.width / 2 + ((t.width - k.width) * i) / 10, k.y + k.height / 2);
+  await page.mouse.up();
+}
+
 async function openCheckout(page: Page, product: string, title: RegExp) {
   await page.goto(`/agents?product=${product}`);
   const card = page.getByTestId("offer-card").filter({ hasText: title }).first();
@@ -91,7 +103,7 @@ test.describe("BAJAR Agents", () => {
     await sheet.getByLabel("Postal code").fill("78701");
     await review(page);
     await expect(sheet.getByTestId("quote-total")).toHaveText("$200.00"); // $199 + 0.5% fee
-    await sheet.getByTestId("authorize").click();
+    await swipe(page);
     await expect(sheet.getByTestId("receipt")).toHaveAttribute("data-status", "confirmed", { timeout: 15_000 });
     await expect(sheet.getByTestId("receipt")).toContainText("no funds moved");
 
@@ -108,7 +120,7 @@ test.describe("BAJAR Agents", () => {
     await stubPhantom(page, { reject: true });
     await openCheckout(page, "tst-sn1", /Sneakers/);
     const sheet = await review(page);
-    await sheet.getByTestId("authorize").click();
+    await swipe(page);
     await expect(sheet.getByTestId("checkout-error")).toHaveAttribute("data-code", "rejected");
     await expect(sheet.getByTestId("checkout-error")).toContainText("Nothing was charged");
   });
@@ -117,7 +129,7 @@ test.describe("BAJAR Agents", () => {
     await stubPhantom(page);
     await openCheckout(page, "tst-fail", /Merchant-offline/);
     const sheet = await review(page);
-    await sheet.getByTestId("authorize").click();
+    await swipe(page);
     await expect(sheet.getByTestId("receipt")).toHaveAttribute("data-status", "merchant_failed", { timeout: 15_000 });
     await expect(sheet.getByTestId("receipt")).toContainText("nothing was charged");
   });
@@ -127,7 +139,7 @@ test.describe("BAJAR Agents", () => {
     const s0 = await openCheckout(page, "tst-lp1", /Laptop/);
     await s0.getByTestId("qty").selectOption("2"); // 2 × $899 is over the $1,000/day of sandbox test funds
     const sheet = await review(page);
-    await sheet.getByTestId("authorize").click();
+    await swipe(page);
     await expect(sheet.getByTestId("checkout-error")).toHaveAttribute("data-code", "insufficient_funds");
   });
 
@@ -161,5 +173,57 @@ test.describe("BAJAR Agents", () => {
     await expect(page.getByTestId("capability")).toContainText("Checkout on the merchant's site");
     await expect(page.getByTestId("pay-with-bajar")).toHaveCount(0);
     await expect(page.getByTestId("external-checkout")).toHaveAttribute("href", "https://ridge.com/products/wallet");
+  });
+
+  test("shopping profile is cloned into checkout; store logins are OAuth-only", async ({ page }) => {
+    await stubPhantom(page);
+    await page.goto("/agents/profile");
+    await expect(page.getByTestId("store-amazon")).toContainText("Sign in with your Amazon account");
+    await expect(page.getByTestId("store-amazon-unavailable")).toBeVisible(); // not configured here
+    await page.getByTestId("profile-signin-btn").click();
+    await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
+    await page.getByTestId("profile-signin-btn").click(); // now "Sign in with wallet"
+    const form = page.getByTestId("shopping-profile");
+    await expect(form).toBeVisible({ timeout: 15_000 });
+    await form.getByLabel("Full name").first().fill("Ada Lovelace");
+    await form.getByLabel("Email").fill("ada@example.org");
+    await page.getByTestId("add-address").click();
+    const a = page.getByTestId("address").first();
+    await a.getByLabel("Street address").fill("1 Test St");
+    await a.getByLabel("City").fill("Austin");
+    await a.getByLabel("Postal code").fill("78701");
+    await page.getByTestId("save-profile").click();
+    await expect(page.getByTestId("profile-msg")).toContainText("Saved");
+    await page.reload();
+    await expect(page.getByTestId("address").first().getByLabel("City")).toHaveValue("Austin", { timeout: 15_000 });
+
+    await page.goto("/agents?product=tst-sn1");
+    await page.getByTestId("offer-card").filter({ hasText: /Sneakers/ }).first().click({ timeout: 40_000 });
+    await page.getByTestId("pay-with-bajar").click();
+    const sheet = page.getByTestId("checkout-sheet");
+    await expect(sheet.getByTestId("saved-address")).toBeVisible({ timeout: 15_000 });
+    await expect(sheet.getByLabel("Full name")).toHaveValue("Ada Lovelace");
+    await expect(sheet.getByLabel("Street address")).toHaveValue("1 Test St");
+    await expect(sheet.getByLabel("Email")).toHaveValue("ada@example.org");
+    await review(page);
+    await swipe(page);
+    await expect(sheet.getByTestId("receipt")).toHaveAttribute("data-status", "confirmed", { timeout: 15_000 });
+  });
+
+  test("swipe to pay: a partial swipe springs back; keyboard confirm works", async ({ page }) => {
+    await stubPhantom(page);
+    await openCheckout(page, "tst-wt1", /Smart Watch/);
+    const sheet = await review(page);
+    const knob = sheet.getByTestId("authorize");
+    const k = (await knob.boundingBox())!;
+    await page.mouse.move(k.x + 24, k.y + 24);
+    await page.mouse.down();
+    await page.mouse.move(k.x + 90, k.y + 24, { steps: 5 });
+    await page.mouse.up();
+    await expect(knob).toHaveAttribute("aria-valuenow", "0");
+    await expect(sheet.getByTestId("receipt")).toHaveCount(0);
+    await knob.focus();
+    await page.keyboard.press("Enter");
+    await expect(sheet.getByTestId("receipt")).toHaveAttribute("data-status", "confirmed", { timeout: 15_000 });
   });
 });

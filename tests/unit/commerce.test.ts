@@ -133,3 +133,61 @@ describe("BAJAR Pay (sandbox)", () => {
     expect(rev.sandbox.net).toBeCloseTo(rev.sandbox.bajarFees + rev.sandbox.commissions, 2);
   });
 });
+
+describe("shopping profile + store logins", () => {
+  beforeAll(async () => { (await import("@/lib/treasury/db")).__useMemoryDb(); });
+  const addr = { id: "home", label: "Home", name: "Ada Lovelace", line1: "1 Test St", city: "Austin", region: "TX", postal: "78701", country: "us" };
+
+  it("validates and normalizes profile input", async () => {
+    const { cleanProfile, ProfileError } = await import("@/lib/commerce/profile");
+    const p = cleanProfile({ name: " Ada ", email: "ada@example.org", phone: "+1 512 555 0100", addresses: [addr] });
+    expect(p).toMatchObject({ name: "Ada", defaultAddress: "home", addresses: [{ country: "US" }] });
+    expect(() => cleanProfile({ email: "nope" })).toThrow(ProfileError);
+    expect(() => cleanProfile({ addresses: [{ ...addr, postal: "" }] })).toThrow(/postal/);
+  });
+
+  it("stores the profile encrypted and returns it only by profile id", async () => {
+    const { cleanProfile, getShoppingProfile, saveShoppingProfile, deleteShoppingProfile } = await import("@/lib/commerce/profile");
+    const { q } = await import("@/lib/treasury/db");
+    await saveShoppingProfile("prf_a", cleanProfile({ name: "Ada", email: "ada@example.org", addresses: [addr] }));
+    const raw = (await q<{ data_enc: string }>("select data_enc from shopping_profiles where profile_id='prf_a'"))[0].data_enc;
+    expect(raw).not.toContain("Ada");
+    expect(raw).not.toContain("Austin");
+    expect((await getShoppingProfile("prf_a")).addresses[0].city).toBe("Austin");
+    expect((await getShoppingProfile("prf_b")).name).toBe("");
+    await deleteShoppingProfile("prf_a");
+    expect((await getShoppingProfile("prf_a")).addresses).toHaveLength(0);
+  });
+
+  it("builds Shopify prefilled checkout links", async () => {
+    const { cleanProfile, shopifyPrefillUrl, defaultAddress } = await import("@/lib/commerce/profile");
+    const p = cleanProfile({ name: "Ada", email: "ada@example.org", phone: "+15125550100", addresses: [addr] });
+    const u = new URL(shopifyPrefillUrl("ridge.com", 4242, 2, p, defaultAddress(p)));
+    expect(u.origin + u.pathname).toBe("https://ridge.com/cart/4242:2");
+    expect(u.searchParams.get("checkout[email]")).toBe("ada@example.org");
+    expect(u.searchParams.get("checkout[shipping_address][first_name]")).toBe("Ada");
+    expect(u.searchParams.get("checkout[shipping_address][last_name]")).toBe("Lovelace");
+    expect(u.searchParams.get("checkout[shipping_address][zip]")).toBe("78701");
+    expect(u.searchParams.get("checkout[shipping_address][phone]")).toBe("+15125550100");
+  });
+
+  it("store sign-in is OAuth-only, off until configured, and never overwrites the user's own details", async () => {
+    const { storeConnectors, mergeImport, cleanProfile, saveStoreAccount, storeAccounts, disconnectStore } = await import("@/lib/commerce/profile");
+    for (const c of storeConnectors()) { expect(c.configured).toBe(false); expect(c.missing.length).toBeGreaterThan(0); }
+    process.env.AMAZON_LWA_CLIENT_ID = "amzn1.application-oa2-client.test";
+    process.env.AMAZON_LWA_CLIENT_SECRET = "x";
+    const amazon = storeConnectors().find((c) => c.id === "amazon")!;
+    expect(amazon.configured).toBe(true);
+    const url = new URL(amazon.authorizeUrl("st8", "https://www.sharebajar.com/api/stores/callback/amazon"));
+    expect(url.host).toBe("www.amazon.com");
+    expect(url.searchParams.get("state")).toBe("st8");
+    expect(url.searchParams.get("scope")).toBe("profile postal_code");
+    delete process.env.AMAZON_LWA_CLIENT_ID; delete process.env.AMAZON_LWA_CLIENT_SECRET;
+    const merged = mergeImport(cleanProfile({ name: "Mine", email: "" }), { name: "Amazon Name", email: "a@example.org" });
+    expect(merged).toMatchObject({ name: "Mine", email: "a@example.org" });
+    await saveStoreAccount("prf_c", "ebay", { accountName: "ada_buys", token: { refresh: "r", access: "a" }, scopes: "commerce.identity.readonly" });
+    expect(await storeAccounts("prf_c")).toMatchObject([{ store: "ebay", accountName: "ada_buys" }]);
+    await disconnectStore("prf_c", "ebay");
+    expect(await storeAccounts("prf_c")).toHaveLength(0);
+  });
+});

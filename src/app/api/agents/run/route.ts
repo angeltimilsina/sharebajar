@@ -5,7 +5,8 @@ import { runAgents } from "@/lib/commerce/agents";
 import type { AgentId, Offer } from "@/lib/commerce/types";
 import { AI_MODEL, aiConfigured } from "@/lib/ai/config";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
-import { currentSession } from "@/lib/pro/profile";
+import { currentSession, profileForSession } from "@/lib/pro/profile";
+import { defaultAddress, getShoppingProfile, storeAccounts } from "@/lib/commerce/profile";
 
 export const maxDuration = 60;
 
@@ -23,12 +24,21 @@ export async function POST(req: Request) {
   const p = Body.safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const session = await currentSession().catch(() => null);
+  // What the agents may know about the signed-in shopper: whether a profile exists, its country, connected stores. Never the details themselves.
+  let account: { hasProfile: boolean; country: string | null; stores: { store: string; accountName: string | null }[] } | undefined;
+  if (session) {
+    try {
+      const pid = await profileForSession(session);
+      const [sp, stores] = await Promise.all([getShoppingProfile(pid), storeAccounts(pid)]);
+      account = { hasProfile: !!(sp.name && sp.addresses.length), country: defaultAddress(sp)?.country ?? null, stores: stores.map((x) => ({ store: x.store, accountName: x.accountName })) };
+    } catch { /* profile unavailable: agents run without it */ }
+  }
   const enc = new TextEncoder();
   const stream = new ReadableStream({
     async start(ctrl) {
       const emit = (e: unknown) => { try { ctrl.enqueue(enc.encode(JSON.stringify(e) + "\n")); } catch { /* closed */ } };
       try {
-        const r = await runAgents({ message: p.data.message, agents: p.data.agents as AgentId[] | undefined, sandbox: p.data.sandbox ?? true, wallet: session?.address ?? null, orderTokens: p.data.orderTokens }, emit);
+        const r = await runAgents({ message: p.data.message, agents: p.data.agents as AgentId[] | undefined, sandbox: p.data.sandbox ?? true, wallet: session?.address ?? null, orderTokens: p.data.orderTokens, account }, emit);
         emit({ type: "summary", text: await summarize(p.data.message, r.offers, r.best, r.notes), ai: aiConfigured() });
       } catch (e) {
         emit({ type: "error", message: String((e as Error).message ?? e).slice(0, 200) });

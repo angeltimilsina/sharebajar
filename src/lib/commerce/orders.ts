@@ -25,6 +25,8 @@ export const QUOTE_TTL_MS = 10 * 60_000;
 export const feeBps = () => clampInt(process.env.BAJAR_PAY_FEE_BPS, 50, 0, 300);              // disclosed customer fee (0.5% default)
 export const commissionBps = () => clampInt(process.env.MERCHANT_COMMISSION_BPS, 300, 0, 2000); // paid by the merchant, not the customer
 export const maxOrderUsd = () => clampInt(process.env.BAJAR_PAY_MAX_ORDER_USD, 2500, 1, 1_000_000);
+/** Orders allowed per connection per hour (fraud control). */
+export const ipOrdersPerHour = () => clampInt(process.env.COMMERCE_IP_ORDERS_PER_HOUR, 10, 1, 10_000);
 export const SANDBOX_DAILY_USD = 1000;   // sandbox test funds per wallet per day (no real money)
 export const realProvider = () => process.env.BAJAR_PAY_PROVIDER || null;
 
@@ -141,7 +143,7 @@ export async function authorizeOrder(i: AuthorizeInput): Promise<OrderView> {
   const risk: string[] = [];
   const recent = await q<{ n: string | number; usd: string | number | null }>("select count(*) as n, sum(customer_total_usd) as usd from commerce_orders where wallet=$1 and created_at > now() - interval '24 hours' and status not in ('merchant_failed','refunded','cancelled')", [row.wallet]);
   const ipRecent = await q<{ n: string | number }>("select count(*) as n from commerce_orders where ip_hash=$1 and created_at > now() - interval '1 hour'", [i.ipHash]);
-  if (Number(ipRecent[0]?.n ?? 0) >= 10) throw new PayError("velocity", "Too many orders from this connection. Try again later.", 429);
+  if (Number(ipRecent[0]?.n ?? 0) >= ipOrdersPerHour()) throw new PayError("velocity", "Too many orders from this connection. Try again later.", 429);
   if (Number(recent[0]?.n ?? 0) >= 5) risk.push("5+ orders from this wallet in 24 h");
   const spent = Number(recent[0]?.usd ?? 0);
   if (quote.sandbox && spent + quote.totalUsd > SANDBOX_DAILY_USD) {

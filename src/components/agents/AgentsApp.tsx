@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
-import { ArrowUp, BadgeCheck, ExternalLink, Link2, Loader2, Package, ShieldAlert, Sparkles, Wallet } from "lucide-react";
+import { ArrowUp, BadgeCheck, ExternalLink, Link2, Loader2, Package, ShieldAlert, Sparkles, UserRound, Wallet } from "lucide-react";
 import { AGENTS, type AgentId, type Offer } from "@/lib/commerce/types";
 import { parseProductLink } from "@/lib/commerce/url";
 import { orderTokens, streamAgents, usd } from "@/lib/commerce/client";
@@ -139,7 +139,10 @@ export function AgentsApp() {
       </form>
       <div className="mt-2 flex items-center justify-between gap-2 px-2 text-[12px] text-faint">
         <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} data-testid="sandbox-toggle" />Include Bajar Test Store (sandbox)</label>
-        <Link href="/agents/orders" className="inline-flex items-center gap-1 hover:text-fg" data-testid="orders-link"><Package size={13} />Orders</Link>
+        <span className="inline-flex items-center gap-3">
+          <Link href="/agents/profile" className="inline-flex items-center gap-1 hover:text-fg" data-testid="profile-link"><UserRound size={13} />Profile</Link>
+          <Link href="/agents/orders" className="inline-flex items-center gap-1 hover:text-fg" data-testid="orders-link"><Package size={13} />Orders</Link>
+        </span>
       </div>
 
       {!started && (
@@ -251,12 +254,50 @@ function ProductSheet({ o, mode, onPay }: { o: Offer; mode: Mode; onPay: () => v
         {o.sandbox && <div className="mt-0.5 text-warn">Test item: sandbox orders move no money and nothing ships.</div>}
       </div>
       <div className="mt-4">
+        {mode === "external" && o.retailer === "shopify" && <PrefillCheckout o={o} />}
         {mode === "external" ? (
           <a href={o.url} target="_blank" rel="noopener noreferrer nofollow" className="w-full h-12 rounded-full bg-surface-2 hover:bg-surface-3 font-medium flex items-center justify-center gap-2" data-testid="external-checkout">Buy on {o.merchantDomain}<ExternalLink size={15} /></a>
         ) : (
           <button type="button" onClick={onPay} disabled={o.inStock === false} className="w-full h-12 rounded-full btn-ink font-medium disabled:opacity-40" data-testid="pay-with-bajar">Pay with BAJAR{mode === "bajar_pay_sandbox" ? " (sandbox)" : ""}</button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Shopify stores: open the store's own checkout with the saved profile filled in, after the shopper confirms what is shared. */
+function PrefillCheckout({ o }: { o: Offer }) {
+  const { wallet, session } = useWallet();
+  const signedIn = !!(wallet && session && session.address.toLowerCase() === wallet.address.toLowerCase());
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (!signedIn) return <Link href="/agents/profile" className="mb-2 block text-center text-[12.5px] text-muted hover:text-fg">Sign in to fill in this store&apos;s checkout with your saved details →</Link>;
+  async function go() {
+    setBusy(true); setErr(null);
+    const w = window.open("", "_blank");
+    if (w) w.opener = null;
+    const r = await fetch("/api/commerce/handoff", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: o.url, quantity: 1 }) });
+    const b = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (r.ok && b.url) { if (w) w.location.href = b.url; else window.location.href = b.url; setConfirm(false); }
+    else { w?.close(); setErr(b.error ?? "Couldn't prepare the store checkout."); }
+  }
+  return (
+    <div className="mb-2" data-testid="prefill">
+      {!confirm ? (
+        <button type="button" onClick={() => setConfirm(true)} className="w-full h-12 rounded-full btn-ink font-medium" data-testid="prefill-checkout">Checkout on {o.merchant} with my details</button>
+      ) : (
+        <div className="rounded-xl bg-surface-2 p-3 text-[12.5px]" data-testid="prefill-confirm">
+          <div className="text-fg font-medium">Share with {o.merchantDomain}?</div>
+          <div className="mt-0.5 text-muted">Your name, email, phone and default shipping address will be filled into {o.merchant}&apos;s checkout. You pay on their site.</div>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={go} disabled={busy} className="flex-1 h-10 rounded-full btn-ink font-medium" data-testid="prefill-go">{busy ? "Opening…" : "Share & continue"}</button>
+            <button type="button" onClick={() => setConfirm(false)} className="h-10 px-4 rounded-full bg-surface-3">Cancel</button>
+          </div>
+        </div>
+      )}
+      {err && <div className="mt-2 text-[12.5px] text-down">{err}</div>}
     </div>
   );
 }
