@@ -257,6 +257,49 @@ create table if not exists connect_tokens (
   used_at timestamptz,
   created_at timestamptz not null default now()
 );
+create table if not exists commerce_quotes (
+  id text primary key,
+  offer_id text not null,
+  wallet text not null,
+  chain_type text not null,
+  payload text not null,
+  hash text not null,
+  message text not null,
+  sandbox boolean not null,
+  expires_at timestamptz not null,
+  used_order_id text,
+  created_at timestamptz not null default now()
+);
+create table if not exists commerce_orders (
+  id text primary key,
+  idempotency_key text not null unique,
+  quote_id text not null unique,
+  wallet text not null,
+  chain_type text not null,
+  sandbox boolean not null,
+  status text not null,
+  title text not null,
+  merchant text not null,
+  retailer text not null,
+  quantity int not null,
+  asset text not null,
+  network text not null,
+  crypto_amount text not null,
+  customer_total_usd numeric not null,
+  merchant_settlement_usd numeric not null,
+  bajar_fee_usd numeric not null,
+  commission_usd numeric not null,
+  network_fee_usd numeric not null,
+  refunded_usd numeric not null default 0,
+  signature text not null,
+  shipping_enc text,
+  risk text,
+  events text not null default '[]',
+  ip_hash text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists commerce_orders_wallet on commerce_orders (wallet);
 `;
 
 const g = globalThis as unknown as { __sbDb?: Promise<Db> };

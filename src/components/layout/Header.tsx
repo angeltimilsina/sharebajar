@@ -15,6 +15,7 @@ import { AccountButton } from "./AccountButton";
 export const NAV: { href: string; label: string; match: RegExp }[] = [
   { href: "/tokens", label: "Tokens", match: /^\/(tokens|token\/)/ },
   { href: "/launchpad", label: "Launchpad", match: /^\/launchpad/ },
+  { href: "/agents", label: "Agents", match: /^\/agents/ },
 ];
 
 /** Secondary destinations, listed in the Account menu. */

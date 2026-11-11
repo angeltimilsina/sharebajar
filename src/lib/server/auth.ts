@@ -25,7 +25,7 @@ const sign = (payload: string) => createHmac("sha256", secret()).update(payload)
  * Signed tokens are bound to a purpose (domain separation): a sign-in
  * challenge token can never be accepted as a session, and vice versa.
  */
-export type TokenPurpose = "session" | "nonce" | "link";
+export type TokenPurpose = "session" | "nonce" | "link" | "order";
 
 export function seal(obj: object, purpose: TokenPurpose): string {
   const p = b64u(JSON.stringify(obj));
