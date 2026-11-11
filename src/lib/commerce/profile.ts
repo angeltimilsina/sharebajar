@@ -9,9 +9,11 @@ import { decrypt, encrypt } from "@/lib/treasury/crypto";
  * merchant only when the customer confirms that checkout.
  */
 export interface Address { id: string; label: string; name: string; line1: string; line2?: string; city: string; region?: string; postal: string; country: string; phone?: string }
-export interface ShoppingProfile { name: string; email: string; phone: string; addresses: Address[]; defaultAddress: string | null; billingSameAsShipping: boolean }
+/** Agentic billing: how agents prepare payments for you. Every payment still needs your wallet signature. */
+export interface BillingPrefs { asset: "USDC" | "USDT" | "ETH" | "SOL"; network: string | null; agentLimitUsd: number | null }
+export interface ShoppingProfile { name: string; email: string; phone: string; addresses: Address[]; defaultAddress: string | null; billingSameAsShipping: boolean; billing: Address | null; payment: BillingPrefs }
 
-export const EMPTY_PROFILE: ShoppingProfile = { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true };
+export const EMPTY_PROFILE: ShoppingProfile = { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true, billing: null, payment: { asset: "USDC", network: null, agentLimitUsd: null } };
 
 const t = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, n) : "");
 
@@ -25,7 +27,19 @@ export function cleanProfile(input: unknown): ShoppingProfile {
   const phone = t(i.phone, 30);
   if (phone && !/^[+\d][\d\s().-]{5,}$/.test(phone)) throw new ProfileError("That phone number doesn't look right.");
   const raw = Array.isArray(i.addresses) ? i.addresses.slice(0, 10) : [];
-  const addresses: Address[] = raw.map((a, n) => {
+  const addresses: Address[] = raw.map((a, n) => cleanAddress(a, n));
+  const def = typeof i.defaultAddress === "string" && addresses.some((a) => a.id === i.defaultAddress) ? i.defaultAddress : addresses[0]?.id ?? null;
+  const same = i.billingSameAsShipping !== false;
+  const billing = !same && i.billing ? cleanAddress({ ...(i.billing as object), label: "Billing", id: "billing" }, 0) : null;
+  const pay = (i.payment ?? {}) as Record<string, unknown>;
+  const asset = (["USDC", "USDT", "ETH", "SOL"] as const).find((a) => a === pay.asset) ?? "USDC";
+  const network = typeof pay.network === "string" && /^(solana|ethereum|base)$/.test(pay.network) ? pay.network : null;
+  const lim = pay.agentLimitUsd === null || pay.agentLimitUsd === undefined || pay.agentLimitUsd === "" ? null : Number(pay.agentLimitUsd);
+  if (lim !== null && !(Number.isFinite(lim) && lim >= 1 && lim <= 100_000)) throw new ProfileError("Agent spending limit must be between $1 and $100,000, or empty for no limit.");
+  return { name: t(i.name, 80), email, phone, addresses, defaultAddress: def, billingSameAsShipping: same, billing, payment: { asset, network, agentLimitUsd: lim === null ? null : Math.round(lim * 100) / 100 } };
+}
+
+function cleanAddress(a: unknown, n: number): Address {
     const x = (a ?? {}) as Record<string, unknown>;
     const ad: Address = {
       id: /^[a-z0-9]{1,16}$/.test(String(x.id ?? "")) ? String(x.id) : `a${n}${Math.random().toString(36).slice(2, 8)}`,
@@ -34,15 +48,12 @@ export function cleanProfile(input: unknown): ShoppingProfile {
     };
     if (!ad.name || !ad.line1 || !ad.city || !ad.postal || !/^[A-Z]{2}$/.test(ad.country)) throw new ProfileError(`Address "${ad.label}" needs a name, street, city, postal code and 2-letter country.`);
     return ad;
-  });
-  const def = typeof i.defaultAddress === "string" && addresses.some((a) => a.id === i.defaultAddress) ? i.defaultAddress : addresses[0]?.id ?? null;
-  return { name: t(i.name, 80), email, phone, addresses, defaultAddress: def, billingSameAsShipping: i.billingSameAsShipping !== false };
 }
 
 export async function getShoppingProfile(profileId: string): Promise<ShoppingProfile> {
   const row = (await q<{ data_enc: string }>("select data_enc from shopping_profiles where profile_id=$1", [profileId]))[0];
   if (!row) return { ...EMPTY_PROFILE };
-  try { return { ...EMPTY_PROFILE, ...(decrypt<ShoppingProfile>(row.data_enc) ?? {}) }; } catch { return { ...EMPTY_PROFILE }; }
+  try { const d = decrypt<ShoppingProfile>(row.data_enc) ?? EMPTY_PROFILE; return { ...EMPTY_PROFILE, ...d, payment: { ...EMPTY_PROFILE.payment, ...(d.payment ?? {}) } }; } catch { return { ...EMPTY_PROFILE }; }
 }
 
 export async function saveShoppingProfile(profileId: string, p: ShoppingProfile) {

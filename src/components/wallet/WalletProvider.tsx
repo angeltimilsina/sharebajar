@@ -28,6 +28,8 @@ interface WalletContextValue {
   solana: () => InjectedSolana | undefined;
   evm: () => Eip1193 | undefined;
   clearError: () => void;
+  /** True while a remembered wallet is shown from cache and is being re-checked with the wallet. */
+  restoring: boolean;
   /** Re-check the remembered wallet: reconnect silently, pick up account/network changes. */
   sync: () => Promise<void>;
   syncing: boolean;
@@ -60,7 +62,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [connecting, setConnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const cleanup = useRef<(() => void) | null>(null);
+  /** The shown wallet was confirmed by the wallet itself in this page load (not just restored from cache). */
+  const verified = useRef(false);
+
+  // Remember the connected wallet (public address only) so the next page load shows it immediately.
+  useEffect(() => {
+    if (!wallet || !verified.current) return;
+    try { localStorage.setItem(LAST, JSON.stringify({ walletId: wallet.walletId, chainType: wallet.chainType, name: wallet.walletName, address: wallet.address, chainId: wallet.chainId, ok: true })); } catch { /* ignore */ }
+  }, [wallet]);
 
   const solana = useCallback(() => {
     const lw = linkWalletOf(wallet?.walletId);
@@ -100,7 +111,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const connect = useCallback(async (walletId: string, chainType: ChainType, name: string, silent = false) => {
+  const connect = useCallback(async (walletId: string, chainType: ChainType, name: string, silent = false): Promise<boolean> => {
     setError(null);
     // Silent reconnects (focus, visibility) don't show a "connecting" state: no flicker.
     if (!silent) setConnecting(walletId);
@@ -111,23 +122,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const res = await p.connect(silent ? { onlyIfTrusted: true } : undefined);
         const pk = (res && "publicKey" in res ? res.publicKey : p.publicKey)?.toString();
         if (!pk) throw new Error("No account returned");
+        verified.current = true;
         setWallet({ walletId, walletName: name, chainType, address: pk });
       } else {
         const wcw = wcWalletOf(walletId);
         // WalletConnect: pair with the wallet app (silent = restore an existing session only).
-        if (wcw) { const restored = silent ? await wcRestore(wcw) : await wcConnect(wcw); if (!restored) return; }
+        if (wcw) { const restored = silent ? await wcRestore(wcw) : await wcConnect(wcw); if (!restored) return false; }
         const p = getEvmProvider(walletId);
         if (!p) throw new Error(`${name} is not installed`);
         const accounts = (await p.request({ method: silent ? "eth_accounts" : "eth_requestAccounts" })) as string[];
         if (!accounts?.[0]) throw new Error("No account returned");
         const chainId = Number((await p.request({ method: "eth_chainId" })) as string);
+        verified.current = true;
         setWallet({ walletId, walletName: name, chainType, address: accounts[0], chainId });
       }
       try { localStorage.setItem(LAST, JSON.stringify({ walletId, chainType, name })); } catch { /* ignore */ }
       attachListeners(walletId, chainType, name);
       setModalOpen(false);
+      return true;
     } catch (e) {
       if (!silent) setError(friendlyError(e));
+      return false;
     } finally {
       setConnecting(null);
     }
@@ -141,6 +156,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const w = ret.wallet, wName = LINK_WALLETS[w].name, wId = linkId(w);
     const acct = linkSession(w);
     if (ret.resume.kind === "connect" && ret.publicKey) {
+      verified.current = true;
       setWallet({ walletId: wId, walletName: wName, chainType: "solana", address: ret.publicKey });
       try { localStorage.setItem(LAST, JSON.stringify({ walletId: wId, chainType: "solana", name: wName })); } catch { /* ignore */ }
       toast(`${wName} connected`);
@@ -225,36 +241,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (syncBusy.current) return;
     let last: { walletId: string; chainType: ChainType; name: string } | null = null;
     try { last = JSON.parse(localStorage.getItem(LAST) ?? "null"); } catch { /* ignore */ }
-    if (!last) return;
+    if (!last) { setRestoring(false); return; }
     syncBusy.current = true; setSyncing(true);
+    let ok = false;
     try {
       const lw = linkWalletOf(last.walletId);
       if (lw) {
         const acct = linkSession(lw);
+        ok = !!acct; verified.current = ok;
         setWallet(acct ? { walletId: linkId(lw), walletName: LINK_WALLETS[lw].name, chainType: "solana", address: acct.publicKey } : null);
         return;
       }
-      if (wcWalletOf(last.walletId)) { if (!walletRef.current) await connect(last.walletId, last.chainType, last.name, true); return; }
+      if (wcWalletOf(last.walletId)) { ok = verified.current && !!walletRef.current ? true : await connect(last.walletId, last.chainType, last.name, true); return; }
       // Injected wallets can appear late (extensions, EIP-6963 announcements): wait up to ~3s.
       const find = () => (last!.chainType === "solana" ? getSolanaProvider(last!.walletId) : getEvmProvider(last!.walletId));
       for (let i = 0; i < 15 && !find(); i++) await new Promise((r) => setTimeout(r, 200));
       const found = find();
       if (!found) return;
-      const cur = walletRef.current;
-      if (!cur || cur.walletId !== last.walletId) { await connect(last.walletId, last.chainType, last.name, true); return; }
+      const cur = verified.current ? walletRef.current : null;
+      if (!cur || cur.walletId !== last.walletId) { ok = await connect(last.walletId, last.chainType, last.name, true); return; }
+      ok = true;
       if (last.chainType === "solana") {
         const pk = (found as InjectedSolana).publicKey?.toString();
         if (pk && pk !== cur.address) setWallet({ ...cur, address: pk });
-        else if (!pk) await connect(last.walletId, last.chainType, last.name, true);
+        else if (!pk) ok = await connect(last.walletId, last.chainType, last.name, true);
       } else {
         const p = found as Eip1193;
         const accounts = (await p.request({ method: "eth_accounts" }).catch(() => null)) as string[] | null;
-        if (accounts && !accounts[0]) { setWallet(null); return; } // access revoked in the wallet
+        if (accounts && !accounts[0]) { ok = false; verified.current = false; return; } // access revoked in the wallet
         const chainId = Number(await p.request({ method: "eth_chainId" }).catch(() => cur.chainId ?? 0));
         if ((accounts?.[0] && accounts[0].toLowerCase() !== cur.address.toLowerCase()) || chainId !== cur.chainId) setWallet({ ...cur, address: accounts?.[0] ?? cur.address, chainId });
       }
-    } catch { /* stay as-is; the next sync tries again */ }
-    finally { syncBusy.current = false; setSyncing(false); }
+    } catch { ok = verified.current; /* stay as-is; the next sync tries again */ }
+    finally {
+      // A wallet restored from cache that the wallet no longer confirms is cleared (the sign-in session, if any, stays).
+      if (!ok && !verified.current) {
+        setWallet(null);
+        try { localStorage.setItem(LAST, JSON.stringify({ ...last, ok: false })); } catch { /* ignore */ }
+      }
+      syncBusy.current = false; setSyncing(false); setRestoring(false);
+    }
   }, [connect]);
 
   useEffect(() => {
@@ -266,6 +292,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return s && n && s.address === n.address && s.exp === n.exp ? s : n;
     })).catch(() => {});
     readSession();
+    // Show the remembered wallet immediately (no "Connect" flash between pages), then confirm it with the wallet.
+    try {
+      const last = JSON.parse(localStorage.getItem(LAST) ?? "null") as { walletId: string; chainType: ChainType; name: string; address?: string; chainId?: number; ok?: boolean } | null;
+      if (last?.address && last.ok) { setRestoring(true); setWallet((w) => w ?? { walletId: last.walletId, walletName: last.name, chainType: last.chainType, address: last.address!, chainId: last.chainId }); }
+    } catch { /* ignore */ }
     sync();
     let lastRun = Date.now();
     const again = () => { if (document.visibilityState === "visible" && Date.now() - lastRun > 1500) { lastRun = Date.now(); sync(); readSession(); } };
@@ -283,6 +314,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (wcWalletOf(wallet?.walletId)) await wcDisconnect();
     try { await getSolanaProvider(wallet?.walletId ?? "")?.disconnect(); } catch { /* ignore */ }
     cleanup.current?.();
+    verified.current = false;
     setWallet(null);
     try { localStorage.removeItem(LAST); } catch { /* ignore */ }
     if (session) { await fetch("/api/auth/logout", { method: "POST" }).catch(() => {}); setSession(null); }
@@ -333,12 +365,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<WalletContextValue>(() => ({
-    wallet, session, connecting, error, modalOpen,
+    wallet, session, connecting, error, modalOpen, restoring,
     openModal: () => { setError(null); setModalOpen(true); },
     closeModal: () => setModalOpen(false),
-    connect: (id, ct, name) => connect(id, ct, name),
+    connect: async (id, ct, name) => { await connect(id, ct, name); },
     disconnect, signIn, signOut, signMessage, solana, evm, clearError: () => setError(null), sync, syncing,
-  }), [wallet, session, connecting, error, modalOpen, connect, disconnect, signIn, signOut, signMessage, solana, evm, sync, syncing]);
+  }), [wallet, session, connecting, error, modalOpen, restoring, connect, disconnect, signIn, signOut, signMessage, solana, evm, sync, syncing]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

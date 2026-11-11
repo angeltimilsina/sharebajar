@@ -46,6 +46,12 @@ export function AgentsApp() {
     return m ? parseProductLink(m) : null;
   }, [text]);
 
+  // Agentic billing: start from the shopper's default payment asset.
+  const { session } = useWallet();
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/commerce/profile").then((r) => (r.ok ? r.json() : null)).then((b) => { const a = b?.profile?.payment?.asset; if (a && (ASSETS as readonly string[]).includes(a)) setAsset(a); }).catch(() => {});
+  }, [session]);
   useEffect(() => { fetch("/api/commerce/trending").then((r) => r.json()).then((b) => setDeals(b.deals ?? [])).catch(() => setDeals([])); }, []);
   // Deep link to a sandbox product (from the test store's product URLs).
   useEffect(() => {

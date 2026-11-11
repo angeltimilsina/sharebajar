@@ -2,7 +2,7 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { ordersFor } from "@/lib/commerce/orders";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
-import { currentSession } from "@/lib/pro/profile";
+import { currentSession, profileForSession } from "@/lib/pro/profile";
 
 const Body = z.object({ tokens: z.array(z.string().max(600)).max(50) });
 
@@ -14,7 +14,8 @@ export async function POST(req: Request) {
   if (!p.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const s = await currentSession().catch(() => null);
   try {
-    return NextResponse.json({ orders: await ordersFor({ wallet: s ? (s.chainType === "evm" ? s.address.toLowerCase() : s.address) : null, tokens: p.data.tokens }) }, { headers: { "cache-control": "no-store" } });
+    const profileId = s ? await profileForSession(s).catch(() => null) : null;
+    return NextResponse.json({ orders: await ordersFor({ wallet: s ? (s.chainType === "evm" ? s.address.toLowerCase() : s.address) : null, tokens: p.data.tokens, profileId }) }, { headers: { "cache-control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "Orders are unavailable right now." }, { status: 503 });
   }

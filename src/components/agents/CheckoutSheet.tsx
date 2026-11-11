@@ -48,11 +48,14 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
       const pr = b?.profile as Profile | undefined;
       if (!pr) return;
       setSaved(pr);
+      if (pr.payment?.asset && (wallet?.chainType === "evm" ? ["USDC", "USDT", "ETH"] : ["USDC", "USDT", "SOL"]).includes(pr.payment.asset)) setAsset(pr.payment.asset);
       const a = pr.addresses.find((x) => x.id === pr.defaultAddress) ?? pr.addresses[0];
       if (a) { setAddrId(a.id); setAddr({ name: a.name, line1: a.line1, city: a.city, postal: a.postal, country: a.country, email: pr.email }); }
       else setAddr((x) => ({ ...x, name: x.name || pr.name, email: x.email || pr.email }));
     }).catch(() => {});
   }, [offer, signedIn]);
+  const savedBilling = saved && !saved.billingSameAsShipping && saved.billing ? saved.billing : null;
+  const billTo = savedBilling ? { name: savedBilling.name, line1: savedBilling.line1, city: savedBilling.city, postal: savedBilling.postal, country: savedBilling.country } : null;
   const pickAddress = (id: string) => {
     setAddrId(id);
     const a = saved?.addresses.find((x) => x.id === id);
@@ -71,7 +74,7 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
     if (!offer || !wallet) return;
     setBusy("quote"); setErr(null);
     try {
-      const r = await fetch("/api/commerce/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ offerId: offer.id, quantity: qty, shippingId: ship, asset, wallet: wallet.address, chainType: wallet.chainType }) });
+      const r = await fetch("/api/commerce/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ offerId: offer.id, quantity: qty, shippingId: ship, asset, network: saved?.payment?.asset === asset ? saved.payment.network ?? undefined : undefined, wallet: wallet.address, chainType: wallet.chainType }) });
       const b = await r.json();
       if (!r.ok) setErr({ code: b.code, message: b.error ?? "Couldn't get a quote." });
       else { setQuote(b.quote); setNow(Date.now()); idem.current = newIdempotencyKey(); }
@@ -92,13 +95,13 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
     }
     setBusy("submit");
     try {
-      const r = await fetch("/api/commerce/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteId: quote.id, signature, idempotencyKey: idem.current, consent: true, shipping: { ...addr, email: addr.email || undefined } }) });
+      const r = await fetch("/api/commerce/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteId: quote.id, signature, idempotencyKey: idem.current, consent: true, agentPrepared: true, shipping: { ...addr, email: addr.email || undefined }, billing: billTo }) });
       const b = await r.json();
       if (!r.ok) setErr({ code: b.code, message: b.error ?? "Checkout failed. Nothing was charged." });
       else {
         setOrder(b.order); if (b.order.token) saveOrderToken(b.order.token);
         if (remember && signedIn) {
-          const base = saved ?? { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true };
+          const base: Profile = saved ?? { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true, billing: null, payment: { asset: "USDC", network: null, agentLimitUsd: null } };
           const id = `a${Date.now().toString(36)}`;
           const next: Profile = { ...base, name: base.name || addr.name, email: base.email || addr.email, addresses: [...base.addresses, { id, label: base.addresses.length ? "Other" : "Home", name: addr.name, line1: addr.line1, city: addr.city, postal: addr.postal, country: addr.country }].slice(0, 10), defaultAddress: base.defaultAddress ?? id };
           fetch("/api/commerce/profile", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: next }) }).catch(() => {});
@@ -186,7 +189,8 @@ export function CheckoutSheet({ offer, asset: initialAsset, onClose }: { offer: 
                   )}
                 </>
               )}
-              {err && <div className="rounded-xl bg-down/10 text-down px-3 py-2 text-[13px]" data-testid="checkout-error" data-code={err.code}>{err.message}</div>}
+              {wallet && !order && <div className="text-[12px] text-faint" data-testid="bill-to">Bill to: {billTo ? `${billTo.name}, ${billTo.city} (saved billing address)` : "same as shipping"}</div>}
+              {err && <div className="rounded-xl bg-down/10 text-down px-3 py-2 text-[13px]" data-testid="checkout-error" data-code={err.code}>{err.message}{err.code === "agent_limit" && <> <Link href="/agents/profile" className="underline">Change limit</Link></>}</div>}
               <p className="text-[11.5px] text-faint">Bajar never asks for your recovery phrase or private keys. Your wallet shows exactly what you&apos;re signing.</p>
             </>
           )}

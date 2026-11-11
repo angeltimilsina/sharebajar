@@ -235,4 +235,5 @@ html:has([data-app-page]) .site-footer { display: none; }
   .with-sidebar { padding-left: 260px; transition: padding-left 0.2s ease; }
   html[data-sb="collapsed"] .with-sidebar { padding-left: 76px; }
   html[data-sb-hidden] .with-sidebar { padding-left: 0; }
+  html[data-sb-hidden] aside[data-testid="wallet-sidebar"] { display: none; }
 }

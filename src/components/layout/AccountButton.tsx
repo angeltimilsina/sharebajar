@@ -24,7 +24,7 @@ const row = "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[14.5p
 export function AccountButton() {
   const open = useAccountMenu();
   const path = usePathname();
-  const { wallet, connected } = useConnected();
+  const { wallet, connected, session } = useConnected();
   const ref = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(true);
   useEffect(() => { const mq = window.matchMedia("(min-width: 640px)"); const on = () => setWide(mq.matches); on(); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, []);
@@ -41,9 +41,9 @@ export function AccountButton() {
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => accountMenu.toggle()} aria-expanded={open} aria-haspopup="dialog" aria-label="Account" data-testid="account-button"
-        className={clsx("h-10 rounded-full inline-flex items-center gap-2 transition-colors", wallet ? "pl-1.5 pr-3 bg-surface-2 hover:bg-surface-3" : "w-10 justify-center text-muted hover:text-fg hover:bg-surface-2", open && "bg-surface-3 text-fg")}>
+        className={clsx("h-10 rounded-full inline-flex items-center gap-2 transition-colors", wallet || session ? "pl-1.5 pr-3 bg-surface-2 hover:bg-surface-3" : "w-10 justify-center text-muted hover:text-fg hover:bg-surface-2", open && "bg-surface-3 text-fg")}>
         <span className="relative h-7 w-7 rounded-full bg-surface grid place-items-center"><UserRound size={16} />{connected && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-[var(--surface-2)]" />}</span>
-        {wallet && <span className="hidden sm:inline text-[13px] font-medium num">{shortAddress(wallet.address)}</span>}
+        {(wallet || session) && <span className="hidden sm:inline text-[13px] font-medium num">{shortAddress((wallet ?? session)!.address)}</span>}
       </button>
       {open && wide && (
         <div className="absolute z-[71] right-0 top-full mt-2 w-[340px] max-h-[80vh] overflow-y-auto rounded-[22px] bg-[var(--surface)] border-[0.5px] border-line shadow-2xl p-2.5 rise" role="dialog" aria-label="Account" data-testid="account-panel">
@@ -89,6 +89,18 @@ function AccountPanel() {
           <button type="button" aria-label="Copy address" onClick={() => { navigator.clipboard?.writeText(wallet.address); setCopied(true); setTimeout(() => setCopied(false), 1200); }} className="h-8 w-8 grid place-items-center rounded-full text-muted hover:text-fg hover:bg-surface-3">
             {copied ? <Check size={15} className="text-up" /> : <Copy size={15} />}
           </button>
+        </div>
+      ) : session ? (
+        <div className="rounded-2xl bg-surface-2 p-3 space-y-2" data-testid="account-session">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck size={16} className="text-up shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] num font-medium" data-testid="account-address">{shortAddress(session.address)}</div>
+              <div className="text-xs text-faint">Signed in · reconnect your wallet to sign or pay</div>
+            </div>
+          </div>
+          <button type="button" data-testid="account-reconnect" onClick={() => { close(); openModal(); }} className="btn-ink w-full h-10 rounded-xl font-medium text-[14px] flex items-center justify-center gap-2"><Plug size={15} /> Reconnect wallet</button>
+          <button type="button" className={row} onClick={signOut}><LogOut size={16} />Sign out</button>
         </div>
       ) : (
         <button type="button" data-testid="account-connect" onClick={() => { close(); openModal(); }} className="btn-ink w-full h-11 rounded-xl font-medium text-[14.5px] flex items-center justify-center gap-2"><Plug size={16} /> Connect wallet</button>

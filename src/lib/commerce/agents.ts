@@ -16,7 +16,7 @@ import { checkoutModeFor, ordersFor, type OrderView } from "./orders";
  */
 export type Emit = (e: AgentEvent | { type: "products"; items: Offer[] } | { type: "best"; id: string | null; reason: string } | { type: "checkout"; offer: Offer; mode: "bajar_pay_sandbox" | "bajar_pay" | "external" } | { type: "orders"; items: OrderView[] } | { type: "context"; query: string; budget: number | null; asset: PayAsset; link: string | null }) => void;
 
-export interface RunInput { message: string; agents?: AgentId[]; sandbox?: boolean; wallet?: string | null; orderTokens?: string[]; account?: { hasProfile: boolean; country: string | null; stores: { store: string; accountName: string | null }[] } }
+export interface RunInput { message: string; agents?: AgentId[]; sandbox?: boolean; wallet?: string | null; orderTokens?: string[]; account?: { hasProfile: boolean; country: string | null; stores: { store: string; accountName: string | null }[]; payment?: { asset: string; network: string | null; agentLimitUsd: number | null } } }
 export interface RunResult { query: string; budget: number | null; asset: PayAsset; offers: Offer[]; best: Offer | null; notes: Record<string, string[]> }
 
 const TAGS: Record<string, AgentId> = { find: "find", deals: "deals", compare: "compare", verify: "verify", shipping: "shipping", budget: "budget", crypto: "crypto", checkout: "checkout", track: "track" };
@@ -143,6 +143,8 @@ export async function runAgents(input: RunInput, emit: Emit): Promise<RunResult>
           ...(input.account?.hasProfile
             ? [mode !== "external" ? "Your saved name and address will be filled in." : best.retailer === "shopify" ? "Your saved details can be filled into the store's checkout (you confirm first)." : "Copy your saved details from your profile into the store's checkout."]
             : ["Save your name and address in your shopping profile to skip typing them."]),
+          ...(input.account?.payment && mode !== "external" ? [`Billing: ${input.account.payment.asset}${input.account.payment.network ? ` on ${input.account.payment.network}` : ""} (your default)${input.account.payment.agentLimitUsd ? ` · agent limit $${input.account.payment.agentLimitUsd}` : ""}.`] : []),
+          ...(input.account?.payment?.agentLimitUsd && total(best)! > input.account.payment.agentLimitUsd ? [`Over your agent spending limit ($${input.account.payment.agentLimitUsd}). Raise it in your profile to buy this.`] : []),
           ...(input.account?.stores ?? []).filter((x) => x.store === best.retailer).map((x) => `Signed in to ${x.store === "ebay" ? "eBay" : "Amazon"}${x.accountName ? ` as ${x.accountName}` : ""}.`),
         ], 0.95, "checkout_capability");
     })(),

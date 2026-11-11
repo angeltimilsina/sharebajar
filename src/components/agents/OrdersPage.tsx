@@ -4,7 +4,9 @@ import Link from "next/link";
 import { ArrowLeft, Package } from "lucide-react";
 import { orderTokens, saveOrderToken, usd } from "@/lib/commerce/client";
 
-interface Order { id: string; sandbox: boolean; status: string; title: string; merchant: string; quantity: number; asset: string; network: string; cryptoAmount: string; totalUsd: number; refundedUsd: number; createdAt: string; events: { at: number; status: string; note: string }[]; token?: string; shipTo?: string }
+interface Addr { name: string; line1: string; line2?: string; city: string; region?: string; postal: string; country: string; email?: string }
+interface Receipt { lines: { label: string; usd: number }[]; shipping: string; shipTo: Addr | null; billTo: Addr | null; paidWith: string; priceSource: string; networkFeeUsd: number; quoteHash: string; signature: string; authorizedBy: string; agentPrepared: boolean }
+interface Order { receipt?: Receipt; id: string; sandbox: boolean; status: string; title: string; merchant: string; quantity: number; asset: string; network: string; cryptoAmount: string; totalUsd: number; refundedUsd: number; createdAt: string; events: { at: number; status: string; note: string }[]; token?: string; shipTo?: string }
 
 const LABEL: Record<string, string> = { authorized: "Authorized", confirmed: "Confirmed", shipped: "Shipped", delivered: "Delivered", merchant_failed: "Not confirmed", cancelled: "Cancelled", refunded: "Refunded" };
 
@@ -63,6 +65,7 @@ export function OrdersPage() {
               <ol className="mt-3 space-y-1 border-l-[0.5px] border-line pl-3 text-[12.5px] text-muted">
                 {o.events.map((e, i) => <li key={i}><span className="text-faint num">{new Date(e.at).toLocaleTimeString()}</span> · {e.note}</li>)}
               </ol>
+              {o.receipt && <ReceiptDetails r={o.receipt} total={o.totalUsd} />}
               {(o.status === "confirmed" || o.status === "authorized") && o.token && (
                 <button type="button" onClick={() => cancel(o)} disabled={busy === o.id} className="mt-3 h-9 px-4 rounded-full bg-surface-2 text-[13px] font-medium hover:bg-surface-3" data-testid="cancel-order">{busy === o.id ? "Cancelling…" : "Cancel & refund"}</button>
               )}
@@ -72,5 +75,27 @@ export function OrdersPage() {
       )}
       <p className="mt-6 text-[12px] text-faint">Receipts are saved on this device. Sign in with your wallet to see orders you placed on other devices.</p>
     </div>
+  );
+}
+
+const fmtAddr = (a: Addr) => [a.name, a.line1, a.line2, `${a.city}${a.region ? `, ${a.region}` : ""} ${a.postal}`, a.country].filter(Boolean).join(" · ");
+
+/** The purchase record kept with the order: itemized charges, addresses, payment and the wallet authorization. */
+function ReceiptDetails({ r, total }: { r: Receipt; total: number }) {
+  return (
+    <details className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-[12.5px]" data-testid="receipt-details">
+      <summary className="cursor-pointer text-muted">Purchase details</summary>
+      <dl className="mt-2 space-y-1">
+        {r.lines.map((l) => <div key={l.label} className="flex justify-between gap-3"><dt className="text-muted">{l.label}</dt><dd className="num">{usd(l.usd)}</dd></div>)}
+        <div className="flex justify-between gap-3 font-medium border-t-[0.5px] border-line pt-1"><dt>Total</dt><dd className="num">{usd(total)}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="text-muted">Paid with</dt><dd className="num text-right">{r.paidWith}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="text-muted">Delivery</dt><dd className="text-right">{r.shipping}</dd></div>
+        {r.shipTo && <div><dt className="text-muted">Ship to</dt><dd data-testid="receipt-ship-to">{fmtAddr(r.shipTo)}</dd></div>}
+        {r.billTo && <div><dt className="text-muted">Bill to</dt><dd data-testid="receipt-bill-to">{fmtAddr(r.billTo)}</dd></div>}
+        <div><dt className="text-muted">Authorized by</dt><dd className="num break-all">{r.authorizedBy}{r.agentPrepared ? " · prepared by BAJAR Agents" : ""}</dd></div>
+        <div><dt className="text-muted">Quote hash</dt><dd className="num break-all text-faint">{r.quoteHash}</dd></div>
+        <div className="text-faint">Price: {r.priceSource} · network fee ≈{usd(r.networkFeeUsd)}</div>
+      </dl>
+    </details>
   );
 }

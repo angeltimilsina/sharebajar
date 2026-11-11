@@ -191,3 +191,49 @@ describe("shopping profile + store logins", () => {
     expect(await storeAccounts("prf_c")).toHaveLength(0);
   });
 });
+
+describe("agentic billing + purchase records", () => {
+  beforeAll(async () => { (await import("@/lib/treasury/db")).__useMemoryDb(); });
+
+  it("validates billing preferences and a separate billing address", async () => {
+    const { cleanProfile } = await import("@/lib/commerce/profile");
+    const p = cleanProfile({ name: "Ada", billingSameAsShipping: false, billing: { name: "Ada L", line1: "9 Bill Rd", city: "Austin", postal: "78702", country: "us" }, payment: { asset: "SOL", network: "solana", agentLimitUsd: "250" } });
+    expect(p.billing).toMatchObject({ id: "billing", country: "US", line1: "9 Bill Rd" });
+    expect(p.payment).toEqual({ asset: "SOL", network: "solana", agentLimitUsd: 250 });
+    expect(cleanProfile({ payment: { asset: "DOGE", network: "moon" } }).payment).toEqual({ asset: "USDC", network: null, agentLimitUsd: null });
+    expect(() => cleanProfile({ payment: { agentLimitUsd: 0 } })).toThrow(/limit/);
+    expect(cleanProfile({ billingSameAsShipping: true, billing: { name: "x" } }).billing).toBeNull();
+  });
+
+  it("keeps the full purchase record encrypted and files orders under the profile", async () => {
+    const { createQuote, authorizeOrder, ordersFor } = await import("@/lib/commerce/orders");
+    const { q } = await import("@/lib/treasury/db");
+    const priv = ed25519.utils.randomPrivateKey();
+    const wallet = bs58.encode(ed25519.getPublicKey(priv));
+    const sign = (m: string) => bs58.encode(ed25519.sign(new TextEncoder().encode(m), priv));
+    const quote = await createQuote({ offerId: "bajar-sandbox:tst-sn1", quantity: 1, asset: "USDC", wallet, chainType: "solana", host: "localhost" });
+    const o = await authorizeOrder({
+      quoteId: quote.id, signature: sign(quote.message), idempotencyKey: "k-receipt-0000001", consent: true, ipHash: "ip-r", agentPrepared: true,
+      shipping: { name: "Ada Lovelace", line1: "1 Ship St", city: "Austin", postal: "78701", country: "US" },
+      billing: { name: "Ada Lovelace", line1: "9 Bill Rd", city: "Dallas", postal: "75201", country: "US" },
+      profileId: "prf_bill", profileWallet: wallet,
+    });
+    expect(o.receipt).toMatchObject({ quoteHash: quote.hash, authorizedBy: wallet, agentPrepared: true, shipTo: { line1: "1 Ship St" }, billTo: { city: "Dallas" } });
+    expect(o.receipt!.lines.map((l) => l.label)).toContain("Item × 1");
+    const raw = (await q<{ details_enc: string }>("select details_enc from commerce_orders where id=$1", [o.id]))[0].details_enc;
+    expect(raw).not.toContain("Bill Rd");
+    // Visible from the profile (another device or linked wallet) without the receipt token.
+    expect((await ordersFor({ profileId: "prf_bill" })).map((x) => x.id)).toEqual([o.id]);
+    expect(await ordersFor({ profileId: "prf_other" })).toHaveLength(0);
+  });
+
+  it("doesn't file an order under a profile whose wallet didn't pay", async () => {
+    const { createQuote, authorizeOrder, ordersFor } = await import("@/lib/commerce/orders");
+    const priv = ed25519.utils.randomPrivateKey();
+    const wallet = bs58.encode(ed25519.getPublicKey(priv));
+    const quote = await createQuote({ offerId: "bajar-sandbox:tst-sn1", quantity: 1, asset: "USDC", wallet, chainType: "solana", host: "localhost" });
+    await authorizeOrder({ quoteId: quote.id, signature: bs58.encode(ed25519.sign(new TextEncoder().encode(quote.message), priv)), idempotencyKey: "k-receipt-0000002", consent: true, ipHash: "ip-r2",
+      shipping: { name: "A B", line1: "1 St", city: "X", postal: "1", country: "US" }, profileId: "prf_intruder", profileWallet: "SomeOtherWallet111111111111111111111" });
+    expect(await ordersFor({ profileId: "prf_intruder" })).toHaveLength(0);
+  });
+});

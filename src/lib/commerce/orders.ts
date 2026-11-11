@@ -113,12 +113,18 @@ export async function createQuote(i: QuoteInput): Promise<Quote> {
 
 export interface Shipping { name: string; line1: string; line2?: string; city: string; region?: string; postal: string; country: string; email?: string }
 export interface OrderEvent { at: number; status: string; note: string }
+/** Full purchase record kept with each order (encrypted at rest), shown to its owner. */
+export interface Receipt {
+  lines: QuoteLine[]; shipping: string; shipTo: Shipping | null; billTo: Shipping | null; paidWith: string; priceUsd: number; priceSource: string;
+  networkFeeUsd: number; quoteHash: string; signature: string; authorizedBy: string; merchantSettlementUsd: number; agentPrepared: boolean;
+}
 export interface OrderView {
+  receipt?: Receipt;
   id: string; sandbox: boolean; status: string; title: string; merchant: string; quantity: number; asset: string; network: string; cryptoAmount: string;
   totalUsd: number; refundedUsd: number; createdAt: string; events: OrderEvent[]; token?: string; shipTo?: string;
 }
 
-export interface AuthorizeInput { quoteId: string; signature: string; idempotencyKey: string; shipping: Shipping; consent: boolean; ipHash: string }
+export interface AuthorizeInput { quoteId: string; signature: string; idempotencyKey: string; shipping: Shipping; billing?: Shipping | null; consent: boolean; ipHash: string; profileId?: string | null; profileWallet?: string | null; agentPrepared?: boolean }
 
 /**
  * Verifies the customer's wallet signature over the exact quote, then runs
@@ -151,6 +157,12 @@ export async function authorizeOrder(i: AuthorizeInput): Promise<OrderView> {
   }
   if (!quote.sandbox) throw new PayError("provider", "No live payment provider is configured. Nothing was charged.", 501);
   const ship = cleanShipping(i.shipping);
+  const bill = i.billing ? cleanShipping(i.billing) : null;
+  const receipt: Receipt = {
+    lines: quote.lines, shipping: quote.shipping.label, shipTo: ship, billTo: bill ?? ship, paidWith: `${quote.cryptoAmount} ${quote.asset} on ${quote.network}`,
+    priceUsd: quote.priceUsd, priceSource: quote.priceSource, networkFeeUsd: quote.networkFeeUsd, quoteHash: quote.hash, signature: i.signature, authorizedBy: row.wallet,
+    merchantSettlementUsd: quote.merchantSettlementUsd, agentPrepared: !!i.agentPrepared,
+  };
 
   const id = newId("ord");
   const now = Date.now();
@@ -171,10 +183,10 @@ export async function authorizeOrder(i: AuthorizeInput): Promise<OrderView> {
   }
   try {
     await q(`insert into commerce_orders (id, idempotency_key, quote_id, wallet, chain_type, sandbox, status, title, merchant, retailer, quantity, asset, network, crypto_amount,
-      customer_total_usd, merchant_settlement_usd, bajar_fee_usd, commission_usd, network_fee_usd, signature, shipping_enc, risk, events, ip_hash)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+      customer_total_usd, merchant_settlement_usd, bajar_fee_usd, commission_usd, network_fee_usd, signature, shipping_enc, risk, events, ip_hash, details_enc, profile_id)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
       [id, i.idempotencyKey, i.quoteId, row.wallet, row.chain_type, true, status, quote.offer.title, quote.offer.merchant, quote.offer.retailer, quote.quantity, quote.asset, quote.network, String(quote.cryptoAmount),
-        quote.totalUsd, quote.merchantSettlementUsd, quote.bajarFeeUsd, quote.commissionUsd, quote.networkFeeUsd, i.signature, encrypt(ship), JSON.stringify(risk), JSON.stringify(events), i.ipHash]);
+        quote.totalUsd, quote.merchantSettlementUsd, quote.bajarFeeUsd, quote.commissionUsd, quote.networkFeeUsd, i.signature, encrypt(ship), JSON.stringify(risk), JSON.stringify(events), i.ipHash, encrypt(receipt), i.profileId && i.profileWallet === row.wallet ? i.profileId : null]);
   } catch (e) {
     // Same idempotency key raced us: return that order.
     const again = (await q<OrderRow>("select * from commerce_orders where idempotency_key=$1", [i.idempotencyKey]))[0];
@@ -198,6 +210,7 @@ interface OrderRow {
   id: string; idempotency_key: string; quote_id: string; wallet: string; chain_type: string; sandbox: boolean; status: string; title: string; merchant: string; retailer: string;
   quantity: number; asset: string; network: string; crypto_amount: string; customer_total_usd: string | number; merchant_settlement_usd: string | number; bajar_fee_usd: string | number;
   commission_usd: string | number; network_fee_usd: string | number; refunded_usd: string | number; signature: string; shipping_enc: string | null; risk: string | null; events: string; created_at: string | Date;
+  details_enc?: string | null; profile_id?: string | null;
 }
 
 /** Sandbox fulfilment timeline (simulated, labeled): ships 2 min after confirmation, delivered after 5. */
@@ -218,18 +231,21 @@ const tokenOrder = (t: string) => unseal<{ order?: string }>(t, "order")?.order 
 function view(r: OrderRow, withToken = false): OrderView {
   const p = progressed(r);
   let shipTo: string | undefined;
+  let receipt: Receipt | undefined;
+  if (withToken) { try { receipt = decrypt<Receipt>(r.details_enc) ?? undefined; } catch { /* key rotated */ } }
   try { const s = decrypt<Shipping>(r.shipping_enc); if (s) shipTo = `${s.name.split(" ")[0]} · ${s.city}, ${s.country}`; } catch { /* key rotated */ }
   return {
     id: r.id, sandbox: r.sandbox, status: p.status, title: r.title, merchant: r.merchant, quantity: r.quantity, asset: r.asset, network: r.network, cryptoAmount: r.crypto_amount,
-    totalUsd: Number(r.customer_total_usd), refundedUsd: Number(r.refunded_usd), createdAt: new Date(r.created_at).toISOString(), events: p.events, shipTo, ...(withToken ? { token: orderToken(r.id) } : {}),
+    totalUsd: Number(r.customer_total_usd), refundedUsd: Number(r.refunded_usd), createdAt: new Date(r.created_at).toISOString(), events: p.events, shipTo, ...(withToken ? { token: orderToken(r.id), receipt } : {}),
   };
 }
 
 /** Orders for a signed-in wallet and/or the order receipts this browser holds. */
-export async function ordersFor(opts: { wallet?: string | null; tokens?: string[] }): Promise<OrderView[]> {
+export async function ordersFor(opts: { wallet?: string | null; tokens?: string[]; profileId?: string | null }): Promise<OrderView[]> {
   const ids = (opts.tokens ?? []).slice(0, 50).map(tokenOrder).filter((x): x is string => !!x);
-  if (!opts.wallet && !ids.length) return [];
-  const rows = await q<OrderRow>(`select * from commerce_orders where ${opts.wallet ? "wallet=$1 or " : ""}id = any($${opts.wallet ? 2 : 1}) order by created_at desc limit 50`, opts.wallet ? [opts.wallet, ids] : [ids]);
+  if (!opts.wallet && !opts.profileId && !ids.length) return [];
+  // The signed-in wallet's orders, every order of its Bajar profile (any linked wallet), and receipts held on this device.
+  const rows = await q<OrderRow>("select * from commerce_orders where id = any($1) or ($2::text is not null and wallet=$2) or ($3::text is not null and profile_id=$3) order by created_at desc limit 100", [ids, opts.wallet ?? null, opts.profileId ?? null]);
   return rows.map((r) => view(r, true));
 }
 /** Back-compat for the #Track agent. */

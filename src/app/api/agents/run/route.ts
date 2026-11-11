@@ -25,12 +25,12 @@ export async function POST(req: Request) {
   if (!p.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const session = await currentSession().catch(() => null);
   // What the agents may know about the signed-in shopper: whether a profile exists, its country, connected stores. Never the details themselves.
-  let account: { hasProfile: boolean; country: string | null; stores: { store: string; accountName: string | null }[] } | undefined;
+  let account: { hasProfile: boolean; country: string | null; stores: { store: string; accountName: string | null }[]; payment?: { asset: string; network: string | null; agentLimitUsd: number | null } } | undefined;
   if (session) {
     try {
       const pid = await profileForSession(session);
       const [sp, stores] = await Promise.all([getShoppingProfile(pid), storeAccounts(pid)]);
-      account = { hasProfile: !!(sp.name && sp.addresses.length), country: defaultAddress(sp)?.country ?? null, stores: stores.map((x) => ({ store: x.store, accountName: x.accountName })) };
+      account = { hasProfile: !!(sp.name && sp.addresses.length), country: defaultAddress(sp)?.country ?? null, stores: stores.map((x) => ({ store: x.store, accountName: x.accountName })), payment: sp.payment };
     } catch { /* profile unavailable: agents run without it */ }
   }
   const enc = new TextEncoder();

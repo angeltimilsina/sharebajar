@@ -4,6 +4,7 @@ import { createQuote, PayError } from "@/lib/commerce/orders";
 import { crossSiteRejection, requestHost } from "@/lib/server/guard";
 import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 import { currentSession, planOf, profileForSession } from "@/lib/pro/profile";
+import { getShoppingProfile } from "@/lib/commerce/profile";
 
 const Body = z.object({
   offerId: z.string().max(200),
@@ -27,12 +28,19 @@ export async function POST(req: Request) {
   if (d.chainType === "evm" ? !/^0x[0-9a-fA-F]{40}$/.test(d.wallet) : !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(d.wallet)) return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
   // BAJAR Plus (Pro) members pay no BAJAR Pay fee — only when the signed-in wallet is the paying wallet.
   let plus = false;
+  let limit: number | null = null;
   const s = await currentSession().catch(() => null);
-  if (s && s.address.toLowerCase() === d.wallet.toLowerCase()) {
-    try { plus = (await planOf(await profileForSession(s))).tier === "pro"; } catch { /* plan unknown: fee applies */ }
+  if (s) {
+    try {
+      const pid = await profileForSession(s);
+      if (s.address.toLowerCase() === d.wallet.toLowerCase()) plus = (await planOf(pid)).tier === "pro";
+      limit = (await getShoppingProfile(pid)).payment.agentLimitUsd;
+    } catch { /* plan/profile unknown: fee applies, no limit */ }
   }
   try {
     const quote = await createQuote({ ...d, wallet: d.chainType === "evm" ? d.wallet.toLowerCase() : d.wallet, plus, host: requestHost(req) });
+    // Agentic billing: your spending limit caps what agents can prepare.
+    if (limit !== null && quote.totalUsd > limit) return NextResponse.json({ error: `This order ($${quote.totalUsd.toFixed(2)}) is over your agent spending limit of $${limit.toFixed(2)}. Raise it in your shopping profile to continue.`, code: "agent_limit" }, { status: 422 });
     return NextResponse.json({ quote });
   } catch (e) {
     if (e instanceof PayError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });

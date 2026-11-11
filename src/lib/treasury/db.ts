@@ -300,6 +300,9 @@ create table if not exists commerce_orders (
   updated_at timestamptz not null default now()
 );
 create index if not exists commerce_orders_wallet on commerce_orders (wallet);
+alter table commerce_orders add column if not exists details_enc text;
+alter table commerce_orders add column if not exists profile_id text;
+create index if not exists commerce_orders_profile on commerce_orders (profile_id);
 create table if not exists shopping_profiles (
   profile_id text primary key,
   data_enc text not null,

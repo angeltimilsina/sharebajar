@@ -6,11 +6,13 @@ import { ArrowLeft, Check, Lock, Plus, ShieldCheck, Store, Trash2 } from "lucide
 import { useWallet } from "../wallet/WalletProvider";
 
 export interface Address { id: string; label: string; name: string; line1: string; line2?: string; city: string; region?: string; postal: string; country: string; phone?: string }
-export interface Profile { name: string; email: string; phone: string; addresses: Address[]; defaultAddress: string | null; billingSameAsShipping: boolean }
+export interface BillingPrefs { asset: "USDC" | "USDT" | "ETH" | "SOL"; network: string | null; agentLimitUsd: number | null }
+export interface Profile { name: string; email: string; phone: string; addresses: Address[]; defaultAddress: string | null; billingSameAsShipping: boolean; billing: Address | null; payment: BillingPrefs }
 interface Connector { id: string; name: string; configured: boolean; missing: string[]; grants: string[] }
 interface Account { store: string; accountName: string | null; connectedAt: string }
 
-const EMPTY: Profile = { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true };
+const EMPTY: Profile = { name: "", email: "", phone: "", addresses: [], defaultAddress: null, billingSameAsShipping: true, billing: null, payment: { asset: "USDC", network: null, agentLimitUsd: null } };
+const NETWORKS: Record<string, string[]> = { USDC: ["solana", "base", "ethereum"], USDT: ["solana", "ethereum"], ETH: ["base", "ethereum"], SOL: ["solana"] };
 const newAddress = (p: Profile): Address => ({ id: `a${Date.now().toString(36)}`, label: p.addresses.length ? "Other" : "Home", name: p.name, line1: "", city: "", postal: "", country: "US", phone: p.phone || undefined });
 const MSG: Record<string, string> = {
   state: "That store sign-in expired or didn't match. Try again.", denied: "You cancelled the store sign-in.", code: "The store didn't return a sign-in code.",
@@ -35,7 +37,7 @@ export function ShoppingProfile() {
     if (!signedIn) { setP(null); return; }
     const r = await fetch("/api/commerce/profile");
     const b = await r.json().catch(() => ({}));
-    if (r.ok) setP({ ...EMPTY, ...b.profile }); else setMsg({ tone: "err", text: b.error ?? "Couldn't load your profile." });
+    if (r.ok) setP({ ...EMPTY, ...b.profile, payment: { ...EMPTY.payment, ...(b.profile?.payment ?? {}) } }); else setMsg({ tone: "err", text: b.error ?? "Couldn't load your profile." });
   }, [signedIn]);
   useEffect(() => { void load(); }, [load]);
 
@@ -103,7 +105,43 @@ export function ShoppingProfile() {
                 <input className={input} placeholder="Country (US)" aria-label="Country" maxLength={2} value={a.country} onChange={(e) => setAddr(a.id, { country: e.target.value.toUpperCase() })} />
               </div>
             ))}
-            <label className="flex items-center gap-2 text-[13px] text-muted"><input type="checkbox" checked={p.billingSameAsShipping} onChange={(e) => setP({ ...p, billingSameAsShipping: e.target.checked })} />Billing address same as shipping</label>
+            <label className="flex items-center gap-2 text-[13px] text-muted"><input type="checkbox" checked={p.billingSameAsShipping} onChange={(e) => setP({ ...p, billingSameAsShipping: e.target.checked, billing: e.target.checked ? null : p.billing ?? { ...newAddress(p), id: "billing", label: "Billing" } })} data-testid="billing-same" />Billing address same as shipping</label>
+            {!p.billingSameAsShipping && p.billing && (() => {
+              const b = p.billing;
+              const setB = (patch: Partial<Address>) => setP({ ...p, billing: { ...b, ...patch } });
+              return (
+                <div className="rounded-2xl bg-surface p-4 grid gap-2 grid-cols-2" data-testid="billing-address">
+                  <div className="col-span-2 text-[12px] text-faint">Billing address</div>
+                  <input className={`${input} col-span-2`} placeholder="Name on billing" aria-label="Billing name" value={b.name} onChange={(e) => setB({ name: e.target.value })} />
+                  <input className={`${input} col-span-2`} placeholder="Street address" aria-label="Billing street" value={b.line1} onChange={(e) => setB({ line1: e.target.value })} />
+                  <input className={input} placeholder="City" aria-label="Billing city" value={b.city} onChange={(e) => setB({ city: e.target.value })} />
+                  <input className={input} placeholder="Postal code" aria-label="Billing postal code" value={b.postal} onChange={(e) => setB({ postal: e.target.value })} />
+                  <input className={input} placeholder="Country (US)" aria-label="Billing country" maxLength={2} value={b.country} onChange={(e) => setB({ country: e.target.value.toUpperCase() })} />
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="rounded-2xl bg-surface p-4 space-y-2" data-testid="agentic-billing">
+            <h2 className="text-[13px] uppercase tracking-wider text-faint">Agentic billing</h2>
+            <p className="text-[12.5px] text-muted">How your agents prepare payments. They can never pay on their own — every payment needs your wallet approval.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[12px] text-faint">Default payment
+                <select className={input} value={p.payment.asset} onChange={(e) => { const asset = e.target.value as BillingPrefs["asset"]; setP({ ...p, payment: { ...p.payment, asset, network: NETWORKS[asset].includes(p.payment.network ?? "") ? p.payment.network : null } }); }} aria-label="Default payment asset" data-testid="pay-default-asset">
+                  {Object.keys(NETWORKS).map((a) => <option key={a}>{a}</option>)}
+                </select>
+              </label>
+              <label className="text-[12px] text-faint">Network
+                <select className={input} value={p.payment.network ?? ""} onChange={(e) => setP({ ...p, payment: { ...p.payment, network: e.target.value || null } })} aria-label="Default network">
+                  <option value="">Best for my wallet</option>
+                  {NETWORKS[p.payment.asset].map((n) => <option key={n} value={n}>{n[0].toUpperCase() + n.slice(1)}</option>)}
+                </select>
+              </label>
+              <label className="col-span-2 text-[12px] text-faint">Agent spending limit per order (USD)
+                <input className={input} inputMode="decimal" placeholder="No limit" value={p.payment.agentLimitUsd ?? ""} onChange={(e) => { const v = e.target.value.replace(/[^\d.]/g, ""); setP({ ...p, payment: { ...p.payment, agentLimitUsd: v === "" ? null : Number(v) } }); }} aria-label="Agent spending limit" data-testid="agent-limit" />
+              </label>
+            </div>
+            <p className="text-[11.5px] text-faint">Agents won&apos;t prepare a checkout above your limit.</p>
           </div>
 
           <div className="flex gap-2">
