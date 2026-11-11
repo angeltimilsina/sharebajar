@@ -94,7 +94,8 @@ test.describe("Bajar Pro", () => {
     await other.close();
 
     // Portfolio is the one Bajar Wallet, now including the connected wallet (client-side nav keeps it unlocked).
-    await page.getByTestId("wallet-sidebar").getByRole("link", { name: "Portfolio" }).click();
+    await page.getByTestId("account-button").click();
+    await page.getByTestId("account-panel").getByRole("link", { name: "Portfolio" }).click();
     await expect(page.getByTestId("portfolio-source")).toHaveText("Bajar Wallet");
     await expect(page.getByTestId("dashboard-wallet-count")).toContainText(/\d+ connected wallets?/);
     // Clean up: disconnect it again from Bajar Wallet.

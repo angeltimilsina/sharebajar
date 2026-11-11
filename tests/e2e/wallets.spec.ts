@@ -121,15 +121,20 @@ test.describe("multiple wallets", () => {
     await expect(page.getByTestId("portfolio-intro")).toBeVisible();
     await page.getByTestId("portfolio-connect").click();
     await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-    const side = page.getByTestId("wallet-sidebar");
-    await expect(side.getByText(/Phantom · Solana/)).toBeVisible();
+    const menu = page.getByTestId("account-menu");
+    await page.getByTestId("account-button").click();
+    await expect(menu.getByText(/Phantom · Solana/)).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(page.getByTestId("connected-dashboard")).toBeVisible();
     await expect(page.getByTestId("asset-row").filter({ hasText: "SOL" }).first()).toBeVisible({ timeout: 45_000 });
-    // Switch wallet from the sidebar: Solana → EVM.
+    // Switch wallet from the Account menu: Solana → EVM.
+    await page.getByTestId("account-button").click();
     await page.getByTestId("account-switch").click();
     await page.getByRole("dialog").getByRole("button", { name: /MetaMask/ }).click();
-    await expect(side.getByText(/MetaMask · /)).toBeVisible({ timeout: 20_000 });
-    await expect(side.getByText(/Phantom · Solana/)).toHaveCount(0);
+    await page.getByTestId("account-button").click();
+    await expect(menu.getByText(/MetaMask · /)).toBeVisible({ timeout: 20_000 });
+    await expect(menu.getByText(/Phantom · Solana/)).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await expect(page.getByTestId("connected-dashboard")).toBeVisible();
   });
 
@@ -192,8 +197,8 @@ test.describe("mobile wallet deep links @mobile", () => {
     });
     await page.goto("/portfolio?bajar_connect=phantom");
     await expect(page.getByTestId("connected-dashboard")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("mobile-wallet").click();
-    await expect(page.getByTestId("wallet-drawer").getByText(/Phantom · Solana/)).toBeVisible();
+    await page.getByTestId("mobile-wallet").click(); // connected: opens the Account sheet
+    await expect(page.getByTestId("account-panel").getByText(/Phantom · Solana/)).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { __asked?: boolean }).__asked)).toBe(true);
     await expect(page).not.toHaveURL(/bajar_connect/); // tag removed so refresh/share doesn't re-trigger
   });

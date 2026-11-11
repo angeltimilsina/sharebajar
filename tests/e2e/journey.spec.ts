@@ -4,15 +4,17 @@ import { expect, test } from "@playwright/test";
 test.describe("journey", () => {
   test.setTimeout(120_000);
 
-  test("navigation: Tokens and Launchpad, the rest under More, wallet in the sidebar", async ({ page }) => {
+  test("navigation: Tokens and Launchpad; account and other pages in the Account menu; wallet side menu before connecting", async ({ page }) => {
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Main" });
     await expect(nav.getByRole("link")).toHaveText(["Tokens", "Launchpad"]);
-    await page.getByTestId("more-menu").click();
-    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/Markets/, /Trade/, /Discover/, /Bajar Intelligence/, /Learn/, /Bajar Pro/, /System status/]);
+    await page.getByTestId("account-button").click();
+    await expect(page.getByTestId("account-panel").getByTestId("account-connect")).toBeVisible();
+    await expect(page.getByTestId("account-pages").getByRole("menuitem")).toHaveText([/Markets/, /Trade/, /Discover/, /Bajar Intelligence/, /Learn/, /System status/]);
+    await page.keyboard.press("Escape");
     const side = page.getByTestId("wallet-sidebar");
     await expect(side.getByTestId("menu-connect")).toBeVisible();
-    await expect(side.getByRole("link", { name: "Portfolio" })).toBeVisible();
+    await expect(side.getByRole("link", { name: "Portfolio" })).toHaveCount(0);
     await expect(side.getByTestId("open-agent")).toHaveCount(0); // the agent lives on Profile & Pro
     await expect(side.getByRole("link", { name: "Activity" })).toHaveCount(0); // no wallet yet
     await expect(side.getByRole("link", { name: "Profile & Pro" })).toBeVisible();

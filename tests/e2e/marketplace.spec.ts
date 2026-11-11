@@ -130,6 +130,8 @@ test.describe("wallet", () => {
     // Connected: no Connect button, no footer; wallet controls live in the menu.
     await expect(page.getByTestId("menu-connect")).toHaveCount(0);
     await expect(page.locator(".site-footer")).toBeHidden();
+    await expect(page.getByTestId("wallet-sidebar")).toHaveCount(0); // side menu goes away once connected
+    await page.getByTestId("account-button").click();
     const menu = page.getByTestId("account-menu");
     await expect(menu.getByText("9WzD…AWWM")).toBeVisible();
     await expect(page.getByTestId("account-switch")).toBeVisible();

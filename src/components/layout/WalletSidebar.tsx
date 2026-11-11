@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import {
-  Check, Crown, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, PieChart, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
+  Check, Crown, ChevronsLeft, ChevronsRight, Copy, Lock, LogOut, Plug, RefreshCw, Repeat2, ShieldCheck, Wallet, X,
 } from "lucide-react";
 import { useConnected } from "@/hooks/useConnected";
 import { useBajar } from "../bajar/useBajar";
@@ -16,7 +16,6 @@ import { sidebar, useSidebar } from "@/lib/ui/sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 
 const LINKS = [
-  { href: "/portfolio", label: "Portfolio", Icon: PieChart },
   { href: "/wallet", label: "Bajar Wallet", Icon: Wallet },
   { href: "/pro", label: "Profile & Pro", Icon: Crown },
 ];
@@ -28,6 +27,12 @@ const LINKS = [
  */
 export function WalletSidebar() {
   const path = usePathname();
+  const { connected } = useConnected();
+  // After a wallet is connected the side menu goes away (the Account button has everything).
+  useEffect(() => {
+    if (connected) { document.documentElement.dataset.sbHidden = "1"; sidebar.setDrawer(false); }
+    else delete document.documentElement.dataset.sbHidden;
+  }, [connected]);
   const { drawer, collapsed } = useSidebar();
   // Render the rail's contents only on desktop, so phones have one copy (in the drawer).
   const [desktop, setDesktop] = useState<boolean | null>(null);
@@ -48,6 +53,7 @@ export function WalletSidebar() {
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
   }, [drawer]);
 
+  if (connected) return null;
   return (
     <>
       {/* Desktop rail */}

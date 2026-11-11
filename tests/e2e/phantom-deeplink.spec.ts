@@ -54,8 +54,8 @@ test.describe("Phantom deep links @mobile", () => {
   test("connects from the phone browser and returns here @mobile", async ({ page }) => {
     await connectPhantom(page);
     await expect(page.getByTestId("connected-dashboard")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("mobile-wallet").click();
-    await expect(page.getByTestId("wallet-drawer").getByText(/Phantom · Solana/)).toBeVisible();
+    await page.getByTestId("mobile-wallet").click(); // connected: opens the Account sheet
+    await expect(page.getByTestId("account-panel").getByText(/Phantom · Solana/)).toBeVisible();
     await expect(page).not.toHaveURL(/link_req|nonce|data=/); // reply stripped from the address bar
   });
 

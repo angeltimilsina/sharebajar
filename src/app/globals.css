@@ -234,4 +234,5 @@ html:has([data-app-page]) .site-footer { display: none; }
 @media (min-width: 1024px) {
   .with-sidebar { padding-left: 260px; transition: padding-left 0.2s ease; }
   html[data-sb="collapsed"] .with-sidebar { padding-left: 76px; }
+  html[data-sb-hidden] .with-sidebar { padding-left: 0; }
 }

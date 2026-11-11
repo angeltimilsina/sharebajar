@@ -5,6 +5,7 @@ import { Coins, Rocket, Wallet } from "lucide-react";
 import clsx from "clsx";
 import { NAV } from "./Header";
 import { sidebar, useSidebar } from "@/lib/ui/sidebar";
+import { accountMenu } from "@/lib/ui/accountMenu";
 import { useConnected } from "@/hooks/useConnected";
 
 const ICONS: Record<string, typeof Coins> = { "/tokens": Coins, "/launchpad": Rocket };
@@ -32,7 +33,7 @@ export function MobileNav() {
           );
         })}
         <li>
-          <button type="button" onClick={() => sidebar.setDrawer(!drawer)} aria-expanded={drawer} data-testid="mobile-wallet" className={tab(drawer || walletPage)}>
+          <button type="button" onClick={() => (connected ? accountMenu.toggle() : sidebar.setDrawer(!drawer))} aria-expanded={drawer} data-testid="mobile-wallet" className={tab(drawer || walletPage)}>
             <span className="relative">
               <Wallet size={21} strokeWidth={drawer || walletPage ? 2.3 : 1.8} />
               {connected && <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-accent ring-2 ring-[var(--surface)]" aria-hidden />}

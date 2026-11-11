@@ -55,10 +55,11 @@ test.describe("multi-wallet", () => {
 
     // The agent (on Profile & Pro) gets values, never addresses.
     // Activity is part of Portfolio now; launched tokens are listed with a Manage action.
-    await expect(page.getByTestId("wallet-sidebar").getByRole("link", { name: "Activity" })).toHaveCount(0);
+    await expect(page.getByTestId("wallet-sidebar")).toHaveCount(0);
     await expect(page.getByTestId("portfolio-activity")).toBeVisible();
     await expect(page.getByTestId("launched-tokens")).toBeVisible();
-    await page.getByTestId("wallet-sidebar").getByRole("link", { name: "Profile & Pro" }).click();
+    await page.getByTestId("account-button").click();
+    await page.getByTestId("account-panel").getByRole("link", { name: "Profile & Pro" }).click();
     await page.getByTestId("pro-agent").getByTestId("open-agent").click();
     await expect(page).toHaveURL(/\/intelligence\?agent=portfolio/);
     await expect(page.getByTestId("agent-portfolio")).toBeVisible();
