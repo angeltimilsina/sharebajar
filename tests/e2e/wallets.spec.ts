@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { fakeAuth } from "./fakeAuth";
 
 /*
  * Trade, swap and portfolio with several wallets. Wallets are stand-ins that
@@ -16,6 +17,7 @@ const BONK = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 async function stubPhantom(page: Page, opts: { reject?: boolean } = {}) {
+  await fakeAuth(page);
   await page.addInitScript(({ pk, reject }) => {
     const calls: string[] = [];
     (window as unknown as { __calls: string[] }).__calls = calls;
@@ -37,6 +39,7 @@ async function stubPhantom(page: Page, opts: { reject?: boolean } = {}) {
 }
 
 async function stubMetaMask(page: Page, address = EVM_ADDR) {
+  await fakeAuth(page);
   await page.addInitScript(({ addr }) => {
     const calls: { method: string; params?: unknown[] }[] = [];
     (window as unknown as { __evmCalls: typeof calls }).__evmCalls = calls;
@@ -54,6 +57,7 @@ async function stubMetaMask(page: Page, address = EVM_ADDR) {
           case "eth_getBalance": return "0xde0b6b3a7640000"; // 1 ETH
           case "eth_sendTransaction": return "0x" + "ab".repeat(32);
           case "eth_getTransactionReceipt": return { status: "0x1" };
+          case "personal_sign": return "0x" + "00".repeat(65);
           default: return null;
         }
       },
@@ -190,6 +194,7 @@ test.describe("mobile wallet deep links @mobile", () => {
   });
 
   test("arriving inside the wallet app opens the connect prompt automatically @mobile", async ({ page }) => {
+    await fakeAuth(page); // stand-in wallet can't sign
     await page.addInitScript(() => {
       const pk = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9";
       const provider = { isPhantom: true, publicKey: null as null | { toString(): string }, connect: async () => { (window as unknown as { __asked: boolean }).__asked = true; provider.publicKey = { toString: () => pk }; return { publicKey: provider.publicKey }; }, disconnect: async () => {}, signMessage: async () => ({ signature: new Uint8Array(64) }), on: () => {}, off: () => {} };

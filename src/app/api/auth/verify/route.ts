@@ -1,4 +1,5 @@
-import { NONCE_COOKIE, SESSION_COOKIE, seal, unseal, verifyEvm, verifySolana, type Session } from "@/lib/server/auth";
+import { NONCE_COOKIE, unseal, verifyEvm, verifySolana, type Session } from "@/lib/server/auth";
+import { issueSession } from "@/lib/server/gateway";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { fromB64, pqFingerprint, pqVerify } from "@/lib/bajar/keys";
@@ -7,7 +8,6 @@ import { clientIp, rateLimit } from "@/lib/server/ratelimit";
 
 interface Pending { message: string; nonce: string; host: string; address: string; chainType: "solana" | "evm"; pqFingerprint?: string; exp: number }
 
-const SESSION_TTL = 7 * 24 * 3600_000;
 
 /**
  * Verifies a signed challenge and issues an httpOnly session.
@@ -42,11 +42,14 @@ export async function POST(req: Request) {
   }
   // Only after every check passes: burn the nonce so the same signature can't be replayed.
   if (!consumeNonce(pending.nonce, pending.exp)) return NextResponse.json({ error: "This sign-in request was already used." }, { status: 409 });
-  const now = Date.now();
-  const session: Session = { address: pending.address, chainType: pending.chainType, exp: now + SESSION_TTL, iat: now, ...(pq ? { pq } : {}) };
-  const res = NextResponse.json({ ok: true, session }, { headers: { "cache-control": "no-store" } });
-  const secure = secureCookies(req);
-  res.cookies.set(SESSION_COOKIE, seal(session, "session"), { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_TTL / 1000 });
-  res.cookies.delete({ name: NONCE_COOKIE, path: "/api/auth" });
-  return res;
+  // One gateway: the session is recorded server-side (revocable) and set as an httpOnly cookie.
+  const res = NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
+  let session: Session;
+  try { session = await issueSession(res, secureCookies(req), { address: pending.address, chainType: pending.chainType, pq }); }
+  catch { return NextResponse.json({ error: "Sign-in is unavailable right now. Try again." }, { status: 503 }); }
+  const { sid: _sid, ...pub } = session;
+  void _sid;
+  const out = NextResponse.json({ ok: true, session: pub }, { headers: res.headers });
+  out.cookies.delete({ name: NONCE_COOKIE, path: "/api/auth" });
+  return out;
 }

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
+import { fakeAuth } from "./fakeAuth";
 
 /**
  * Pro profile (wallets proven by real ed25519 signatures), the Pro page, the
@@ -113,6 +114,7 @@ test.describe("Launchpad", () => {
   test.setTimeout(120_000);
 
   test("EVM launch on Base: simulated, one deploy transaction of the BajarToken contract", async ({ page }) => {
+    await fakeAuth(page); // stand-in EVM wallet can't sign
     await page.addInitScript(() => {
       const calls: { method: string; params?: unknown[] }[] = [];
       (window as unknown as { __evmCalls: typeof calls }).__evmCalls = calls;
@@ -131,6 +133,7 @@ test.describe("Launchpad", () => {
             case "eth_getBalance": return "0xde0b6b3a7640000"; // 1 ETH
             case "eth_sendTransaction": return "0x" + "cd".repeat(32);
             case "eth_getTransactionReceipt": return { status: "0x1", contractAddress: "0x2222222222222222222222222222222222222222" };
+            case "personal_sign": return "0x" + "00".repeat(65);
             default: return null;
           }
         },

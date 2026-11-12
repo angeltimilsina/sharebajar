@@ -73,7 +73,7 @@ test.describe("app pages", () => {
     await page.goto("/discover");
     await expect(page.locator(".site-footer")).toBeHidden();
     await page.goto("/markets");
-    await expect(page.locator(".site-footer")).toBeVisible();
+    await expect(page.locator("footer, .site-footer")).toHaveCount(0); // no footers anywhere
   });
 });
 

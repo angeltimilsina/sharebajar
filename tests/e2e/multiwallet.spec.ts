@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { fakeAuth } from "./fakeAuth";
 
 const SOL_ADDR = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9";
 const SOL_DEST = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
 async function stubPhantom(page: Page) {
+  await fakeAuth(page);
   await page.addInitScript(({ pk }) => {
     const signed: string[] = [];
     (window as unknown as { __signed: string[] }).__signed = signed;

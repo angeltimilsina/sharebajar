@@ -27,8 +27,7 @@ async function stubPhantom(page: Page, trusted = true) {
 async function connectAndSignIn(page: Page) {
   await page.goto("/agents/profile");
   await page.getByTestId("profile-signin-btn").click();
-  await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-  await page.getByTestId("profile-signin-btn").click();
+  await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click(); // connect = sign in
   await expect(page.getByTestId("shopping-profile")).toBeVisible({ timeout: 15_000 });
 }
 
@@ -112,5 +111,52 @@ test.describe("staying logged in", () => {
     await expect(r.getByTestId("receipt-bill-to")).toContainText("9 Bill Rd");
     await expect(r).toContainText("prepared by BAJAR Agents");
     await expect(r).toContainText("USDT");
+  });
+
+  test("one gateway: connecting signs in; declining the signature means not connected", async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: { cookies: [{ name: "bajar_consent", value: "v1", domain: "localhost", path: "/", expires: -1, httpOnly: false, secure: false, sameSite: "Lax" }], origins: [] } });
+    const page = await ctx.newPage();
+    await page.addInitScript((pk) => {
+      const provider = {
+        isPhantom: true, publicKey: null as null | { toString(): string },
+        connect: async () => { provider.publicKey = { toString: () => pk }; return { publicKey: provider.publicKey }; },
+        disconnect: async () => { provider.publicKey = null; },
+        signMessage: async () => { throw Object.assign(new Error("User rejected the request."), { code: 4001 }); },
+        on: () => {}, off: () => {},
+      };
+      (window as unknown as { phantom: unknown }).phantom = { solana: provider };
+    }, ADDR);
+    await page.goto("/tokens");
+    await page.getByTestId("account-button").click();
+    await page.getByTestId("account-connect").click();
+    await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
+    await expect(page.getByRole("dialog")).toContainText("Your wallet wasn't connected", { timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("account-button")).not.toContainText(short);
+    expect((await (await page.request.get("/api/auth/session")).json()).session).toBeNull();
+    await ctx.close();
+  });
+
+  test("sessions are server-side: signing out revokes the cookie, even a copied one", async ({ page }) => {
+    await stubPhantom(page);
+    await connectAndSignIn(page);
+    const cookie = (await page.context().cookies()).find((c) => c.name === "sb_session")!;
+    expect(cookie.httpOnly).toBe(true);
+    const ok = await page.request.get("/api/commerce/profile");
+    expect(ok.status()).toBe(200);
+    await page.getByTestId("account-button").click();
+    await expect(page.getByTestId("auth-status")).toContainText("Verified by wallet signature");
+    await page.getByTestId("account-disconnect").click();
+    await expect(page.getByTestId("account-button")).not.toContainText(short, { timeout: 10_000 });
+    // Replay the old cookie: the gateway refuses it.
+    const replay = await page.request.get("/api/commerce/profile", { headers: { cookie: `sb_session=${cookie.value}` } });
+    expect(replay.status()).toBe(401);
+  });
+
+  test("no footer on any page", async ({ page }) => {
+    for (const path of ["/", "/tokens", "/launchpad", "/agents", "/learn", "/status"]) {
+      await page.goto(path);
+      await expect(page.locator("footer")).toHaveCount(0);
+    }
   });
 });

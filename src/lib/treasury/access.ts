@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
-import { SESSION_COOKIE, unseal, verifyEvm, verifySolana, type Session } from "../server/auth";
+import { verifyEvm, verifySolana, type Session } from "../server/auth";
+import { readSession } from "../server/gateway";
 import { clientIp } from "../server/ratelimit";
 import { q } from "./db";
 import { alert, audit } from "./audit";
@@ -43,7 +44,7 @@ export async function currentActor(): Promise<Actor | null> {
     try { oh = new URL(origin).host; } catch { oh = null; }
     if (oh !== (h.get("x-forwarded-host") ?? h.get("host"))) return null;
   }
-  const session = unseal<Session>((await cookies()).get(SESSION_COOKIE)?.value, "session");
+  const session = await readSession();
   if (!session) return null;
   const address = norm(session.address);
   const age = Date.now() - (session.iat ?? 0);

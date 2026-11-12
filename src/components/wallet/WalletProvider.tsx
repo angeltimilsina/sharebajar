@@ -30,6 +30,14 @@ interface WalletContextValue {
   clearError: () => void;
   /** True while a remembered wallet is shown from cache and is being re-checked with the wallet. */
   restoring: boolean;
+  /** One authentication layer: true when a verified wallet-signature session matches the connected wallet (or no wallet is connected but the session is valid). */
+  authenticated: boolean;
+  /** A wallet is connected but its signature hasn't been verified for this session (e.g. account switched or session expired). */
+  needsAuth: boolean;
+  /** The session check with the server has completed at least once. */
+  sessionLoaded: boolean;
+  /** Verify the connected wallet (sign the challenge). Resolves true when the session is issued. */
+  authenticate: () => Promise<boolean>;
   /** Re-check the remembered wallet: reconnect silently, pick up account/network changes. */
   sync: () => Promise<void>;
   syncing: boolean;
@@ -66,6 +74,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const cleanup = useRef<(() => void) | null>(null);
   /** The shown wallet was confirmed by the wallet itself in this page load (not just restored from cache). */
   const verified = useRef(false);
+  const walletRef = useRef<ConnectedWallet | null>(null);
+  const signInRef = useRef<(w: ConnectedWallet | null) => Promise<boolean>>(async () => false);
+  const sessionRef = useRef<Session | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
 
   // Remember the connected wallet (public address only) so the next page load shows it immediately.
   useEffect(() => {
@@ -123,7 +135,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const pk = (res && "publicKey" in res ? res.publicKey : p.publicKey)?.toString();
         if (!pk) throw new Error("No account returned");
         verified.current = true;
-        setWallet({ walletId, walletName: name, chainType, address: pk });
+        walletRef.current = { walletId, walletName: name, chainType, address: pk };
+        setWallet(walletRef.current);
       } else {
         const wcw = wcWalletOf(walletId);
         // WalletConnect: pair with the wallet app (silent = restore an existing session only).
@@ -134,11 +147,31 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         if (!accounts?.[0]) throw new Error("No account returned");
         const chainId = Number((await p.request({ method: "eth_chainId" })) as string);
         verified.current = true;
-        setWallet({ walletId, walletName: name, chainType, address: accounts[0], chainId });
+        walletRef.current = { walletId, walletName: name, chainType, address: accounts[0], chainId };
+        setWallet(walletRef.current);
       }
       try { localStorage.setItem(LAST, JSON.stringify({ walletId, chainType, name })); } catch { /* ignore */ }
       attachListeners(walletId, chainType, name);
       setModalOpen(false);
+      if (!silent) {
+        // One authentication gateway: connecting a wallet means proving it with a signature.
+        const cw = walletRef.current ?? null;
+        const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+        const addr = cw?.address;
+        if (!same(sessionRef.current?.address, addr)) {
+          const ok = await signInRef.current(cw);
+          if (!ok) {
+            try { await getSolanaProvider(walletId)?.disconnect(); } catch { /* ignore */ }
+            cleanup.current?.();
+            verified.current = false;
+            setWallet(null);
+            try { localStorage.removeItem(LAST); } catch { /* ignore */ }
+            setError((e) => `${e ? `${e} ` : ""}Bajar needs one signature to verify your wallet (no transaction, no fees). Your wallet wasn't connected.`);
+            setModalOpen(true);
+            return false;
+          }
+        }
+      }
       return true;
     } catch (e) {
       if (!silent) setError(friendlyError(e));
@@ -159,7 +192,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       verified.current = true;
       setWallet({ walletId: wId, walletName: wName, chainType: "solana", address: ret.publicKey });
       try { localStorage.setItem(LAST, JSON.stringify({ walletId: wId, chainType: "solana", name: wName })); } catch { /* ignore */ }
-      toast(`${wName} connected`);
+      toast(`${wName} connected — verify it to sign in`);
       return;
     }
     if (!acct) return;
@@ -233,8 +266,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   //  - on load, wait for late-injected wallets instead of giving up after one try;
   //  - when the app regains focus / is restored, re-check accounts and network;
   //  - a remembered wallet that's no longer authorised is shown as disconnected.
-  const walletRef = useRef<ConnectedWallet | null>(null);
-  walletRef.current = wallet;
+  walletRef.current = wallet ?? (verified.current ? walletRef.current : null);
   const [syncing, setSyncing] = useState(false);
   const syncBusy = useRef(false);
   const sync = useCallback(async () => {
@@ -290,7 +322,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const readSession = () => fetch("/api/auth/session", { cache: "no-store" }).then((r) => r.json()).then((b) => setSession((s) => {
       const n = b.session ?? null;
       return s && n && s.address === n.address && s.exp === n.exp ? s : n;
-    })).catch(() => {});
+    })).catch(() => {}).finally(() => setSessionLoaded(true));
     readSession();
     // Show the remembered wallet immediately (no "Connect" flash between pages), then confirm it with the wallet.
     try {
@@ -320,31 +352,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (session) { await fetch("/api/auth/logout", { method: "POST" }).catch(() => {}); setSession(null); }
   }, [wallet, session]);
 
-  const signIn = useCallback(async () => {
-    if (!wallet) return;
+  /** The gateway's only sign-in path: the wallet signs a single-use, domain-bound challenge and the server verifies it. */
+  const signInWith = useCallback(async (w: ConnectedWallet | null): Promise<boolean> => {
+    if (!w) return false;
     setError(null);
     try {
-      const n = await fetch(`/api/auth/nonce?chainType=${wallet.chainType}&address=${encodeURIComponent(wallet.address)}`).then((r) => r.json());
+      const n = await fetch(`/api/auth/nonce?chainType=${w.chainType}&address=${encodeURIComponent(w.address)}`).then((r) => r.json());
       if (!n.message) throw new Error(n.error ?? "Could not start sign-in");
       let signature: string;
-      const lw = linkWalletOf(wallet.walletId);
-      if (lw) { linkSignMessage(lw, n.message, { kind: "signin" }); return; }
-      if (wallet.chainType === "solana") {
-        const p = getSolanaProvider(wallet.walletId);
+      const lw = linkWalletOf(w.walletId);
+      if (lw) { linkSignMessage(lw, n.message, { kind: "signin" }); return false; }
+      if (w.chainType === "solana") {
+        const p = getSolanaProvider(w.walletId);
         if (!p) throw new Error("Wallet unavailable");
         signature = await solanaSignMessage(p, n.message);
       } else {
-        const p = getEvmProvider(wallet.walletId);
+        const p = getEvmProvider(w.walletId);
         if (!p) throw new Error("Wallet unavailable");
-        signature = await evmSignMessage(p, wallet.address, n.message);
+        signature = await evmSignMessage(p, w.address, n.message);
       }
       const v = await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signature }) }).then((r) => r.json());
       if (!v.ok) throw new Error(v.error ?? "Verification failed");
       setSession(v.session);
+      return true;
     } catch (e) {
       setError(friendlyError(e));
+      return false;
     }
-  }, [wallet]);
+  }, []);
+  const signIn = useCallback(async () => { await signInWith(walletRef.current); }, [signInWith]);
+  signInRef.current = signInWith;
 
   const signMessage = useCallback(async (message: string) => {
     if (!wallet) throw new Error("Connect a wallet first.");
@@ -359,18 +396,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return evmSignMessage(p, wallet.address, message);
   }, [wallet]);
 
-  const signOut = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    setSession(null);
-  }, []);
+  // One layer: signing out ends the verified session AND disconnects the wallet.
+  const signOut = useCallback(async () => { await disconnect(); await fetch("/api/auth/logout", { method: "POST" }).catch(() => {}); setSession(null); }, [disconnect]);
+
+  sessionRef.current = session;
+  const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+  const authenticated = !!session && (!wallet || same(session.address, wallet.address));
+  const needsAuth = !!wallet && verified.current && sessionLoaded && !restoring && !connecting && !same(session?.address, wallet.address);
+
+  // Wallet switched to another account while signed in: the old session must not carry over to the new account.
+  useEffect(() => {
+    if (wallet && verified.current && session && !same(session.address, wallet.address)) {
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      setSession(null);
+    }
+  }, [wallet, session]);
 
   const value = useMemo<WalletContextValue>(() => ({
-    wallet, session, connecting, error, modalOpen, restoring,
+    wallet, session, connecting, error, modalOpen, restoring, authenticated, needsAuth, sessionLoaded,
+    authenticate: () => signInWith(walletRef.current),
     openModal: () => { setError(null); setModalOpen(true); },
     closeModal: () => setModalOpen(false),
     connect: async (id, ct, name) => { await connect(id, ct, name); },
     disconnect, signIn, signOut, signMessage, solana, evm, clearError: () => setError(null), sync, syncing,
-  }), [wallet, session, connecting, error, modalOpen, restoring, connect, disconnect, signIn, signOut, signMessage, solana, evm, sync, syncing]);
+  }), [wallet, session, connecting, error, modalOpen, restoring, authenticated, needsAuth, sessionLoaded, signInWith, connect, disconnect, signIn, signOut, signMessage, solana, evm, sync, syncing]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

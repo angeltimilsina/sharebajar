@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { fakeAuth } from "./fakeAuth";
 
 test.describe("public marketplace", () => {
   test("homepage renders market overview without an account", async ({ page }) => {
@@ -112,6 +113,7 @@ test.describe("wallet", () => {
   });
 
   test("connects and disconnects an injected Solana wallet", async ({ page }) => {
+    await fakeAuth(page);
     await page.addInitScript(() => {
       const pk = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
       const provider = {
@@ -136,7 +138,7 @@ test.describe("wallet", () => {
     await expect(menu.getByText("9WzD…AWWM")).toBeVisible();
     await expect(page.getByTestId("account-switch")).toBeVisible();
     await page.getByTestId("account-disconnect").click();
-    await expect(page.locator(".site-footer")).toBeVisible();
+    await expect(page.locator("footer, .site-footer")).toHaveCount(0); // no footers anywhere
     await expect(page.getByTestId("menu-connect")).toBeVisible();
   });
 });

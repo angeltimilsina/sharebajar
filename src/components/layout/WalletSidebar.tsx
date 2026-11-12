@@ -105,7 +105,7 @@ function Body({ compact }: { compact: boolean }) {
   const path = usePathname();
   const { wallet, bajarUnlocked } = useConnected();
   const { hasVault } = useBajar();
-  const { openModal, disconnect, session, signIn, signOut, error, sync, syncing } = useWallet();
+  const { openModal, disconnect, error, sync, syncing } = useWallet();
   const [copied, setCopied] = useState(false);
   const [hash, setHash] = useState("");
   useEffect(() => {
@@ -117,7 +117,6 @@ function Body({ compact }: { compact: boolean }) {
   const row = rowCls(compact);
   const label = (s: string) => (compact ? <span className="sr-only">{s}</span> : s);
   const chainName = wallet ? (wallet.chainType === "solana" ? "Solana" : chainFromEvmId(wallet.chainId ?? 0)?.name ?? `Chain ${wallet.chainId}`) : "";
-  const signedIn = !!(wallet && session && session.address.toLowerCase() === wallet.address.toLowerCase());
   const isOn = (href: string) => {
     const [p, h] = href.split("#");
     return h ? path === p && hash === `#${h}` : path === p && !(p === "/portfolio" && hash === "#activity");
@@ -171,9 +170,7 @@ function Body({ compact }: { compact: boolean }) {
           <button type="button" className={row} onClick={() => sync()} disabled={syncing} data-testid="wallet-sync" title={compact ? "Sync wallet" : undefined}>
             <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />{label(syncing ? "Syncing…" : "Sync wallet")}
           </button>
-          <button type="button" className={row} onClick={signedIn ? signOut : signIn} title={compact ? (signedIn ? "Sign out" : "Sign in with wallet") : undefined}>
-            <ShieldCheck size={16} className={signedIn ? "text-up" : ""} />{label(signedIn ? "Signed in · Sign out" : "Sign in with wallet")}
-          </button>
+
           <button type="button" className={row} data-testid="account-switch" title={compact ? "Switch wallet" : undefined} onClick={async () => { sidebar.setDrawer(false); await disconnect(); openModal(); }}>
             <Repeat2 size={16} />{label("Switch wallet")}
           </button>

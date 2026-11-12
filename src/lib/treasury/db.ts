@@ -317,6 +317,16 @@ create table if not exists store_accounts (
   connected_at timestamptz not null default now(),
   primary key (profile_id, store)
 );
+create table if not exists auth_sessions (
+  sid text primary key,
+  address text not null,
+  chain_type text not null,
+  pq text,
+  created_at timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  revoked_at timestamptz
+);
+create index if not exists auth_sessions_address on auth_sessions (address);
 `;
 
 const g = globalThis as unknown as { __sbDb?: Promise<Db> };

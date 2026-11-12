@@ -49,9 +49,9 @@ export function WalletModal() {
   const viaWc = (r: Row) => viaApp(r) && wcAvailable() && WC_WALLETS.includes(r.id);
 
   return (
-    <Modal open={modalOpen} onClose={closeModal} title="Connect a wallet">
+    <Modal open={modalOpen} onClose={closeModal} title="Connect &amp; sign in">
       <div className="px-5 pb-5">
-        <p className="text-xs text-muted mb-3">Connect to view balances, sign in and trade. Bajar never takes custody of your funds.</p>
+        <p className="text-xs text-muted mb-3">Connecting signs you in: your wallet asks for one signature to verify it&apos;s you (no transaction, no fees). Bajar never takes custody of your funds or asks for your recovery phrase.</p>
         {mobile && <p className="text-xs text-muted mb-3 -mt-1">On your phone, the wallet app opens to approve and then returns you here.</p>}
         <ul className="space-y-1.5">
           {rows.map((r) => (

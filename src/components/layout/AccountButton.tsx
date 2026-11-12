@@ -109,9 +109,11 @@ function AccountPanel() {
       {wallet && (
         <div className="space-y-0.5">
           <button type="button" className={row} onClick={() => sync()} disabled={syncing} data-testid="wallet-sync"><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />{syncing ? "Syncing…" : "Sync wallet"}</button>
-          <button type="button" className={row} onClick={signedIn ? signOut : signIn}><ShieldCheck size={16} className={signedIn ? "text-up" : ""} />{signedIn ? "Signed in · Sign out" : "Sign in with wallet"}</button>
+          <div className={clsx(row, "cursor-default")} data-testid="auth-status"><ShieldCheck size={16} className={signedIn ? "text-up" : "text-warn"} />{signedIn ? "Verified by wallet signature" : "Not verified yet"}</div>
+          {!signedIn && <button type="button" className={row} onClick={signIn} data-testid="account-verify"><ShieldCheck size={16} />Verify wallet</button>}
           <button type="button" className={row} data-testid="account-switch" onClick={async () => { close(); await disconnect(); openModal(); }}><Repeat2 size={16} />Switch wallet</button>
-          <button type="button" className={clsx(row, "!text-down")} data-testid="account-disconnect" onClick={() => { close(); disconnect(); }}><LogOut size={16} />Disconnect</button>
+          <button type="button" className={clsx(row, "!text-down")} data-testid="account-disconnect" onClick={() => { close(); signOut(); }}><LogOut size={16} />Sign out &amp; disconnect</button>
+          <button type="button" className={clsx(row, "text-[13px]")} data-testid="account-signout-all" onClick={async () => { close(); await fetch("/api/auth/logout?everywhere=1", { method: "POST" }).catch(() => {}); signOut(); }}><LogOut size={15} />Sign out on all devices</button>
           {error && <div className="px-3 py-1 text-xs text-down">{error}</div>}
         </div>
       )}

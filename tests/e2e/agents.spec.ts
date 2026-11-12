@@ -17,7 +17,7 @@ async function stubPhantom(page: Page, opts: { reject?: boolean } = {}) {
       publicKey: null as null | { toString(): string },
       connect: async () => { provider.publicKey = { toString: () => pk }; return { publicKey: provider.publicKey }; },
       disconnect: async () => { provider.publicKey = null; },
-      signMessage: async (m: Uint8Array) => { if (reject) throw Object.assign(new Error("User rejected the request."), { code: 4001 }); return { signature: new Uint8Array(await w.__nodeSign(Array.from(m))) }; },
+      signMessage: async (m: Uint8Array) => { if (reject && new TextDecoder().decode(m).startsWith("BAJAR Pay")) throw Object.assign(new Error("User rejected the request."), { code: 4001 }); return { signature: new Uint8Array(await w.__nodeSign(Array.from(m))) }; },
       on: () => {}, off: () => {},
     };
     w.phantom = { solana: provider };
@@ -181,8 +181,7 @@ test.describe("BAJAR Agents", () => {
     await expect(page.getByTestId("store-amazon")).toContainText("Sign in with your Amazon account");
     await expect(page.getByTestId("store-amazon-unavailable")).toBeVisible(); // not configured here
     await page.getByTestId("profile-signin-btn").click();
-    await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click();
-    await page.getByTestId("profile-signin-btn").click(); // now "Sign in with wallet"
+    await page.getByRole("dialog").getByRole("button", { name: /Phantom/ }).click(); // connecting signs in (one signature)
     const form = page.getByTestId("shopping-profile");
     await expect(form).toBeVisible({ timeout: 15_000 });
     await form.getByLabel("Full name").first().fill("Ada Lovelace");

@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { TickerBar } from "@/components/layout/TickerBar";
-import { Footer } from "@/components/layout/Footer";
+import { AuthGate } from "@/components/wallet/AuthGate";
 import { THEME_SCRIPT } from "@/components/layout/ThemeToggle";
 import { WalletProvider } from "@/components/wallet/WalletProvider";
 import { ApprovalHost } from "@/components/bajar/ApprovalHost";
@@ -58,12 +58,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="with-sidebar flex-1 flex flex-col min-w-0">
             <TickerBar />
             <main id="main" className="flex-1 w-full mx-auto max-w-[1680px] px-3 sm:px-4 lg:px-6 py-4 lg:py-5">{children}</main>
-            <Footer />
           </div>
           <AppViewSync />
           <WalletSync />
           <MobileNav />
           <WalletModal />
+          <AuthGate />
           <AlertWatcher />
           <Toaster />
           <ApprovalHost />

@@ -1,7 +1,7 @@
 import "server-only";
-import { cookies } from "next/headers";
 import { q, newId } from "@/lib/treasury/db";
-import { SESSION_COOKIE, unseal, type Session } from "@/lib/server/auth";
+import type { Session } from "@/lib/server/auth";
+import { readSession } from "@/lib/server/gateway";
 import { listTreasuries } from "@/lib/treasury/store";
 import { PRO_COMP } from "@/lib/config/accounts";
 
@@ -22,8 +22,9 @@ export const USDC_SOLANA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export type ChainType = "solana" | "evm";
 export const normAddr = (chainType: ChainType, a: string) => (chainType === "evm" ? a.toLowerCase() : a);
 
+/** The verified session (auth gateway). */
 export async function currentSession(): Promise<Session | null> {
-  return unseal<Session>((await cookies()).get(SESSION_COOKIE)?.value, "session");
+  return readSession();
 }
 
 /** The profile of the signed-in wallet, created on first use. */
@@ -56,9 +57,24 @@ export async function linkWallet(profileId: string, chainType: ChainType, addres
   const addr = normAddr(chainType, address);
   const existing = (await q<{ profile_id: string }>("select profile_id from profile_wallets where address = $1", [addr]))[0];
   if (existing?.profile_id === profileId) return { ok: true };
-  if (existing) return { ok: false, error: "This wallet is already linked to another Bajar profile. Remove it there first." };
   const count = (await walletsOf(profileId)).length;
   if (count >= PRO.linkLimit + 1) return { ok: false, error: `A Bajar Wallet can connect up to ${PRO.linkLimit} other wallets.` };
+  if (existing) {
+    // Signing in creates a profile for the wallet. If that profile is just this wallet (no other wallets, no plan,
+    // no saved details or store logins, no orders), joining moves the wallet; otherwise it must be removed there first.
+    const other = existing.profile_id;
+    const [wallets, subs, shop, stores, orders] = await Promise.all([
+      q<{ n: string | number }>("select count(*) as n from profile_wallets where profile_id=$1", [other]),
+      q<{ n: string | number }>("select count(*) as n from subscriptions where profile_id=$1", [other]),
+      q<{ n: string | number }>("select count(*) as n from shopping_profiles where profile_id=$1", [other]),
+      q<{ n: string | number }>("select count(*) as n from store_accounts where profile_id=$1", [other]),
+      q<{ n: string | number }>("select count(*) as n from commerce_orders where profile_id=$1", [other]),
+    ]);
+    const empty = Number(wallets[0]?.n) <= 1 && [subs, shop, stores, orders].every((r) => Number(r[0]?.n ?? 0) === 0);
+    if (!empty) return { ok: false, error: "This wallet is already linked to another Bajar profile. Remove it there first." };
+    await q("update profile_wallets set profile_id=$1, label=$2, verified_at=now() where address=$3 and profile_id=$4", [profileId, label, addr, other]);
+    return { ok: true };
+  }
   await q("insert into profile_wallets (address, profile_id, chain_type, label) values ($1,$2,$3,$4)", [addr, profileId, chainType, label]);
   return { ok: true };
 }

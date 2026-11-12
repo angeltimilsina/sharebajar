@@ -103,4 +103,4 @@ export function verifyEvm(message: string, signatureHex: string, address: string
   return !!rec && rec.toLowerCase() === address.toLowerCase();
 }
 
-export interface Session { address: string; chainType: ChainType; exp: number; /** set when the sign-in was also verified with an ML-DSA-65 signature */ pq?: { alg: "ML-DSA-65"; fingerprint: string }; /** issued-at (ms) — admin actions require a recent sign-in */ iat?: number }
+export interface Session { address: string; chainType: ChainType; exp: number; /** set when the sign-in was also verified with an ML-DSA-65 signature */ pq?: { alg: "ML-DSA-65"; fingerprint: string }; /** issued-at (ms) — admin actions require a recent sign-in */ iat?: number; /** server-side session record (gateway) */ sid?: string }
