@@ -50,7 +50,7 @@ test.describe("public marketplace", () => {
 
   test("global search finds tokens", async ({ page }) => {
     await page.goto("/");
-    const box = page.getByRole("textbox", { name: "Search" });
+    const box = page.getByRole("textbox", { name: "Search", exact: true });
     await expect(async () => {
       await page.getByRole("button", { name: "Search tokens" }).first().click();
       await expect(box).toBeVisible({ timeout: 2000 });

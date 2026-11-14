@@ -81,7 +81,7 @@ test.describe("search @mobile", () => {
   test("opens full-screen with a 16px field, finds results, cancels @mobile", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Search tokens" }).first().click();
-    const box = page.getByRole("textbox", { name: "Search" });
+    const box = page.getByRole("textbox", { name: "Search", exact: true });
     await expect(box).toBeFocused();
     expect(await box.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await box.fill("solana");
