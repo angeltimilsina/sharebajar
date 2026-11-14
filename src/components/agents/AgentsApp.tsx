@@ -56,6 +56,8 @@ export function AgentsApp() {
   // Deep link to a sandbox product (from the test store's product URLs).
   useEffect(() => {
     const p = sp.get("product");
+    const q = sp.get("q")?.trim().slice(0, 500);
+    if (q && !p) { run(q); return; } // handed over from the home command bar
     if (p && /^tst-[a-z0-9]+$/.test(p)) run(`#Find #Checkout https://www.sharebajar.com/agents?sandbox=1&product=${p}`, "Show me this Bajar Test Store item");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

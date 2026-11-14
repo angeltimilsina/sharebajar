@@ -2,7 +2,7 @@
   "name": "sharebajar",
   "version": "0.1.0",
   "private": true,
-  "description": "ShareBajar — open, multi-chain crypto marketplace with real-time data, pro charts, wallet trading and AI market intelligence.",
+  "description": "BAJAR \u2014 open-source cross-chain token discovery, launchpad, decentralized trading and agentic commerce.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test --trace off"
+    "e2e": "playwright test --trace off",
+    "indexer": "node services/indexer/src/index.ts",
+    "indexer:once": "node services/indexer/src/index.ts --once",
+    "indexer:migrate": "node services/indexer/src/index.ts --migrate"
   },
   "engines": {
     "node": ">=20"
@@ -56,5 +59,6 @@
     "tailwindcss": "^4.3.5",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
-  }
+  },
+  "license": "Apache-2.0"
 }

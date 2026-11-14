@@ -158,7 +158,7 @@ export function CreatePool({ chain, token, symbol, decimals, onCreated }: { chai
         <>
           <div>
             <div className="flex justify-between text-[12px] text-muted"><span>{symbol} to deposit</span><span className="num">You hold {bal === null ? "…" : Number(formatUnits(bal, decimals)).toLocaleString()}</span></div>
-            <div className="mt-1 grid grid-cols-4 gap-1">{[25, 50, 75, 100].map((v) => <button key={v} onClick={() => setPct(v)} className={`h-9 rounded-lg text-[13px] font-medium ${pct === v ? "bg-brand text-white" : "bg-surface-2"}`}>{v}%</button>)}</div>
+            <div className="mt-1 grid grid-cols-4 gap-1">{[25, 50, 75, 100].map((v) => <button key={v} onClick={() => setPct(v)} className={`h-9 rounded-lg text-[13px] font-medium ${pct === v ? "bg-brand-fill text-brand-ink" : "bg-surface-2"}`}>{v}%</button>)}</div>
             <div className="mt-1 text-[12.5px] num">{tokensUi.toLocaleString()} {symbol}</div>
           </div>
           <label className="block text-[12px] text-muted">{NATIVE[chain]} to deposit

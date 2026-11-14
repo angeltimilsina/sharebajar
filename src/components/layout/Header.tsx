@@ -9,23 +9,25 @@ import { sidebar, useSidebar } from "@/lib/ui/sidebar";
 import { AccountButton } from "./AccountButton";
 
 /**
- * Main tabs: the token marketplace and the launchpad. Your account, wallet
- * controls and the other pages live in the Account button.
+ * Main tabs: Discover, Markets, Launchpad, Trade, Agents, Wallet. Your
+ * account and the other pages live in the Account button.
  */
 export const NAV: { href: string; label: string; match: RegExp }[] = [
-  { href: "/tokens", label: "Tokens", match: /^\/(tokens|token\/)/ },
+  { href: "/discover", label: "Discover", match: /^\/(discover|tokens|token\/)/ },
+  { href: "/", label: "Markets", match: /^\/($|markets|coin\/|compare)/ },
   { href: "/launchpad", label: "Launchpad", match: /^\/launchpad/ },
+  { href: "/trade", label: "Trade", match: /^\/trade/ },
   { href: "/agents", label: "Agents", match: /^\/agents/ },
+  { href: "/wallet", label: "Wallet", match: /^\/(wallet|portfolio)/ },
 ];
 
 /** Secondary destinations, listed in the Account menu. */
 export const MORE: { href: string; label: string; ai?: boolean; hint: string }[] = [
-  { href: "/", label: "Markets", hint: "Prices, gainers and losers" },
-  { href: "/trade", label: "Trade", hint: "Swap with your wallet" },
-  { href: "/discover", label: "Discover", hint: "Trending pools on every chain" },
+  { href: "/tokens", label: "Tokens", hint: "Trending launches on Solana, Base and EVM" },
   { href: "/intelligence", label: "Bajar Intelligence", ai: true, hint: "Ask about any market" },
   { href: "/learn", label: "Learn", hint: "Lessons + student sandbox (test coins)" },
   { href: "/pro", label: "Bajar Pro", hint: "Advanced investment agent" },
+  { href: "/developers", label: "Developers", hint: "Public market-data API" },
   { href: "/status", label: "System status", hint: "Live data sources" },
 ];
 

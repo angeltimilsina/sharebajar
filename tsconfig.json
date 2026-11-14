@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "target": "ES2022",
     "lib": [
       "dom",
@@ -25,6 +26,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@bajar/chain-adapters": [
+        "./packages/chain-adapters/src/index.ts"
       ]
     }
   },

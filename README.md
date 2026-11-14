@@ -1,10 +1,14 @@
-# Bajar — The Open Crypto Marketplace
+# BAJAR
 
-Bajar is a real-time, multi-chain crypto marketplace: token discovery, market intelligence, pro charts, non-custodial trading and wallet portfolios in one interface. Everything public works **without an account**.
+**Discover any token. Launch tokens. Trade across chains. Purchase real-world products using crypto and AI agents.**
 
-> **No API keys required for market data.** Prices, market caps and charts come from CoinLore and Binance public data; network conditions are read directly from the blockchains.
->
-> **Data honesty policy.** Bajar only shows real market data. Every live widget carries a freshness badge (`Live`, `Delayed`, `Stale`, `Unavailable`) with its source and timestamp. When an upstream fails we show the last good value marked *stale* or an explicit error — never simulated prices. Features that aren't integrated yet are labelled as such in the UI.
+BAJAR ([sharebajar.com](https://www.sharebajar.com)) is an open-source (Apache-2.0) cross-chain token discovery, launchpad, decentralized trading and agentic commerce platform. Everything public works **without an account**; accounts are wallet signatures.
+
+> **Data honesty policy.** BAJAR only shows real market data. Every response and widget names its source and age. When an upstream fails we show the last good value marked *stale* or an explicit "unavailable" state — never simulated prices, inventory, payments or transactions.
+
+- **Public market-data API:** [`/developers`](https://www.sharebajar.com/developers) · OpenAPI at `/api/v1/openapi.json`
+- **Architecture, module map and open dependencies:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Chain adapters** (`packages/chain-adapters`) and **indexer** (`services/indexer`) run standalone.
 
 ## Features
 
@@ -19,13 +23,15 @@ Bajar is a real-time, multi-chain crypto marketplace: token discovery, market in
 | **Treasury** (`/admin/treasury`) | Noncustodial revenue: register Solana wallet / Squads / Jupiter referral and EVM wallet / Safe treasuries, wallet-signed dual approvals, fee collection via Jupiter Swap V2 and 0x with disclosure, on-chain indexer + reconciliation, hash-chained ledger, dashboard, CSV exports, unsigned transfer/convert builders (wallet, Safe batch, Squads). See [docs/TREASURY.md](docs/TREASURY.md). |
 | **Ops** | `/status` and `/api/health` (integration + upstream health), structured JSON logs, per-IP rate limits, security headers. |
 
-### Not yet available (clearly labelled in the UI)
+### Status
 
-- **Bajar Wallet** (`/wallet`) — noncustodial BTC/EVM/Solana wallet: encrypted local vault, send/receive/QR, live portfolio, universal swaps (Jupiter, 0x, LI.FI incl. native BTC), ML-DSA-65 hybrid sign-in and signed backups. See [docs/WALLET.md](docs/WALLET.md).
-- **Limit orders** — not yet integrated.
-- **Token creation** on the Launchpad — preview only, nothing is deployed.
-- **ERC-20 balances / EVM tx history** in Portfolio — needs an indexing provider.
-- **AI assistant** — requires `ANTHROPIC_API_KEY`; without it the page says so and the rule-based signals still work.
+| Module | Live | Notes |
+| --- | --- | --- |
+| Discover (Solana, Base, Arbitrum, Ethereum, BNB Chain …) | Yes | Search, trending/new/top pools, token profiles, candles, trades, risk, SSE stream |
+| Trade | Yes | Phantom, MetaMask, WalletConnect, Bajar Wallet; Jupiter, 0x, LI.FI; simulation + wallet approval |
+| Launchpad | Yes | Solana SPL + EVM ERC-20 template from the creator's wallet; launch fee; pools. No public fundraising |
+| Agents / BAJAR Pay | Sandbox | Agents compare real store data; checkout is a labeled sandbox until a payment provider is connected |
+| Indexer + history API | Needs a host | Runs locally / Docker; needs an always-on host + `DATABASE_URL` in production |
 
 ## Architecture
 

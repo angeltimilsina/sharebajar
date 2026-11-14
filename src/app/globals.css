@@ -4,11 +4,13 @@
 @custom-variant light (&:where([data-theme=light], [data-theme=light] *));
 
 /*
- * Bajar design system — iOS-style.
- * System font, iOS system colours, grouped surfaces, frosted-glass bars and
- * generous continuous corners. Dark mode is true black (OLED) with elevated
- * grey cards; light mode is the grouped grey background with white cards.
- * Blue is the tint for actions; green/red only signal gains and losses.
+ * BAJAR design system — iOS-inspired, black and white surfaces, vivid green.
+ * Grouped surfaces, frosted-glass bars and generous continuous corners. Dark
+ * mode is true black (OLED) with elevated grey cards; light mode is the
+ * grouped grey background with white cards.
+ * Brand green #05FA3E fills primary actions (with near-black ink) in both
+ * themes. Green TEXT uses #05FA3E on dark surfaces and a deeper #037A1F on
+ * light ones, so it keeps at least 4.5:1 contrast.
  */
 :root {
   --bg: #f2f2f7;
@@ -21,13 +23,15 @@
   --text: #000000;
   --muted: #6e6e73;
   --faint: #aeaeb2;
-  --brand: #007aff;          /* tint: primary actions, links, active states */
-  --brand-strong: #0062cc;
-  --brand-ink: #ffffff;      /* text on tint */
-  --brand-soft: rgba(0, 122, 255, 0.1);
-  --accent: #34c759;         /* green signal */
-  --accent-soft: rgba(52, 199, 89, 0.12);
-  --up: #248a3d;
+  --brand: #037a1f;          /* green as text/links/active states (5.6:1 on white) */
+  --brand-strong: #02621a;
+  --brand-fill: #05fa3e;     /* BAJAR green: filled primary actions */
+  --brand-fill-strong: #04e038;
+  --brand-ink: #03170a;      /* text on the green fill */
+  --brand-soft: rgba(5, 200, 50, 0.12);
+  --accent: #037a1f;
+  --accent-soft: rgba(5, 200, 50, 0.12);
+  --up: #0a7a24;
   --down: #d70015;
   --warn: #c93400;
   --ai: #8944ab;
@@ -38,7 +42,7 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 24px 60px -16px rgba(0, 0, 0, 0.22);
   --radius: 22px;
-  --series-1: #007aff; --series-2: #ff9500; --series-3: #34c759; --series-4: #ffcc00;
+  --series-1: #05c232; --series-2: #ff9500; --series-3: #007aff; --series-4: #ffcc00;
   --series-5: #ff2d55; --series-6: #5ac8fa; --series-7: #af52de; --series-8: #ff3b30;
   color-scheme: light;
 }
@@ -48,14 +52,14 @@
   --bg: #000000; --bg-elev: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --surface-3: #3a3a3c;
     --border: rgba(84, 84, 88, 0.36); --border-strong: rgba(84, 84, 88, 0.65);
     --text: #ffffff; --muted: #98989f; --faint: #636366;
-    --brand: #0a84ff; --brand-strong: #409cff; --brand-ink: #ffffff; --brand-soft: rgba(10, 132, 255, 0.16);
-    --accent: #30d158; --accent-soft: rgba(48, 209, 88, 0.16);
-    --up: #30d158; --down: #ff453a; --warn: #ff9f0a; --ai: #bf5af2;
+    --brand: #05fa3e; --brand-strong: #4bff74; --brand-fill: #05fa3e; --brand-fill-strong: #4bff74; --brand-ink: #03170a; --brand-soft: rgba(5, 250, 62, 0.14);
+    --accent: #05fa3e; --accent-soft: rgba(5, 250, 62, 0.14);
+    --up: #05fa3e; --down: #ff453a; --warn: #ff9f0a; --ai: #bf5af2;
     --glass: rgba(22, 22, 24, 0.62); --glass-edge: rgba(255, 255, 255, 0.1); --glass-strong: rgba(36, 36, 38, 0.86);
     --chart-grid: rgba(255, 255, 255, 0.05);
     --shadow: none;
     --shadow-lg: 0 20px 50px -12px rgba(0, 0, 0, 0.8);
-    --series-1: #0a84ff; --series-2: #ff9f0a; --series-3: #30d158; --series-4: #ffd60a;
+    --series-1: #05fa3e; --series-2: #ff9f0a; --series-3: #0a84ff; --series-4: #ffd60a;
     --series-5: #ff375f; --series-6: #64d2ff; --series-7: #bf5af2; --series-8: #ff453a;
     color-scheme: dark;
 }
@@ -64,14 +68,14 @@
     --bg: #000000; --bg-elev: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --surface-3: #3a3a3c;
     --border: rgba(84, 84, 88, 0.36); --border-strong: rgba(84, 84, 88, 0.65);
     --text: #ffffff; --muted: #98989f; --faint: #636366;
-    --brand: #0a84ff; --brand-strong: #409cff; --brand-ink: #ffffff; --brand-soft: rgba(10, 132, 255, 0.16);
-    --accent: #30d158; --accent-soft: rgba(48, 209, 88, 0.16);
-    --up: #30d158; --down: #ff453a; --warn: #ff9f0a; --ai: #bf5af2;
+    --brand: #05fa3e; --brand-strong: #4bff74; --brand-fill: #05fa3e; --brand-fill-strong: #4bff74; --brand-ink: #03170a; --brand-soft: rgba(5, 250, 62, 0.14);
+    --accent: #05fa3e; --accent-soft: rgba(5, 250, 62, 0.14);
+    --up: #05fa3e; --down: #ff453a; --warn: #ff9f0a; --ai: #bf5af2;
     --glass: rgba(22, 22, 24, 0.62); --glass-edge: rgba(255, 255, 255, 0.1); --glass-strong: rgba(36, 36, 38, 0.86);
     --chart-grid: rgba(255, 255, 255, 0.05);
     --shadow: none;
     --shadow-lg: 0 20px 50px -12px rgba(0, 0, 0, 0.8);
-    --series-1: #0a84ff; --series-2: #ff9f0a; --series-3: #30d158; --series-4: #ffd60a;
+    --series-1: #05fa3e; --series-2: #ff9f0a; --series-3: #0a84ff; --series-4: #ffd60a;
     --series-5: #ff375f; --series-6: #64d2ff; --series-7: #bf5af2; --series-8: #ff453a;
     color-scheme: dark;
   }
@@ -91,6 +95,7 @@
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-ink: var(--brand-ink);
+  --color-brand-fill: var(--brand-fill);
   --color-brand-soft: var(--brand-soft);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
@@ -129,11 +134,11 @@ h1 { line-height: 1.12; }
 
 /* Primary action: filled tint capsule. `.btn-silver` kept as an alias. */
 .btn-ink, .btn-silver {
-  background: var(--brand);
+  background: var(--brand-fill);
   color: var(--brand-ink);
   transition: background-color 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
 }
-.btn-ink:hover, .btn-silver:hover { background: var(--brand-strong); }
+.btn-ink:hover, .btn-silver:hover { background: var(--brand-fill-strong); }
 .btn-ink:active, .btn-silver:active { transform: scale(0.97); opacity: 0.9; }
 .text-silver { color: var(--text); }
 

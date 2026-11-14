@@ -77,7 +77,7 @@ export function LaunchWizard() {
       {/* Steps */}
       <ol className="grid grid-cols-3 gap-1 text-[12px]">
         {(["details", "networks", "launch"] as const).map((s, i) => (
-          <li key={s} className={clsx("rounded-full px-2 py-1.5 text-center font-medium", step === s ? "bg-brand text-white" : "bg-surface-2 text-muted")}>{i + 1}. {s === "details" ? "Details" : s === "networks" ? "Networks & fees" : "Launch"}</li>
+          <li key={s} className={clsx("rounded-full px-2 py-1.5 text-center font-medium", step === s ? "bg-brand-fill text-brand-ink" : "bg-surface-2 text-muted")}>{i + 1}. {s === "details" ? "Details" : s === "networks" ? "Networks & fees" : "Launch"}</li>
         ))}
       </ol>
 

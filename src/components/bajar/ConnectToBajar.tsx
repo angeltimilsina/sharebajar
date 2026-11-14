@@ -55,12 +55,12 @@ export function ConnectToBajar({ token }: { token: string }) {
           <>
             <ol className="space-y-2 text-[14px]">
               <li className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
-                <span className="h-6 w-6 rounded-full bg-brand text-white grid place-items-center text-[12px] font-semibold">1</span>
+                <span className="h-6 w-6 rounded-full bg-brand-fill text-brand-ink grid place-items-center text-[12px] font-semibold">1</span>
                 <span className="flex-1">{wallet ? <>Connected: <b>{wallet.walletName}</b> <span className="num text-muted">{shortAddress(wallet.address)}</span></> : "Connect the wallet you want to add"}</span>
                 <Button size="sm" variant="outline" onClick={openModal}><Plug size={13} /> {wallet ? "Change" : "Connect"}</Button>
               </li>
               <li className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
-                <span className="h-6 w-6 rounded-full bg-brand text-white grid place-items-center text-[12px] font-semibold">2</span>
+                <span className="h-6 w-6 rounded-full bg-brand-fill text-brand-ink grid place-items-center text-[12px] font-semibold">2</span>
                 <span className="flex-1">Sign a message to prove it&apos;s yours</span>
               </li>
             </ol>

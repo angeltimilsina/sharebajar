@@ -4,13 +4,13 @@ import { expect, test } from "@playwright/test";
 test.describe("journey", () => {
   test.setTimeout(120_000);
 
-  test("navigation: Tokens, Launchpad and Agents; account and other pages in the Account menu; wallet side menu before connecting", async ({ page }) => {
+  test("navigation: Discover, Markets, Launchpad, Trade, Agents, Wallet; account and other pages in the Account menu; wallet side menu before connecting", async ({ page }) => {
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Main" });
-    await expect(nav.getByRole("link")).toHaveText(["Tokens", "Launchpad", "Agents"]);
+    await expect(nav.getByRole("link")).toHaveText(["Discover", "Markets", "Launchpad", "Trade", "Agents", "Wallet"]);
     await page.getByTestId("account-button").click();
     await expect(page.getByTestId("account-panel").getByTestId("account-connect")).toBeVisible();
-    await expect(page.getByTestId("account-pages").getByRole("menuitem")).toHaveText([/Markets/, /Trade/, /Discover/, /Bajar Intelligence/, /Learn/, /System status/]);
+    await expect(page.getByTestId("account-pages").getByRole("menuitem")).toHaveText([/Tokens/, /Bajar Intelligence/, /Learn/, /Developers/, /System status/]);
     await page.keyboard.press("Escape");
     const side = page.getByTestId("wallet-sidebar");
     await expect(side.getByTestId("menu-connect")).toBeVisible();
