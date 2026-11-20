@@ -1,0 +1,182 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { getCoinDetail, type CoinDetail } from "@/lib/market/markets";
+import { searchTokens } from "@/lib/trading/jupiter";
+import { coinInsights } from "@/lib/analytics/insights";
+import { errorMessage } from "@/lib/server/cache";
+import { formatNumber, formatPrice, formatUsd } from "@/lib/format";
+import { Badge, Card, CardHeader, Notice, Pct, Stat } from "@/components/ui/primitives";
+import { TokenIcon } from "@/components/ui/TokenIcon";
+import { InstitutionLogo } from "@/components/ui/InstitutionLogo";
+import { ProChart } from "@/components/chart/ProChart";
+import { OrderBook } from "@/components/trade/OrderBook";
+import { TradeFeed } from "@/components/trade/TradeFeed";
+import { AiSummary } from "@/components/ai/AiSummary";
+import { MarketNews } from "@/components/market/SideFeeds";
+import { LivePrice } from "@/components/market/LivePrice";
+import { TokenActions } from "@/components/market/TokenActions";
+import { AssetWorkspace } from "@/components/asset/AssetWorkspace";
+import type { ExecAsset } from "@/components/asset/AssetExecution";
+import { KNOWN_TOKENS, NATIVE_EVM } from "@/lib/treasury/tokens";
+import { coinPageCopy, comparisonsFor, trendingSearches, universe } from "@/lib/seo/agent";
+import { categoriesOf } from "@/lib/seo/topics";
+import { absolute } from "@/lib/site";
+import { Breadcrumbs, DataSummary, FaqSection, JsonLd, RelatedLinks } from "@/components/seo/SeoBlocks";
+
+export const dynamic = "force-dynamic";
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  try {
+    const r = await getCoinDetail(id);
+    if (!r) return { title: "Coin not found" };
+    const m = r.data.market;
+    return {
+      title: `${m.name} price today: ${m.symbol} to USD live chart & market cap`,
+      description: `${m.name} (${m.symbol}) price is ${formatPrice(m.price)}${m.change24h !== null ? ` (${m.change24h >= 0 ? "+" : ""}${m.change24h.toFixed(2)}% 24h)` : ""}, market cap ${formatUsd(m.marketCap)}, 24h volume ${formatUsd(m.volume24h)}. Live chart, order book, trades and where to buy.`,
+      keywords: [`${m.name} price`, `${m.symbol} price`, `${m.symbol} to USD`, `${m.name} market cap`, `${m.name} chart`],
+      alternates: { canonical: `/coin/${m.id}` },
+      openGraph: { title: `${m.name} (${m.symbol}) price today`, url: `/coin/${m.id}`, type: "website" },
+    };
+  } catch {
+    return { title: id };
+  }
+}
+
+/** Solana mint for this asset, if it trades on Solana (verified tokens only). */
+async function solanaMint(symbol: string): Promise<string | undefined> {
+  if (symbol === "SOL") return SOL_MINT;
+  try {
+    const { data } = await searchTokens(symbol);
+    const match = data.filter((t) => t.verified && t.symbol.toUpperCase() === symbol.toUpperCase()).sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0))[0];
+    return match && (match.liquidity ?? 0) > 100_000 ? match.address : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Where this listed asset can be executed on-chain from a self-custody wallet. */
+const NATIVE_COINS: Record<string, string> = { ETH: "ethereum", BNB: "bsc", POL: "polygon", MATIC: "polygon", AVAX: "avalanche" };
+async function executionFor(symbol: string, solMint: string | undefined): Promise<Pick<ExecAsset, "chain" | "token" | "unavailableReason">> {
+  const s = symbol.toUpperCase();
+  if (NATIVE_COINS[s]) return { chain: NATIVE_COINS[s], token: NATIVE_EVM };
+  if (solMint) return { chain: "solana", token: solMint };
+  const erc20 = KNOWN_TOKENS.ethereum?.find((t) => t.symbol.toUpperCase() === s);
+  if (erc20) return { chain: "ethereum", token: erc20.token };
+  return {
+    chain: null, token: null,
+    unavailableReason: s === "BTC" ? "Native bitcoin isn't a token on a smart-contract network, so it can't be bought through an on-chain swap here." : `${symbol} has no verified, liquid on-chain market on a supported network.`,
+  };
+}
+
+export default async function CoinPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!/^[a-z0-9-]{1,80}$/.test(id)) notFound();
+  let r: { data: CoinDetail; fetchedAt: number; stale: boolean } | null;
+  try {
+    r = await getCoinDetail(id);
+  } catch (e) {
+    return <Notice tone="down" title="Market data temporarily unavailable" className="my-10">{errorMessage(e)}. Please retry in a moment.</Notice>;
+  }
+  if (!r) notFound();
+  const { market: m, binancePair: pair, ath, atl, exchanges } = r.data;
+  const mint = await solanaMint(m.symbol);
+  const copy = coinPageCopy(m, r.fetchedAt);
+  const [peers, trending] = await Promise.all([
+    universe().then(({ coins }) => comparisonsFor(m.id, coins)).catch(() => []),
+    trendingSearches(),
+  ]);
+  const related = [...categoriesOf(m).map((c) => ({ label: c.label, href: `/markets/${c.slug}` })), ...peers];
+  const jsonLd = {
+    "@context": "https://schema.org", "@type": "WebPage", name: `${m.name} (${m.symbol}) price`, url: absolute(`/coin/${m.id}`),
+    dateModified: new Date(r.fetchedAt).toISOString(),
+    mainEntity: {
+      "@type": "ExchangeRateSpecification", currency: m.symbol,
+      currentExchangeRate: m.price !== null ? { "@type": "UnitPriceSpecification", price: m.price, priceCurrency: "USD" } : undefined,
+    },
+    about: { "@type": "Thing", name: m.name, alternateName: m.symbol, image: m.image?.startsWith("/") ? absolute(m.image) : m.image },
+  };
+
+  const exec = await executionFor(m.symbol, mint);
+  const execAsset: ExecAsset = { symbol: m.symbol, name: m.name, href: `/coin/${m.id}`, ...exec };
+
+  return (
+    <>
+      <JsonLd data={jsonLd} />
+      <Breadcrumbs items={[{ label: "Bajar", href: "/" }, { label: "Markets", href: "/markets/largest" }, { label: `${m.name} price`, href: `/coin/${m.id}` }]} />
+      <AssetWorkspace
+        asset={execAsset}
+        header={
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <TokenIcon src={m.image} symbol={m.symbol} size={44} canonical />
+              <h1 className="text-[28px] flex items-center gap-2 flex-wrap">{m.name} <span className="text-muted text-base font-sans font-medium">{m.symbol}</span>{m.rank && <Badge>Rank #{m.rank}</Badge>}</h1>
+            </div>
+            <LivePrice symbol={pair} fallback={m.price} fallbackChange={m.change24h} fetchedAt={r.fetchedAt} />
+            <div className="flex-1" />
+            <TokenActions watch={{ kind: "coin", id: m.id, label: m.symbol }} />
+          </div>
+        }
+        chart={pair ? <ProChart feed={{ kind: "binance", symbol: pair }} label={`${m.symbol}/USDT`} height={480} />
+          : <Notice title="No live exchange chart">{m.name} has no Binance spot USDT market, so real-time candles aren&apos;t available. Prices are aggregated across exchanges by CoinLore.</Notice>}
+        market={pair ? <OrderBook symbol={pair} base={m.symbol} rows={14} /> : <Notice>No live order book for this asset.</Notice>}
+        activity={pair ? <TradeFeed source={{ kind: "binance", symbol: pair, base: m.symbol }} height={320} /> : undefined}
+        overview={
+          <>
+            <Card className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <Stat label="Market Cap" value={formatUsd(m.marketCap)} />
+              <Stat label="Fully Diluted Valuation" value={formatUsd(m.fdv)} />
+              <Stat label="Reported 24h Volume" value={formatUsd(m.volume24h)} sub={<span className="text-faint">all exchanges</span>} />
+              <Stat label="Vol / MCap" value={m.volume24h && m.marketCap ? `${((m.volume24h / m.marketCap) * 100).toFixed(2)}%` : "—"} />
+              <Stat label="Circulating Supply" value={`${formatNumber(m.circulatingSupply)} ${m.symbol}`} />
+              <Stat label="Total Supply" value={formatNumber(m.totalSupply)} />
+              <Stat label="Max Supply" value={m.maxSupply ? formatNumber(m.maxSupply) : "∞"} />
+              <Stat label="24h Range" value={m.low24h !== null ? `${formatPrice(m.low24h)} – ${formatPrice(m.high24h)}` : "—"} />
+              <Stat label="High since Binance listing" value={ath ? formatPrice(ath.price) : "—"} sub={ath ? <span className="text-muted">{new Date(ath.time).toLocaleDateString()}</span> : undefined} />
+              <Stat label="Low since Binance listing" value={atl ? formatPrice(atl.price) : "—"} sub={atl ? <span className="text-muted">{new Date(atl.time).toLocaleDateString()}</span> : undefined} />
+              <Stat label="1h / 7d" value={<span className="flex gap-2"><Pct v={m.change1h} /><Pct v={m.change7d} /></span>} />
+              <Stat label="Data" value={<span className="text-xs font-normal text-muted">{pair ? "Binance live · CoinLore supply" : "CoinLore"}{r.stale ? " (cached)" : ""}</span>} />
+            </Card>
+            {pair && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <TradeFeed source={{ kind: "binance", symbol: pair, base: m.symbol }} height={360} />
+                <OrderBook symbol={pair} base={m.symbol} rows={10} />
+              </div>
+            )}
+          </>
+        }
+        rail={
+          <>
+            <AiSummary context={{ kind: "coin", id: m.id }} name={`${m.name} (${m.symbol})`} insights={coinInsights(m, ath?.price)} />
+            <Card>
+              <CardHeader title="Where it trades" sub="Top USD markets by volume · CoinLore" />
+              {exchanges.length ? (
+                <table className="w-full text-[12.5px] num mb-3">
+                  <thead className="text-faint text-[11px]"><tr><th className="text-left font-normal px-4 py-1">Exchange</th><th className="text-right font-normal">Price</th><th className="text-right font-normal px-4">24h Vol</th></tr></thead>
+                  <tbody>
+                    {exchanges.slice(0, 8).map((x) => (
+                      <tr key={x.exchange + x.pair} className="border-t border-line/60">
+                        <td className="px-4 py-1.5"><span className="inline-flex items-center gap-1.5 font-medium"><InstitutionLogo name={x.exchange} />{x.exchange}</span> <span className="text-faint">{x.pair}</span></td>
+                        <td className="text-right">{formatPrice(x.price)}</td>
+                        <td className="text-right px-4">{formatUsd(x.volumeUsd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <p className="px-4 pb-4 text-xs text-muted">Exchange market data unavailable.</p>}
+            </Card>
+            <MarketNews limit={4} query={`${m.name},${m.symbol}`} />
+          </>
+        }
+      />
+      <section className="mt-8 space-y-6" aria-label={`About the ${m.name} price`}>
+        <h2 className="text-xl">{m.name} price today</h2>
+        <DataSummary summary={copy.summary} updated={r.fetchedAt} />
+        <FaqSection faq={copy.faq} title={`${m.name} FAQ`} />
+        <RelatedLinks title={`Compare ${m.symbol} and explore`} links={related} testid="coin-related" />
+        <RelatedLinks title="Trending searches" links={trending} testid="trending-searches" />
+      </section>
+    </>
+  );
+}

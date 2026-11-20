@@ -1,0 +1,11 @@
+{
+  "name": "@bajar/chain-adapters",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BAJAR chain adapters: one interface and data schema for token discovery, pools, candles, trades and risk on Solana, Base, Arbitrum and other chains.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "main": "./src/index.ts",
+  "engines": { "node": ">=22.18" }
+}

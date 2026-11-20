@@ -1,0 +1,20 @@
+BAJAR
+Copyright 2026 BAJAR contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes or depends on third-party software under other licenses:
+
+- WalletConnect Ethereum Provider (@walletconnect/ethereum-provider) — WalletConnect
+  Community License Agreement (not an open-source license). Portions © 2025 Reown, Inc.
+  All Rights Reserved. Its terms require this attribution, a copy of that license with
+  distributions, and use of the Reown/WalletConnect network. See
+  node_modules/@walletconnect/ethereum-provider/LICENSE.md.
+- Inter (@fontsource-variable/inter) — SIL Open Font License 1.1.
+- cryptocurrency-icons — CC0 1.0.
+- TweetNaCl (tweetnacl) — Unlicense (public domain).
+- All other runtime dependencies are MIT, ISC, BSD or Apache-2.0 licensed.
+
+Market data is retrieved at runtime from third-party services (GeckoTerminal/CoinGecko,
+DexScreener, GoPlus Security, Binance public market data, CoinLore and others) and remains
+subject to their terms of use.

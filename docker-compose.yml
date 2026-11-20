@@ -1,0 +1,48 @@
+# Local BAJAR stack: web app, market indexer, TimescaleDB (Postgres) and Redis.
+#   cp .env.example .env   # set TREASURY_ENCRYPTION_KEY etc.
+#   docker compose up --build
+# Web: http://localhost:3000  ·  API docs: http://localhost:3000/developers
+services:
+  db:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: bajar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bajar-dev-only}
+      POSTGRES_DB: bajar
+    ports: ["5432:5432"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bajar -d bajar"]
+      interval: 5s
+      retries: 20
+
+  # Reserved for multi-instance rate limits and job queues (not required by the current code).
+  redis:
+    image: redis:7.4-alpine
+    ports: ["6379:6379"]
+
+  indexer:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    command: ["node", "services/indexer/src/index.ts"]
+    volumes: [".:/app:ro"]
+    environment:
+      DATABASE_URL: postgres://bajar:${POSTGRES_PASSWORD:-bajar-dev-only}@db:5432/bajar?sslmode=disable
+      INDEXER_CHAINS: ${INDEXER_CHAINS:-solana,base}
+      INDEXER_INTERVAL_SEC: ${INDEXER_INTERVAL_SEC:-60}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+  web:
+    build: .
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://bajar:${POSTGRES_PASSWORD:-bajar-dev-only}@db:5432/bajar?sslmode=disable
+    ports: ["3000:3000"]
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  db-data:

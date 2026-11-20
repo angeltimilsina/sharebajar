@@ -1,0 +1,244 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@custom-variant light (&:where([data-theme=light], [data-theme=light] *));
+
+/*
+ * BAJAR design system — iOS-inspired, black and white surfaces, vivid green.
+ * Grouped surfaces, frosted-glass bars and generous continuous corners. Dark
+ * mode is true black (OLED) with elevated grey cards; light mode is the
+ * grouped grey background with white cards.
+ * Brand green #05FA3E fills primary actions (with near-black ink) in both
+ * themes. Green TEXT uses #05FA3E on dark surfaces and a deeper #037A1F on
+ * light ones, so it keeps at least 4.5:1 contrast.
+ */
+:root {
+  --bg: #f2f2f7;
+  --bg-elev: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: rgba(118, 118, 128, 0.12);
+  --surface-3: rgba(118, 118, 128, 0.2);
+  --border: rgba(60, 60, 67, 0.12);
+  --border-strong: rgba(60, 60, 67, 0.26);
+  --text: #000000;
+  --muted: #6e6e73;
+  --faint: #aeaeb2;
+  --brand: #037a1f;          /* green as text/links/active states (5.6:1 on white) */
+  --brand-strong: #02621a;
+  --brand-fill: #05fa3e;     /* BAJAR green: filled primary actions */
+  --brand-fill-strong: #04e038;
+  --brand-ink: #03170a;      /* text on the green fill */
+  --brand-soft: rgba(5, 200, 50, 0.12);
+  --accent: #037a1f;
+  --accent-soft: rgba(5, 200, 50, 0.12);
+  --up: #0a7a24;
+  --down: #d70015;
+  --warn: #c93400;
+  --ai: #8944ab;
+  --glass: rgba(255, 255, 255, 0.68);
+  --glass-edge: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(250, 250, 252, 0.84);
+  --chart-grid: rgba(60, 60, 67, 0.06);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 24px 60px -16px rgba(0, 0, 0, 0.22);
+  --radius: 22px;
+  --series-1: #05c232; --series-2: #ff9500; --series-3: #007aff; --series-4: #ffcc00;
+  --series-5: #ff2d55; --series-6: #5ac8fa; --series-7: #af52de; --series-8: #ff3b30;
+  color-scheme: light;
+}
+
+/* Dark: explicit choice, or the device preference when no choice is saved. True black. */
+:root[data-theme="dark"] {
+  --bg: #000000; --bg-elev: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --surface-3: #3a3a3c;
+    --border: rgba(84, 84, 88, 0.36); --border-strong: rgba(84, 84, 88, 0.65);
+    --text: #ffffff; --muted: #98989f; --faint: #636366;
+    --brand: #05fa3e; --brand-strong: #4bff74; --brand-fill: #05fa3e; --brand-fill-strong: #4bff74; --brand-ink: #03170a; --brand-soft: rgba(5, 250, 62, 0.14);
+    --accent: #05fa3e; --accent-soft: rgba(5, 250, 62, 0.14);
+    --up: #05fa3e; --down: #ff453a; --warn: #ff9f0a; --ai: #bf5af2;
+    --glass: rgba(22, 22, 24, 0.62); --glass-edge: rgba(255, 255, 255, 0.1); --glass-strong: rgba(36, 36, 38, 0.86);
+    --chart-grid: rgba(255, 255, 255, 0.05);
+    --shadow: none;
+    --shadow-lg: 0 20px 50px -12px rgba(0, 0, 0, 0.8);
+    --series-1: #05fa3e; --series-2: #ff9f0a; --series-3: #0a84ff; --series-4: #ffd60a;
+    --series-5: #ff375f; --series-6: #64d2ff; --series-7: #bf5af2; --series-8: #ff453a;
+    color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --bg-elev: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --surface-3: #3a3a3c;
+    --border: rgba(84, 84, 88, 0.36); --border-strong: rgba(84, 84, 88, 0.65);
+    --text: #ffffff; --muted: #98989f; --faint: #636366;
+    --brand: #05fa3e; --brand-strong: #4bff74; --brand-fill: #05fa3e; --brand-fill-strong: #4bff74; --brand-ink: #03170a; --brand-soft: rgba(5, 250, 62, 0.14);
+    --accent: #05fa3e; --accent-soft: rgba(5, 250, 62, 0.14);
+    --up: #05fa3e; --down: #ff453a; --warn: #ff9f0a; --ai: #bf5af2;
+    --glass: rgba(22, 22, 24, 0.62); --glass-edge: rgba(255, 255, 255, 0.1); --glass-strong: rgba(36, 36, 38, 0.86);
+    --chart-grid: rgba(255, 255, 255, 0.05);
+    --shadow: none;
+    --shadow-lg: 0 20px 50px -12px rgba(0, 0, 0, 0.8);
+    --series-1: #05fa3e; --series-2: #ff9f0a; --series-3: #0a84ff; --series-4: #ffd60a;
+    --series-5: #ff375f; --series-6: #64d2ff; --series-7: #bf5af2; --series-8: #ff453a;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elev: var(--bg-elev);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-fill: var(--brand-fill);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-warn: var(--warn);
+  --color-ai: var(--ai);
+  /* Apple devices get the system font (SF Pro); everyone else gets Inter. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Variable", "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-serif: var(--font-sans);
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+html, body { background: var(--bg); color: var(--text); }
+/* room for the floating tab bar on phones */
+@media (max-width: 767px) { body { padding-bottom: calc(88px + env(safe-area-inset-bottom)); } }
+html { -webkit-tap-highlight-color: transparent; text-size-adjust: 100%; }
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11";
+  line-height: 1.47;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* iOS-style titles: bold system sans, tight tracking (large titles). */
+h1, h2, .font-display { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.022em; }
+h2 { font-weight: 650; letter-spacing: -0.016em; }
+h1 { line-height: 1.12; }
+
+* { border-color: var(--border); }
+::selection { background: color-mix(in srgb, var(--brand) 28%, transparent); }
+:focus-visible { outline: 2px solid color-mix(in srgb, var(--brand) 70%, transparent); outline-offset: 2px; }
+
+/* Primary action: filled tint capsule. `.btn-silver` kept as an alias. */
+.btn-ink, .btn-silver {
+  background: var(--brand-fill);
+  color: var(--brand-ink);
+  transition: background-color 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+}
+.btn-ink:hover, .btn-silver:hover { background: var(--brand-fill-strong); }
+.btn-ink:active, .btn-silver:active { transform: scale(0.97); opacity: 0.9; }
+.text-silver { color: var(--text); }
+
+/* Respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* Grouped card: no outline in dark (elevation by colour), hairline in light. */
+.panel {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+:root[data-theme="dark"] .panel { border-color: transparent; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .panel { border-color: transparent; } }
+
+/* Frosted glass material for bars, menus and sheets. */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+/* Floating glass capsule (tab bar): soft edge highlight. */
+.glass-capsule {
+  background: var(--glass-strong);
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  box-shadow: inset 0 0.5px 0 var(--glass-edge), 0 0 0 0.5px var(--border-strong), 0 12px 32px -10px rgba(0, 0, 0, 0.45);
+}
+
+/* Gentle entrance for page content */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* price flash on live updates */
+@keyframes flash-up { from { background: color-mix(in srgb, var(--up) 22%, transparent); } to { background: transparent; } }
+@keyframes flash-down { from { background: color-mix(in srgb, var(--down) 22%, transparent); } to { background: transparent; } }
+.flash-up { animation: flash-up 0.9s ease-out; }
+.flash-down { animation: flash-down 0.9s ease-out; }
+
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee { animation: marquee 60s linear infinite; }
+.marquee:hover { animation-play-state: paused; }
+
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 8px; }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 5%, transparent), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+.prose-ai p { margin: 0.4rem 0; }
+.prose-ai ul { list-style: disc; padding-left: 1.2rem; margin: 0.4rem 0; }
+.prose-ai ol { list-style: decimal; padding-left: 1.2rem; margin: 0.4rem 0; }
+.prose-ai h3, .prose-ai h4 { font-weight: 600; margin: 0.7rem 0 0.3rem; }
+.prose-ai code { font-family: var(--font-mono); font-size: 0.85em; background: var(--surface-3); padding: 0.1rem 0.3rem; border-radius: 4px; }
+.prose-ai table { width: 100%; font-size: 0.85em; border-collapse: collapse; margin: 0.5rem 0; }
+.prose-ai th, .prose-ai td { border-bottom: 1px solid var(--border); padding: 0.3rem 0.4rem; text-align: left; }
+.prose-ai a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.prose-ai { line-height: 1.65; }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee, .pulse-dot, .flash-up, .flash-down, .rise { animation: none; }
+}
+
+/* Once a wallet is connected the site is an app view: no marketing footer. */
+html[data-app-view] .site-footer { display: none; }
+
+/* Home market board rows: phone = asset | price+stat; desktop = full columns. */
+.board-grid { grid-template-columns: minmax(0, 1fr) auto; }
+@media (min-width: 1024px) { .board-grid { grid-template-columns: 22px 28px minmax(160px, 1fr) 100px repeat(5, 78px); } }
+@media (min-width: 1536px) { .board-grid { grid-template-columns: 22px 28px minmax(200px, 1fr) 110px repeat(5, 88px) 96px; } }
+
+/* Segmented control: the selected segment sits lighter than its track (iOS). */
+.seg-on { background: #ffffff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04); }
+:root[data-theme="dark"] .seg-on { background: #636366; box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg-on { background: #636366; box-shadow: none; } }
+/* App pages mark themselves so the footer is hidden from the first paint. */
+html:has([data-app-page]) .site-footer { display: none; }
+/* Inputs that sit inside a styled field (the field shows focus instead). */
+.no-ring:focus-visible { outline: none; }
+
+/* Left wallet sidebar: content shifts beside it on desktop. */
+@media (min-width: 1024px) {
+  .with-sidebar { padding-left: 260px; transition: padding-left 0.2s ease; }
+  html[data-sb="collapsed"] .with-sidebar { padding-left: 76px; }
+  html[data-sb-hidden] .with-sidebar { padding-left: 0; }
+  html[data-sb-hidden] aside[data-testid="wallet-sidebar"] { display: none; }
+}
